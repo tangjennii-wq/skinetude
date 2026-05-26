@@ -1,0 +1,583 @@
+// === GuidedPhotoCaptureModal (May 2026) ===
+// Single source of truth for the 5-step guided skin photo set.
+// Used by: onboarding selfie step, daily check-in, Home cover.
+// NOT used by: bulk import from camera roll (that's PhotoImportQueue).
+//
+// Steps: front → left cheek → right cheek → T-zone → chin/jaw.
+// Optional detailed areas: eye_area, spot, custom (no auto-advance).
+//
+// Each saved photo carries metadata:
+//   { angle, source: 'guided_capture', capturedAt }
+//
+// Borrows camera/snap/upload code patterns from CameraCaptureModal so the
+// underlying mechanics (square crop to 800px @ 0.85 quality, mirror logic
+// for front cam, NotAllowedError fallback to Upload) stay consistent
+// across both surfaces. The user-facing UX is meaningfully different
+// (per-step instructions, dotted face guide, thumbnail strip with
+// progress), so it lives in its own component instead of being threaded
+// through CameraCaptureModal as another mode flag.
+
+const GUIDED_STEPS = [
+  { angle: 'front',       label: 'Front',        instruction: 'Face the camera directly.' },
+  { angle: 'left_cheek',  label: 'Left cheek',   instruction: 'Turn slightly so your left cheek fills the guide.' },
+  { angle: 'right_cheek', label: 'Right cheek',  instruction: 'Turn slightly so your right cheek fills the guide.' },
+  { angle: 't_zone',      label: 'T-zone',       instruction: 'Center forehead and nose in the guide.' },
+  { angle: 'chin_jaw',    label: 'Chin / jaw',   instruction: 'Lower slightly so chin and jaw fill the guide.' },
+];
+
+const DETAILED_STEPS = [
+  { angle: 'eye_area', label: 'Eye area',      instruction: 'Bring the eye area into the guide.' },
+  { angle: 'spot',     label: 'Spot photo',    instruction: 'Center the spot you want to track.' },
+  { angle: 'custom',   label: 'Custom concern', instruction: 'Frame the area you want to capture.' },
+];
+
+// Short label used in dot/strip (mobile width budget is brutal).
+const SHORT_LABEL = {
+  front: 'Front', left_cheek: 'Left', right_cheek: 'Right',
+  t_zone: 'T-zone', chin_jaw: 'Chin',
+  eye_area: 'Eye', spot: 'Spot', custom: 'Custom',
+};
+
+const GuidedPhotoCaptureModal = ({
+  // Required: invoked once with the array of captured photos when user taps Done.
+  // Each item: { angle, source: 'guided_capture', capturedAt, dataUrl }
+  onComplete,
+  onClose,
+  // Optional: pre-seed captured shots (used by onboarding retake — when
+  // the user comes back to the photo step we don't want them to lose
+  // what they already captured).
+  initialShots = [],
+  // Optional: control whether the "detailed areas" extra sheet is reachable.
+  // Onboarding wants the simpler 5-step; daily check-in may want detailed.
+  allowDetailedAreas = true,
+  // Pre-set context label (e.g. "Today's check-in" / "Baseline photos").
+  contextLabel = '',
+}) => {
+  const videoRef = useRef();
+  const canvasRef = useRef();
+  const streamRef = useRef(null);
+  const uploadInputRef = useRef(null);
+
+  const [error, setError] = useState('');
+  // shots: indexed by step.angle. Stored as { dataUrl, capturedAt, source }.
+  const seedFromInitial = () => {
+    const map = {};
+    for (const s of initialShots) {
+      if (s && s.angle && s.dataUrl) map[s.angle] = { dataUrl: s.dataUrl, capturedAt: s.capturedAt || new Date().toISOString(), source: s.source || 'guided_capture' };
+    }
+    return map;
+  };
+  const [shotsByAngle, setShotsByAngle] = useState(seedFromInitial);
+  const [stepIdx, setStepIdx] = useState(() => {
+    // Land on the first step without a capture so users returning to retake
+    // pick up exactly where they left off.
+    const initial = seedFromInitial();
+    const idx = GUIDED_STEPS.findIndex(s => !initial[s.angle]);
+    return idx === -1 ? 0 : idx;
+  });
+  const [showDetailed, setShowDetailed] = useState(false);
+  const [detailedIdx, setDetailedIdx] = useState(0);
+
+  const activeSequence = showDetailed ? DETAILED_STEPS : GUIDED_STEPS;
+  const activeIdx = showDetailed ? detailedIdx : stepIdx;
+  const currentStep = activeSequence[activeIdx] || GUIDED_STEPS[0];
+  const capturedCount = Object.keys(shotsByAngle).filter(k =>
+    GUIDED_STEPS.some(s => s.angle === k) && shotsByAngle[k]
+  ).length;
+  const totalGuided = GUIDED_STEPS.length;
+  const currentHasShot = !!shotsByAngle[currentStep.angle];
+
+  // Mirror front cam — same logic as CameraCaptureModal.
+  const facingMode = 'user';
+  const shouldMirror = true;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1080 } },
+          audio: false,
+        });
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+      } catch (e) {
+        const name = e && e.name;
+        if (name === 'NotAllowedError') setError('Camera access blocked. Tap Upload to add an existing photo, or grant access in Settings.');
+        else if (name === 'NotFoundError' || name === 'OverconstrainedError') setError('No camera available. Tap Upload to add an existing photo.');
+        else setError('Camera didn’t open. Tap Upload to add an existing photo.');
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
+  // The preview swaps between a captured image and the live <video> as the
+  // user advances steps. When the video element remounts, reattach the
+  // existing MediaStream so the next step does not appear as a black frame.
+  useEffect(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+    if (video.srcObject !== stream) video.srcObject = stream;
+    video.play().catch(() => {});
+  }, [currentStep.angle, currentHasShot, showDetailed]);
+
+  // === snap() — square crop, downscaled to 800px @ 0.85. Same parameters
+  // as CameraCaptureModal so photo payload size is consistent regardless
+  // of which surface produced it. Compression here is NOT optional — we
+  // never persist raw FileReader output anywhere in the app.
+  const snap = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return null;
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (!vw || !vh) return null;
+    const MAX_OUT = 800;
+    const sourceSize = Math.min(vw, vh);
+    const sx = (vw - sourceSize) / 2;
+    const sy = (vh - sourceSize) / 2;
+    const outSize = Math.min(sourceSize, MAX_OUT);
+    canvas.width = outSize;
+    canvas.height = outSize;
+    const ctx = canvas.getContext('2d');
+    if (shouldMirror) {
+      ctx.translate(outSize, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, sx, sy, sourceSize, sourceSize, 0, 0, outSize, outSize);
+    return canvas.toDataURL('image/jpeg', 0.85);
+  };
+
+  const handleShoot = () => {
+    const dataUrl = snap();
+    if (!dataUrl) return;
+    const angle = currentStep.angle;
+    setShotsByAngle(prev => ({
+      ...prev,
+      [angle]: { dataUrl, capturedAt: new Date().toISOString(), source: 'guided_capture' },
+    }));
+    // === AUTO-ADVANCE ===
+    // Only advance when we're inside the 5-step guided sequence and
+    // there's a next step. Detailed sequence does NOT auto-advance —
+    // user explicitly chose to capture extras, so they stay in
+    // control of moving on.
+    if (!showDetailed && stepIdx < GUIDED_STEPS.length - 1) {
+      setTimeout(() => setStepIdx(i => i + 1), 250);
+    }
+  };
+
+  const handleRetakeCurrent = () => {
+    const angle = currentStep.angle;
+    setShotsByAngle(prev => {
+      const next = { ...prev };
+      delete next[angle];
+      return next;
+    });
+  };
+
+  const handleSkip = () => {
+    if (!showDetailed && stepIdx < GUIDED_STEPS.length - 1) {
+      setStepIdx(i => i + 1);
+    } else if (showDetailed && detailedIdx < DETAILED_STEPS.length - 1) {
+      setDetailedIdx(i => i + 1);
+    }
+  };
+
+  const handleDone = () => {
+    if (capturedCount === 0 && Object.keys(shotsByAngle).length === 0) {
+      onClose && onClose();
+      return;
+    }
+    // Flatten shotsByAngle into the array the parent expects, preserving
+    // the canonical step order (guided first, then detailed).
+    const ordered = [];
+    for (const step of GUIDED_STEPS) {
+      const s = shotsByAngle[step.angle];
+      if (s) ordered.push({ angle: step.angle, source: s.source, capturedAt: s.capturedAt, dataUrl: s.dataUrl });
+    }
+    for (const step of DETAILED_STEPS) {
+      const s = shotsByAngle[step.angle];
+      if (s) ordered.push({ angle: step.angle, source: s.source, capturedAt: s.capturedAt, dataUrl: s.dataUrl });
+    }
+    onComplete && onComplete(ordered);
+    onClose && onClose();
+  };
+
+  // === UPLOAD-FROM-LIBRARY fallback for the camera-blocked case.
+  // We can't ask the OS picker for the specific angle, so we apply each
+  // uploaded file to the CURRENT step in order (first file → current
+  // step, second file → next, etc.). Imperfect, but better than blocking
+  // the user.
+  const handleUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    try {
+      const reader = new FileReader();
+      const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.onerror = () => reject(new Error('Could not read file'));
+        r.readAsDataURL(file);
+      });
+      // Compress each upload through the canvas pipeline so we never
+      // persist a raw 4MB iPhone shot. (Guard 3.7 in check_build.js
+      // would catch a regression here.)
+      const compress = async (rawDataUrl) => new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX_OUT = 800;
+          const sourceSize = Math.min(img.width, img.height);
+          const sx = (img.width - sourceSize) / 2;
+          const sy = (img.height - sourceSize) / 2;
+          const outSize = Math.min(sourceSize, MAX_OUT);
+          const c = canvasRef.current || document.createElement('canvas');
+          c.width = outSize; c.height = outSize;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(img, sx, sy, sourceSize, sourceSize, 0, 0, outSize, outSize);
+          resolve(c.toDataURL('image/jpeg', 0.85));
+        };
+        img.onerror = () => resolve(rawDataUrl); // fall back to raw on decode failure
+        img.src = rawDataUrl;
+      });
+      const startStep = showDetailed ? detailedIdx : stepIdx;
+      const sequence = activeSequence;
+      const additions = {};
+      for (let i = 0; i < files.length && (startStep + i) < sequence.length; i++) {
+        const raw = await fileToDataUrl(files[i]);
+        const compressed = await compress(raw);
+        const angle = sequence[startStep + i].angle;
+        additions[angle] = {
+          dataUrl: compressed,
+          capturedAt: files[i].lastModified ? new Date(files[i].lastModified).toISOString() : new Date().toISOString(),
+          source: 'guided_capture',
+        };
+      }
+      setShotsByAngle(prev => ({ ...prev, ...additions }));
+    } catch (err) {
+      console.warn('Guided upload failed:', err);
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
+  const openUploader = () => { if (uploadInputRef.current) uploadInputRef.current.click(); };
+
+  const capturedGuidedSteps = GUIDED_STEPS.filter(s => shotsByAngle[s.angle]);
+
+  return (
+    <div className="fixed inset-0 z-[150] flex items-center justify-center md:p-4" style={{background:'rgba(0,0,0,0.96)'}}>
+      <canvas ref={canvasRef} style={{display:'none'}} />
+      <input
+        ref={uploadInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleUpload}
+        style={{display:'none'}}
+      />
+
+      <div
+        className="relative flex flex-col overflow-hidden"
+        style={{
+          width: 'min(100vw, 430px)',
+          height: 'min(100dvh, 860px)',
+          maxHeight: '100dvh',
+          background:'#050505',
+          boxShadow:'0 24px 80px rgba(0,0,0,0.45)',
+          borderRadius: 'min(28px, 4vw)',
+        }}
+      >
+        {/* === HEADER === X · simple current step · Done */}
+        <div className="px-4 pt-3.5 pb-2 text-white" style={{minHeight: 78}}>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => onClose && onClose()}
+              className="flex items-center justify-center w-9 h-9 rounded-full transition hover:bg-white/10"
+              style={{cursor:'pointer'}}
+              aria-label="Close camera"
+            >
+              <Icon name="X" size={18} />
+            </button>
+            <div className="text-center">
+              <div className="text-[10px] tracking-[0.28em] uppercase" style={{color:'rgba(255,255,255,0.85)', fontWeight:600}}>
+                {showDetailed
+                  ? `${activeIdx + 1} of ${activeSequence.length}`
+                  : `${activeIdx + 1} of ${GUIDED_STEPS.length}`}
+              </div>
+              <div className="font-serif text-[17px] leading-tight mt-0.5" style={{color:'#fff', fontWeight:700}}>
+                {currentStep.label}
+              </div>
+              {contextLabel ? <div className="text-[8px] mt-0.5 tracking-[0.2em] uppercase opacity-55">{contextLabel}</div> : null}
+            </div>
+            <button
+              onClick={handleDone}
+              disabled={capturedCount === 0}
+              className="text-[11px] tracking-[0.18em] uppercase px-3 py-1.5 rounded-full transition disabled:cursor-not-allowed"
+              style={{
+                color: capturedCount > 0 ? 'var(--accent)' : 'rgba(255,255,255,0.35)',
+                fontWeight: 600,
+                cursor: capturedCount > 0 ? 'pointer' : 'not-allowed',
+              }}
+            >Done</button>
+          </div>
+          {!showDetailed && (
+            <div className="flex items-center justify-center gap-1.5 mt-2" aria-label={`${capturedCount} of ${GUIDED_STEPS.length} guided photos captured`}>
+              {GUIDED_STEPS.map((s, i) => {
+                const done = !!shotsByAngle[s.angle];
+                const active = i === stepIdx;
+                return (
+                  <span
+                    key={s.angle}
+                    style={{
+                      width: active ? 18 : 6,
+                      height: 6,
+                      borderRadius: 999,
+                      background: done || active ? 'var(--accent)' : 'rgba(255,255,255,0.25)',
+                      opacity: active || done ? 1 : 0.7,
+                      transition:'all 160ms ease',
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* === Live preview with dotted guide overlay === */}
+        <div className="flex-1 relative overflow-hidden flex items-center justify-center" style={{minHeight:0}}>
+        {error ? (
+          <div className="text-white text-center px-6 max-w-sm">
+            <p className="font-serif text-base mb-4 leading-relaxed">{error}</p>
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <button
+                onClick={openUploader}
+                className="text-[10.5px] tracking-[0.18em] uppercase px-4 py-2 inline-flex items-center gap-1.5 rounded-full"
+                style={{background:'var(--accent)', color:'var(--cream)', fontWeight:600, cursor:'pointer'}}
+              >
+                <Icon name="Upload" size={11} />
+                Upload instead
+              </button>
+              <button
+                onClick={onClose}
+                className="text-[10px] tracking-[0.2em] uppercase border px-4 py-2 rounded-full"
+                style={{borderColor:'rgba(255,255,255,0.5)', color:'#fff', cursor:'pointer'}}
+              >Close</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {currentHasShot ? (
+              // Show the captured shot for review (instead of live preview)
+              // when the current step already has a photo. Lets the user
+              // glance at it before retaking or moving on.
+              <img
+                src={shotsByAngle[currentStep.angle].dataUrl}
+                alt={currentStep.label}
+                style={{
+                  width: '100%', height: '100%', objectFit: 'cover',
+                  transform: shouldMirror ? 'scaleX(-1)' : 'none',
+                }}
+              />
+            ) : (
+              <video
+                ref={videoRef}
+                playsInline
+                muted
+                style={{
+                  width: '100%', height: '100%', objectFit: 'cover',
+                  transform: shouldMirror ? 'scaleX(-1)' : 'none',
+                }}
+              />
+            )}
+            {/* Dotted face/zone guide overlay — pure SVG so it scales. */}
+            <svg
+              viewBox="0 0 100 100"
+              preserveAspectRatio="xMidYMid meet"
+              style={{position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none'}}
+            >
+              {/* Outer face oval — always present. */}
+              <ellipse cx="50" cy="48" rx="30" ry="40"
+                fill="none"
+                stroke="rgba(255,255,255,0.85)"
+                strokeWidth="0.5"
+                strokeDasharray="1.2,1"
+              />
+              {/* Per-step zone highlight in accent color. */}
+              {currentStep.angle === 'left_cheek' && (
+                <ellipse cx="42" cy="55" rx="11" ry="13" fill="none" stroke="var(--accent)" strokeWidth="0.5" strokeDasharray="1.2,1" />
+              )}
+              {currentStep.angle === 'right_cheek' && (
+                <ellipse cx="58" cy="55" rx="11" ry="13" fill="none" stroke="var(--accent)" strokeWidth="0.5" strokeDasharray="1.2,1" />
+              )}
+              {currentStep.angle === 't_zone' && (
+                <path d="M 38 25 L 62 25 L 58 50 L 52 62 L 48 62 L 42 50 Z" fill="none" stroke="var(--accent)" strokeWidth="0.5" strokeDasharray="1.2,1" />
+              )}
+              {currentStep.angle === 'chin_jaw' && (
+                <path d="M 30 60 Q 50 88 70 60" fill="none" stroke="var(--accent)" strokeWidth="0.5" strokeDasharray="1.2,1" />
+              )}
+              {currentStep.angle === 'eye_area' && (
+                <ellipse cx="50" cy="40" rx="22" ry="8" fill="none" stroke="var(--accent)" strokeWidth="0.5" strokeDasharray="1.2,1" />
+              )}
+              {currentStep.angle === 'spot' && (
+                <circle cx="50" cy="50" r="8" fill="none" stroke="var(--accent)" strokeWidth="0.5" strokeDasharray="1.2,1" />
+              )}
+            </svg>
+            {/* Instruction caption */}
+            <div className="absolute left-0 right-0 bottom-4 text-center px-8 pointer-events-none">
+              <p className="font-serif text-[15px] leading-snug" style={{color:'#fff', textShadow:'0 1px 8px rgba(0,0,0,0.6)'}}>
+                {currentStep.instruction}
+              </p>
+            </div>
+          </>
+        )}
+        </div>
+
+        {/* === Captured thumbnails + capture controls === */}
+        <div className="px-4 pt-3 pb-4" style={{background:'rgba(0,0,0,0.4)'}}>
+        {/* Only show thumbnails after captures exist; no empty future placeholders. */}
+        {!showDetailed && capturedGuidedSteps.length > 0 && (
+          <div className="flex items-center gap-3 mb-4 overflow-x-auto pb-1 px-1">
+            {capturedGuidedSteps.map((s) => {
+              const shot = shotsByAngle[s.angle];
+              const i = GUIDED_STEPS.findIndex(step => step.angle === s.angle);
+              const active = i === stepIdx;
+              return (
+                <button
+                  key={s.angle}
+                  onClick={() => setStepIdx(i)}
+                  className="flex flex-col items-center gap-1"
+                  style={{cursor:'pointer'}}
+                  aria-label={`Review step ${i+1}: ${s.label}`}
+                >
+                    <div
+                      className="relative flex items-center justify-center"
+                      style={{
+                      width: 44, height: 44, borderRadius: '50%',
+                      background: shot ? 'transparent' : 'transparent',
+                      border: active ? '2px solid var(--accent)' : '1px solid var(--accent)',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {shot ? (
+                      <>
+                        <img src={shot.dataUrl} alt={s.label} style={{width:'100%', height:'100%', objectFit:'cover', transform: shouldMirror ? 'scaleX(-1)' : 'none'}} />
+                        <div className="absolute" style={{top:-4, right:-4, background:'var(--accent)', borderRadius:999, width:14, height:14, display:'flex', alignItems:'center', justifyContent:'center'}}>
+                          <Icon name="Check" size={9} style={{color:'#fff'}} />
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                  <span className="text-[9px] uppercase tracking-[0.15em]" style={{color: active ? '#fff' : 'rgba(255,255,255,0.55)', fontWeight: active ? 600 : 400}}>{SHORT_LABEL[s.angle]}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Capture row: Library · Shutter · Retake/Skip */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={openUploader}
+            className="flex flex-col items-center gap-1"
+            style={{cursor:'pointer'}}
+            aria-label="Upload from library"
+          >
+            <div className="rounded-full flex items-center justify-center" style={{width:44, height:44, border:'1px solid rgba(255,255,255,0.35)'}}>
+              <Icon name="Image" size={18} style={{color:'#fff'}} />
+            </div>
+            <span className="text-[9px] uppercase tracking-[0.15em]" style={{color:'rgba(255,255,255,0.65)'}}>Library</span>
+          </button>
+
+          <button
+            onClick={handleShoot}
+            disabled={!!error}
+            className="rounded-full flex items-center justify-center transition"
+            style={{
+              width: 72, height: 72,
+              background: '#fff',
+              border: '4px solid rgba(255,255,255,0.35)',
+              cursor: error ? 'not-allowed' : 'pointer',
+              opacity: error ? 0.4 : 1,
+            }}
+            aria-label="Capture photo"
+          />
+
+          <div className="flex items-center gap-2">
+            {currentHasShot && (
+              <button
+                onClick={handleRetakeCurrent}
+                className="flex flex-col items-center gap-1"
+                style={{cursor:'pointer'}}
+                aria-label="Retake current photo"
+              >
+                <div className="rounded-full flex items-center justify-center" style={{width:44, height:44, border:'1px solid rgba(255,255,255,0.35)'}}>
+                  <Icon name="RotateCcw" size={18} style={{color:'#fff'}} />
+                </div>
+                <span className="text-[9px] uppercase tracking-[0.15em]" style={{color:'rgba(255,255,255,0.65)'}}>Retake</span>
+              </button>
+            )}
+            <button
+              onClick={handleSkip}
+              disabled={(showDetailed ? detailedIdx : stepIdx) >= activeSequence.length - 1}
+              className="flex flex-col items-center gap-1"
+              style={{cursor: 'pointer'}}
+              aria-label="Skip to next step"
+            >
+              <div className="rounded-full flex items-center justify-center" style={{width:44, height:44, border:'1px solid rgba(255,255,255,0.35)'}}>
+                <Icon name="SkipForward" size={18} style={{color:'#fff'}} />
+              </div>
+              <span className="text-[9px] uppercase tracking-[0.15em]" style={{color:'rgba(255,255,255,0.65)'}}>Skip</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Optional: detailed areas entry / exit. Only when allowed and
+            after the guided sequence has at least one capture (otherwise
+            the user hasn't done the primary work yet). */}
+        {allowDetailedAreas && (
+          <div className="mt-4 pt-3 border-t" style={{borderColor:'rgba(255,255,255,0.12)'}}>
+            {!showDetailed ? (
+              <button
+                onClick={() => { setShowDetailed(true); setDetailedIdx(0); }}
+                className="w-full flex items-center justify-center gap-1.5 py-2"
+                style={{cursor:'pointer'}}
+              >
+                <Icon name="Target" size={11} style={{color:'var(--accent)'}} />
+                <span className="text-[11px]" style={{color:'var(--accent)', fontWeight:600}}>
+                  More areas
+                </span>
+                <Icon name="ChevronRight" size={11} style={{color:'var(--accent)'}} />
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowDetailed(false)}
+                className="w-full flex items-center justify-center gap-2 py-2"
+                style={{cursor:'pointer'}}
+              >
+                <Icon name="ChevronLeft" size={12} style={{color:'rgba(255,255,255,0.7)'}} />
+                <span className="text-[11px] tracking-[0.18em] uppercase" style={{color:'rgba(255,255,255,0.7)', fontWeight:600}}>
+                  Back to guided set
+                </span>
+              </button>
+            )}
+          </div>
+        )}
+        </div>
+      </div>
+    </div>
+  );
+};

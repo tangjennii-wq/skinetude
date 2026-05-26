@@ -1,0 +1,24 @@
+{
+  "scripts": {
+    "build": "node build_current.js",
+    "check": "node check_build.js",
+    "smoke": "node smoke_browser.js && node smoke_browser.js --with-stale-auth && node smoke_race.js",
+    "smoke:fresh": "node smoke_browser.js",
+    "smoke:stale": "node smoke_browser.js --with-stale-auth",
+    "smoke:race": "node smoke_race.js",
+    "verify": "node check_build.js && node smoke_browser.js && node smoke_browser.js --with-stale-auth && node smoke_race.js"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@babel/preset-react": "^7.28.5",
+    "jsdom": "^29.1.1",
+    "playwright": "^1.60.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "terser": "^5.47.1"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "lucide": "^0.395.0"
+  }
+}
