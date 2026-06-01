@@ -3682,16 +3682,16 @@ CRITICAL OUTPUT REQUIREMENTS:
             return (
               <>
                 {slotSubmitted ? (
-                  // Tap-to-undo pill (May 2026 per Jenni). The
-                  // status pill IS the undo trigger now — the
-                  // separate Undo link below was extra noise.
-                  // Tapping the pill reverts amDone/pmDone for
-                  // this slot. Tooltip telegraphs the action.
-                  // Does NOT open the old TodayRitualModal.
+                  // Tap-to-undo pill (May 2026, copy updated June 2026 per Jenni).
+                  // The pill IS the toggle now — tap once to undo, then the
+                  // primary "Log AM/PM" CTA reappears in the same slot for
+                  // an instant refill. Affordance made explicit with the
+                  // "TAP TO UNDO" label so mobile users (no hover/tooltip)
+                  // see what the second click does.
                   <button
                     type="button"
                     onClick={undoSlotLog}
-                    className="w-full rounded-full py-3 px-4 flex items-center justify-center gap-2 mt-3 transition hover:opacity-80"
+                    className="w-full rounded-full py-3 px-4 flex items-center justify-between mt-3 transition hover:opacity-80"
                     style={{
                       background: 'var(--cream-deep)',
                       color: 'var(--ink)',
@@ -3702,8 +3702,14 @@ CRITICAL OUTPUT REQUIREMENTS:
                     aria-label={`${ctaSlot.toUpperCase()} regimen logged for today — tap to undo`}
                     title={`Tap to undo today's ${ctaSlot.toUpperCase()} commit`}
                   >
-                    <Icon name="Check" size={13} style={{color:'var(--accent-blue)'}} />
-                    <span className="truncate">Today logged</span>
+                    <span className="flex items-center gap-2 min-w-0">
+                      <Icon name="Check" size={13} style={{color:'var(--accent-blue)'}} />
+                      <span className="truncate">Today logged</span>
+                    </span>
+                    <span className="flex items-center gap-1 text-[9.5px] tracking-[0.18em] uppercase flex-shrink-0" style={{color:'var(--ink-soft)', fontWeight:600}}>
+                      <Icon name="RotateCcw" size={10} />
+                      Tap to undo
+                    </span>
                   </button>
                 ) : isEmptySlot ? (
                   <>
@@ -3779,24 +3785,25 @@ CRITICAL OUTPUT REQUIREMENTS:
                     <span>Used something else today? Add here</span>
                   </button>
                 )}
-                {/* === REFINE ROUTINE LINK (June 2026 per Jenni) ===
+                {/* === REFINE ROUTINE LINK (June 2026 per Jenni — bottom right) ===
                     Quiet text link that routes to Regimen → Refine view.
-                    Pairs with the "Used something else?" CTA above to
-                    make the today-vs-forever distinction obvious:
-                    today-only changes happen here, routine changes
-                    happen in Refine. Restored after the "unified scope
-                    toggle" experiment was rolled back — two clear
-                    paths beats one clever toggle. */}
-                <button
-                  type="button"
-                  onClick={() => { setActiveTab('regimen'); setRegimenView('build'); }}
-                  className="w-full mt-2 px-4 py-1.5 flex items-center justify-center gap-1 transition hover:opacity-70"
-                  style={{background:'transparent', color:'var(--ink-soft)', fontWeight:500, fontSize:10.5, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', border:'none'}}
-                  title="Change your routine going forward"
-                >
-                  <span>Refine routine</span>
-                  <Icon name="ArrowRight" size={11} />
-                </button>
+                    Repositioned to bottom-right: a footer link rather than
+                    a full-width CTA. Sits visually subordinate to the
+                    "Used something else?" outlined button above — Refine
+                    is the "going forward" lever, used less often per
+                    session than today-only edits. */}
+                <div className="flex justify-end mt-3">
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTab('regimen'); setRegimenView('build'); }}
+                    className="inline-flex items-center gap-1 transition hover:opacity-70"
+                    style={{background:'transparent', color:'var(--ink-soft)', fontWeight:600, fontSize:10, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', border:'none', padding:'4px 0'}}
+                    title="Change your routine going forward"
+                  >
+                    <span>Refine routine</span>
+                    <Icon name="ArrowRight" size={10} />
+                  </button>
+                </div>
                 {/* Quiet link — routes to Regimen tab → current
                     routine edit surface (NOT full rebuild) per
                     Jenni prompt 5. Sets regimenView to 'today'

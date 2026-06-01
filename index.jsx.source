@@ -6352,6 +6352,25 @@ Return JSON in EXACTLY this shape (no markdown fences, no commentary):
     : (shelfQuickAddOpen ? { open: true, date: localDateISO(), slot: null } : null);
   const [shelfQuickAddSearch, setShelfQuickAddSearch] = useState('');
   const [shelfQuickAddFilter, setShelfQuickAddFilter] = useState('all');
+  // === SHELF-ADD CHANGE COUNTER (June 2026 per Jenni) ===
+  // Snapshot AM/PM product IDs when the sheet opens so the Done button can
+  // show "X changes" — the count of additions + removals during the session.
+  // Cleared on close. Snapshot lives in a ref so re-renders during toggling
+  // don't reset it.
+  const shelfQuickAddInitialRef = useRef(null);
+  useEffect(() => {
+    if (!shelfQuickAddOpen) {
+      shelfQuickAddInitialRef.current = null;
+      return;
+    }
+    if (shelfQuickAddInitialRef.current) return;
+    const dateKey = (typeof shelfQuickAddOpen === 'object' && shelfQuickAddOpen.date) || localDateISO();
+    const log = (regimenLogs || []).find(r => r.date === dateKey);
+    shelfQuickAddInitialRef.current = {
+      am: new Set(log?.amProducts || []),
+      pm: new Set(log?.pmProducts || []),
+    };
+  }, [shelfQuickAddOpen, regimenLogs]);
   // === TIMELINE PAGINATION ===
   // How many entries to render in the compact Timeline view. Starts at 30,
   // bumps by 30 on each "Load more" tap. Avoids dumping 200+ rows on first
@@ -17466,22 +17485,44 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 )}
               </div>
 
-              {/* Sticky footer: live AM/PM counts + obvious Close button */}
+              {/* Sticky footer: live AM/PM counts + Done with change count */}
               <div className="shelf-footer">
                 <div className="text-[11.5px] flex items-center gap-3" style={{color:'var(--ink-soft)'}}>
                   <span><span style={{color:'var(--accent)', fontWeight:600}}>{amCount}</span> in AM</span>
                   <span style={{opacity:0.4}}>·</span>
                   <span><span style={{color:'var(--accent)', fontWeight:600}}>{pmCount}</span> in PM</span>
                 </div>
-                <button
-                  onClick={closeSheet}
-                  className="pill-primary"
-                  type="button"
-                  aria-label="Close shelf"
-                >
-                  <Icon name="Check" size={13} />
-                  <span>Done</span>
-                </button>
+                {(() => {
+                  // === CHANGE COUNT IN DONE BUTTON (June 2026 per Jenni) ===
+                  // Diff current AM/PM slots vs the snapshot captured when the
+                  // sheet opened. Additions + removals = "changes." When > 0,
+                  // append "· N change(s)" to the Done label so the user has a
+                  // clear summary of what they just did before closing.
+                  const initial = shelfQuickAddInitialRef.current;
+                  const currentAm = new Set(todayLog?.amProducts || []);
+                  const currentPm = new Set(todayLog?.pmProducts || []);
+                  let changes = 0;
+                  if (initial) {
+                    for (const id of currentAm) if (!initial.am.has(id)) changes++;
+                    for (const id of initial.am) if (!currentAm.has(id)) changes++;
+                    for (const id of currentPm) if (!initial.pm.has(id)) changes++;
+                    for (const id of initial.pm) if (!currentPm.has(id)) changes++;
+                  }
+                  const label = changes > 0
+                    ? `Done · ${changes} change${changes === 1 ? '' : 's'}`
+                    : 'Done';
+                  return (
+                    <button
+                      onClick={closeSheet}
+                      className="pill-primary"
+                      type="button"
+                      aria-label={changes > 0 ? `Close shelf, ${changes} changes made` : 'Close shelf'}
+                    >
+                      <Icon name="Check" size={13} />
+                      <span>{label}</span>
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           </div>
