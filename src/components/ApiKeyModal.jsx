@@ -8,8 +8,7 @@ const ApiKeyModal = ({
   setShowApiKeyModal,
   setShowApiKeyModalRaw,
   clearApiKeyDismissal,
-  toast,
-}) => {
+  toast}) => {
   const [tempKey, setTempKey] = useState(getApiKey());
   const save = () => {
     setApiKey(tempKey);
@@ -27,7 +26,7 @@ const ApiKeyModal = ({
           To enable AI counsel, makeup recommendations, product assessments, and event prep plans, paste your Anthropic API key. Your key is stored only in this browser — never sent anywhere except directly to Anthropic.
         </p>
         <p className="text-xs font-light" style={{color:'var(--ink-soft)'}}>
-          Get a key at <a href="https://console.anthropic.com" target="_blank" rel="noopener" className="underline italic" style={{color:'var(--ink)'}}>console.anthropic.com</a>.
+          Get a key at <a href="https://console.anthropic.com" target="_blank" rel="noopener" className="underline" style={{color:'var(--ink)'}}>console.anthropic.com</a>.
         </p>
         <Field label="API Key">
           <input autoCapitalize="off" autoCorrect="off" spellCheck={false} type="password" value={tempKey} onChange={e => setTempKey(e.target.value)} placeholder="sk-ant-..." className={inputCls} />

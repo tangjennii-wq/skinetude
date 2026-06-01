@@ -34,7 +34,7 @@ const ProcedureCompareSlot = ({ slot, label, labelColor, value, onChange, fileTo
     if (fileRef.current) fileRef.current.value = '';
   };
   return (
-    <div className={leftBorder ? 'border-l' : ''} style={{borderColor:'var(--line)'}}>
+    <div className={leftBorder ? 'border-l' : ''} style={{borderColor: 'var(--line)'}}>
       <div className="text-[10px] tracking-[0.25em] uppercase px-3 pt-2.5 pb-1" style={{color: labelColor}}>{label}</div>
       <div className="aspect-square overflow-hidden relative" style={{background:'var(--cream-deep)'}}>
         {value?.photo ? (
@@ -70,7 +70,7 @@ const ProcedureCompareSlot = ({ slot, label, labelColor, value, onChange, fileTo
             max={todayKey}
             onChange={e => onChange({ ...value, date: e.target.value })}
             className="w-full px-1.5 py-0.5 text-[10px] border rounded-sm"
-            style={{borderColor:'var(--line)', color:'var(--ink)', background:'var(--cream)'}}
+            style={{borderColor: 'var(--line)', color:'var(--ink)', background:'var(--cream)'}}
           />
           <input autoCapitalize="off" autoCorrect="off" spellCheck={false}
             type="text"
@@ -78,7 +78,7 @@ const ProcedureCompareSlot = ({ slot, label, labelColor, value, onChange, fileTo
             value={value.note || ''}
             onChange={e => onChange({ ...value, note: e.target.value })}
             className="w-full px-1.5 py-0.5 text-[10px] border rounded-sm"
-            style={{borderColor:'var(--line)', color:'var(--ink)', background:'var(--cream)'}}
+            style={{borderColor: 'var(--line)', color:'var(--ink)', background:'var(--cream)'}}
           />
         </div>
       )}

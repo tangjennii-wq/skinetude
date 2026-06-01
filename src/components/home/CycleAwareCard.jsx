@@ -35,18 +35,18 @@ const CycleAwareCard = ({ cycleData, onOpenLesson }) => {
   }
 
   return (
-    <div className="border p-6" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
-      <div className="flex items-start gap-5 flex-wrap">
-        <div className="flex-shrink-0 min-w-[120px]">
-          <div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Cycle day {cycleDay}</div>
-          <div className="font-serif text-2xl italic mt-1" style={{color:'var(--ink)'}}>{phase}</div>
+    <div className="border p-5 md:p-6" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
+      <div className="flex items-start gap-4 md:gap-5 flex-wrap">
+        <div className="flex-shrink-0 md:min-w-[120px]">
+          <div className="text-[10px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)', whiteSpace:'nowrap'}}>Cycle day {cycleDay}</div>
+          <div className="font-sans text-2xl mt-1" style={{color:'var(--ink)'}}>{phase}</div>
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-light leading-relaxed" style={{color:'var(--ink)'}}>{guidance}</p>
           <button onClick={() => {
             const lesson = LESSONS.find(l => l.id === 'skin-through-the-cycle');
             if (lesson) onOpenLesson(lesson);
-          }} className="mt-3 text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1.5" style={{color:'var(--ink)', borderBottom:'1px dotted var(--ink)'}}>
+          }} className="mt-3 text-[10px] tracking-[0.18em] uppercase flex items-center gap-1.5" style={{color:'var(--ink)', borderBottom:'1px dotted var(--ink)'}}>
             <Icon name="BookOpen" size={11} /> Read the cycle lesson
           </button>
         </div>

@@ -18,8 +18,7 @@ const BulkPhotoUploadModal = ({
   toast,
   user,
   setShowBulkUploadModal,
-  setCoverRoutineRebuildToken,
-}) => {
+  setCoverRoutineRebuildToken}) => {
   const [items, setItems] = useState([]); // [{ photo: b64, date: 'YYYY-MM-DD', area: 'full-face' }]
   const [defaultDate, setDefaultDate] = useState(localDateISO());
   const [perPhotoMode, setPerPhotoMode] = useState(false); // false = all share defaultDate
@@ -99,8 +98,7 @@ const BulkPhotoUploadModal = ({
         usedProducts: [],
         usedTags: [],
         aiAnalysis: null,
-        analyzing: false,
-      }));
+        analyzing: false}));
       const updated = [...logs, ...newEntries].sort((a, b) => new Date(b.date) - new Date(a.date));
       // Close fast then persist. Same pattern as SkinLogModal create-path.
       setLogs(updated);
@@ -157,17 +155,17 @@ const BulkPhotoUploadModal = ({
     <Modal compact onClose={close} eyebrow="Atelier" title="Bulk upload">
       <div className="space-y-3">
         <p className="text-[12px] leading-relaxed" style={{color:'var(--ink-soft)'}}>
-          Add many photos at once and date them. Defaults to all on one day; flip <span className="italic">set per photo</span> to tag dates individually.
+          Add many photos at once and date them. Defaults to all on one day; flip <span className="">set per photo</span> to tag dates individually.
         </p>
 
         {/* Default-date picker + mode toggle — compact one-row layout */}
-        <div className="border px-2.5 py-2 space-y-1.5" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
+        <div className="border px-2.5 py-2 space-y-1.5" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
           <div className="flex items-center justify-between gap-2">
             <div className="text-[8px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>Default date</div>
             <button
               type="button"
               onClick={() => setPerPhotoMode(v => !v)}
-              className="text-[8px] tracking-[0.2em] uppercase italic flex items-center gap-1"
+              className="text-[8px] tracking-[0.2em] uppercase flex items-center gap-1"
               style={{color: perPhotoMode ? 'var(--accent)' : 'var(--ink-soft)'}}
             >
               {perPhotoMode ? <><Icon name="Check" size={9} /> Per-photo</> : 'Set per photo'}
@@ -182,8 +180,7 @@ const BulkPhotoUploadModal = ({
               style={{
                 borderColor: defaultDate === todayKey ? 'var(--ink)' : 'var(--line)',
                 background: defaultDate === todayKey ? 'var(--ink)' : 'transparent',
-                color: defaultDate === todayKey ? 'var(--cream)' : 'var(--ink-soft)',
-              }}
+                color: defaultDate === todayKey ? 'var(--cream)' : 'var(--ink-soft)'}}
             >Today</button>
             <input
               type="date"
@@ -191,12 +188,11 @@ const BulkPhotoUploadModal = ({
               max={todayKey}
               disabled={perPhotoMode}
               onChange={e => setDefaultDate(e.target.value)}
-              className="flex-1 px-1.5 py-1 text-[10px] border rounded-full min-w-0 disabled:opacity-40 italic text-center"
+              className="flex-1 px-1.5 py-1 text-[10px] border rounded-full min-w-0 disabled:opacity-40 text-center"
               style={{
                 borderColor: defaultDate !== todayKey ? 'var(--accent)' : 'var(--line)',
                 background: defaultDate !== todayKey ? 'var(--accent-soft)' : 'var(--cream)',
-                color: 'var(--ink)',
-              }}
+                color: 'var(--ink)'}}
             />
           </div>
         </div>
@@ -207,7 +203,7 @@ const BulkPhotoUploadModal = ({
             type="button"
             onClick={() => fileRef.current?.click()}
             className="w-full border-2 border-dashed py-5 flex flex-col items-center gap-1.5 transition hover:bg-[var(--cream-deep)]"
-            style={{borderColor:'var(--line)', color:'var(--ink-soft)', background:'var(--cream)'}}
+            style={{borderColor: 'var(--line)', color:'var(--ink-soft)', background:'var(--cream)'}}
           >
             <Icon name="Upload" size={20} />
             <span className="text-[10px] tracking-[0.25em] uppercase">{items.length === 0 ? 'Pick photos' : 'Add more'}</span>
@@ -227,11 +223,11 @@ const BulkPhotoUploadModal = ({
           <div className="space-y-2">
             <div className="text-[9px] tracking-[0.2em] uppercase flex items-center justify-between" style={{color:'var(--ink-soft)'}}>
               <span>{items.length} photo{items.length === 1 ? '' : 's'} ready</span>
-              <button onClick={() => setItems([])} className="italic underline" style={{color:'var(--ink-soft)'}}>Clear all</button>
+              <button onClick={() => setItems([])} className="underline" style={{color:'var(--ink-soft)'}}>Clear all</button>
             </div>
             <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-1">
               {items.map((it, idx) => (
-                <div key={idx} className="border" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
+                <div key={idx} className="border" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
                   <div className="relative w-full aspect-square overflow-hidden" style={{background:'var(--cream-deep)'}}>
                     <img src={it.photo} alt="" className="w-full h-full object-cover" />
                     <button
@@ -278,7 +274,7 @@ const BulkPhotoUploadModal = ({
                             <button
                               type="button"
                               onClick={triggerDate}
-                              className="w-full px-1 py-0.5 text-[9px] italic border rounded-sm flex items-center justify-center gap-1 transition hover:bg-[var(--cream-deep)]"
+                              className="w-full px-1 py-0.5 text-[9px] border rounded-sm flex items-center justify-center gap-1 transition hover:bg-[var(--cream-deep)]"
                               style={{borderColor: it.autoDated ? 'var(--accent)' : 'var(--line)', color: it.autoDated ? 'var(--accent)' : 'var(--ink)', background:'var(--cream)'}}
                               title={it.autoDated ? 'Auto-detected from photo metadata — tap to edit' : 'Tap to edit date'}
                             >
@@ -299,7 +295,7 @@ const BulkPhotoUploadModal = ({
                               type="button"
                               onClick={triggerArea}
                               className="w-full px-1 py-0.5 text-[9px] border rounded-sm flex items-center justify-center transition hover:bg-[var(--cream-deep)]"
-                              style={{borderColor:'var(--line)', color:'var(--ink-soft)', background:'var(--cream)'}}
+                              style={{borderColor: 'var(--line)', color:'var(--ink-soft)', background:'var(--cream)'}}
                               title="Tap to change area"
                             >
                               {areaLabel}

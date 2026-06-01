@@ -258,7 +258,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
             <Photo item={log} alt="" className="w-full h-full object-cover transition group-hover:scale-[1.02]"
               renderFallback={() => (
                 <div className="w-full h-full flex items-center justify-center" style={{background:'var(--cream-deep)'}}>
-                  <span className="font-serif italic text-[120px] leading-none" style={{color:'var(--ink-soft)'}}>{log.rating}</span>
+                  <span className="font-sans text-[120px] leading-none" style={{color:'var(--ink-soft)'}}>{log.rating}</span>
                 </div>
               )}
             />
@@ -273,26 +273,26 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
             )}
           </div>
           <div className="md:col-span-2 space-y-3">
-            <div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>{log.area.replace(/-/g, ' ')}</div>
-            <div className="font-serif text-6xl italic leading-none" style={{color:'var(--ink)'}}>{log.rating}<span className="text-2xl" style={{color:'var(--ink-soft)'}}>/10</span></div>
+            <div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>{(log.area || 'full-face').replace(/-/g, ' ')}</div>
+            <div className="font-sans text-6xl leading-none" style={{color:'var(--ink)'}}>{log.rating}<span className="text-2xl" style={{color:'var(--ink-soft)'}}>/10</span></div>
             {kws.length > 0 && (
               <div className="flex flex-wrap gap-x-3 gap-y-1 pt-2">
-                {kws.map(k => <span key={k} className="font-serif italic text-lg" style={{color:'var(--ink)'}}>{k}</span>)}
+                {kws.map(k => <span key={k} className="font-sans text-lg" style={{color:'var(--ink)'}}>{k}</span>)}
               </div>
             )}
             {procs.length > 0 && (
-              <div className="pt-3 border-t" style={{borderColor:'var(--line)'}}>
+              <div className="pt-3 border-t" style={{borderColor: 'var(--line)'}}>
                 <div className="text-[9px] tracking-[0.3em] uppercase mb-1" style={{color:'var(--ink-soft)'}}>Procedure</div>
-                {procs.map(p => <div key={p.id} className="font-serif italic text-base" style={{color:'var(--ink)'}}>{p.name} <span className="text-xs not-italic" style={{color:'var(--ink-soft)'}}>· {p.type?.replace(/-/g, ' ')}</span></div>)}
+                {procs.map(p => <div key={p.id} className="font-sans text-base" style={{color:'var(--ink)'}}>{p.name} <span className="text-xs not-italic" style={{color:'var(--ink-soft)'}}>· {p.type?.replace(/-/g, ' ')}</span></div>)}
               </div>
             )}
             {followUps.length > 0 && (
-              <div className="pt-3 border-t" style={{borderColor:'var(--line)'}}>
+              <div className="pt-3 border-t" style={{borderColor: 'var(--line)'}}>
                 <div className="text-[9px] tracking-[0.3em] uppercase mb-1" style={{color:'var(--accent)'}}>Follow-up</div>
-                {followUps.map((f, i) => <div key={i} className="font-serif italic text-sm" style={{color:'var(--ink)'}}>{f.label} <span className="text-xs not-italic" style={{color:'var(--ink-soft)'}}>· {f.procedure.name}</span></div>)}
+                {followUps.map((f, i) => <div key={i} className="font-sans text-sm" style={{color:'var(--ink)'}}>{f.label} <span className="text-xs not-italic" style={{color:'var(--ink-soft)'}}>· {f.procedure.name}</span></div>)}
               </div>
             )}
-            {log.notes && <p className="text-sm font-light italic leading-relaxed pt-2" style={{color:'var(--ink-soft)'}}>"{log.notes}"</p>}
+            {log.notes && <p className="text-sm font-light leading-relaxed pt-2" style={{color:'var(--ink-soft)'}}>"{log.notes}"</p>}
           </div>
         </div>
       </button>
@@ -313,7 +313,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
           <Photo item={log} alt="" className="w-full h-full object-cover transition group-hover:scale-[1.02]"
             renderFallback={() => (
               <div className="w-full h-full flex items-center justify-center" style={{background:'var(--cream-deep)'}}>
-                <span className="font-serif italic text-7xl" style={{color:'var(--ink-soft)'}}>{log.rating}</span>
+                <span className="font-sans text-7xl" style={{color:'var(--ink-soft)'}}>{log.rating}</span>
               </div>
             )}
           />
@@ -330,10 +330,10 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
         <div className="mt-3">
           {opts.label && <div className="text-[9px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>{opts.label}</div>}
           <div className="flex items-baseline gap-2 mt-1">
-            <span className="font-serif text-3xl italic leading-none" style={{color:'var(--ink)'}}>{log.rating}<span className="text-xs" style={{color:'var(--ink-soft)'}}>/10</span></span>
+            <span className="font-sans text-3xl leading-none" style={{color:'var(--ink)'}}>{log.rating}<span className="text-xs" style={{color:'var(--ink-soft)'}}>/10</span></span>
           </div>
           {kws.length > 0 && (
-            <div className="text-sm font-light italic mt-1.5" style={{color:'var(--ink-soft)'}}>{kws.join(' · ')}</div>
+            <div className="text-sm font-light mt-1.5" style={{color:'var(--ink-soft)'}}>{kws.join(' · ')}</div>
           )}
           {procs.length > 0 && (
             <div className="text-[10px] tracking-[0.2em] uppercase mt-1.5" style={{color:'var(--ink)'}}>+ {procs[0].name}</div>
@@ -341,7 +341,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
           {(() => {
             const fus = followUpsOn(log.date);
             return fus.length > 0 ? (
-              <div className="text-[9px] tracking-[0.25em] uppercase italic mt-1" style={{color:'var(--accent)'}}>{fus[0].label} · {fus[0].procedure.name}</div>
+              <div className="text-[9px] tracking-[0.25em] uppercase mt-1" style={{color:'var(--accent)'}}>{fus[0].label} · {fus[0].procedure.name}</div>
             ) : null;
           })()}
         </div>
@@ -379,8 +379,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
             className="w-full pl-8 pr-8 py-2 border bg-transparent text-[11px] md:text-[12px] font-light focus:outline-none transition"
             style={{
               borderColor: timelineSearch ? 'var(--accent)' : 'var(--line)',
-              color: 'var(--ink)',
-            }}
+              color: 'var(--ink)'}}
           />
           {timelineSearch && (
             <button
@@ -395,7 +394,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
           )}
         </div>
         {timelineSearch && (
-          <div className="text-[10px] font-light italic mt-1.5 leading-snug" style={{color:'var(--ink-soft)'}}>
+          <div className="text-[10px] font-light mt-1.5 leading-snug" style={{color:'var(--ink-soft)'}}>
             {filteredAll.length === 0
               ? <>No photos match <span style={{color:'var(--accent)'}}>{timelineSearch}</span>.</>
               : <>{filteredAll.length} {filteredAll.length === 1 ? 'photo' : 'photos'} matching <span style={{color:'var(--accent)'}}>{timelineSearch}</span>.</>
@@ -450,9 +449,9 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
           <div className="flex gap-2 flex-wrap items-center" title="When you log photos, tag them with the products you used. Tags appear here for filtering.">
             <span className="text-[9px] tracking-[0.25em] uppercase mr-1" style={{color:'var(--ink-soft)'}}>Tags · examples</span>
             {['SK-II', 'tretinoin', 'biodance mask', "kiehl's overnight cream"].map(ex => (
-              <span key={ex} className="text-[10px] tracking-[0.15em] uppercase px-3 py-1.5 italic" style={{borderStyle:'dashed', borderWidth:'1px', borderColor:'var(--line)', color:'var(--ink-soft)', opacity:0.55}}>#{ex}</span>
+              <span key={ex} className="text-[10px] tracking-[0.15em] uppercase px-3 py-1.5" style={{borderStyle:'dashed', borderWidth:'1px', borderColor: 'var(--line)', color:'var(--ink-soft)', opacity:0.55}}>#{ex}</span>
             ))}
-            <span className="text-[10px] font-light italic ml-1" style={{color:'var(--ink-soft)'}}>— add tags when logging photos to filter your timeline by them.</span>
+            <span className="text-[10px] font-light ml-1" style={{color:'var(--ink-soft)'}}>— add tags when logging photos to filter your timeline by them.</span>
           </div>
         )}
       </div>
@@ -529,8 +528,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                 direction: net > 0 ? 'positive' : 'negative',
                 pos, neg, evidenceCount,
                 strength: Math.abs(net),
-                exemplars: exemplars.slice(0, 3),
-              });
+                exemplars: exemplars.slice(0, 3)});
             });
             associations.sort((a, b) => b.strength - a.strength);
 
@@ -601,7 +599,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                 >
                   <Icon name="Sparkles" size={12} />
                   <span className="text-[10px] tracking-[0.2em] uppercase">Insights</span>
-                  <span className="font-serif italic text-[10px] normal-case tracking-normal opacity-80">· {totalCount}</span>
+                  <span className="font-sans text-[10px] normal-case tracking-normal opacity-80">· {totalCount}</span>
                 </button>
                 {/* Panel — overlays the page when expanded */}
                 {insightsExpanded && (
@@ -615,11 +613,11 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                       className="w-full md:w-96 md:m-8 rounded-t-2xl md:rounded-lg shadow-xl"
                       style={{background:'var(--cream)'}}
                     >
-                      <div className="px-4 py-3 border-b flex items-center justify-between" style={{borderColor:'var(--line)'}}>
+                      <div className="px-4 py-3 border-b flex items-center justify-between" style={{borderColor: 'var(--line)'}}>
                         <div className="flex items-center gap-2">
                           <span className="w-1.5 h-1.5 rounded-full inline-block" style={{background:'var(--accent)'}} />
                           <span className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Insights</span>
-                          <span className="font-serif italic text-[10px] normal-case tracking-normal" style={{color:'var(--ink-soft)'}}>· top {totalCount}</span>
+                          <span className="font-sans text-[10px] normal-case tracking-normal" style={{color:'var(--ink-soft)'}}>· top {totalCount}</span>
                         </div>
                         <button onClick={() => setInsightsExpanded(false)} className="p-1" style={{color:'var(--ink-soft)'}} aria-label="Close insights">
                           <Icon name="X" size={14} />
@@ -631,17 +629,16 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                             <div className="text-[8px] tracking-[0.25em] uppercase" style={{color:'var(--ink-soft)'}}>Newly started</div>
                             {newlyTopped.map(n => {
                               const colorMap = {
-                                positive: 'var(--sage)',
+                                positive: 'var(--accent-blue)',
                                 negative: 'var(--rose)',
                                 watching: 'var(--accent)',
-                                neutral: 'var(--ink-soft)',
-                              };
+                                neutral: 'var(--ink-soft)'};
                               const signMap = { positive: '↑', negative: '↓', watching: '·', neutral: '·' };
                               return (
                                 <div key={n.product.id} className="flex items-baseline gap-2 leading-snug">
                                   <span className="not-italic text-[14px] flex-shrink-0" style={{color: colorMap[n.direction]}}>{signMap[n.direction]}</span>
-                                  <span className="font-serif italic text-[12px] md:text-sm" style={{color:'var(--ink)'}}>Day {n.daysSince} on {n.product.name}</span>
-                                  <span className="text-[10px] font-light italic flex-1 min-w-0" style={{color:'var(--ink-soft)'}}>
+                                  <span className="font-sans text-[12px] md:text-sm" style={{color:'var(--ink)'}}>Day {n.daysSince} on {n.product.name}</span>
+                                  <span className="text-[10px] font-light flex-1 min-w-0" style={{color:'var(--ink-soft)'}}>
                                     — {n.note}
                                   </span>
                                 </div>
@@ -656,15 +653,15 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                             )}
                             {assocTopped.map(a => {
                               const sign = a.direction === 'positive' ? '↑' : '↓';
-                              const color = a.direction === 'positive' ? 'var(--sage)' : 'var(--rose)';
+                              const color = a.direction === 'positive' ? 'var(--accent-blue)' : 'var(--rose)';
                               const verb = a.direction === 'positive'
                                 ? 'often followed by improvement'
                                 : 'often followed by flare';
                               return (
                                 <div key={a.product.id} className="flex items-baseline gap-2 leading-snug">
                                   <span className="not-italic text-[14px] flex-shrink-0" style={{color}}>{sign}</span>
-                                  <span className="font-serif italic text-[12px] md:text-sm" style={{color:'var(--ink)'}}>{a.product.name}</span>
-                                  <span className="text-[10px] font-light italic flex-1 min-w-0" style={{color:'var(--ink-soft)'}}>
+                                  <span className="font-sans text-[12px] md:text-sm" style={{color:'var(--ink)'}}>{a.product.name}</span>
+                                  <span className="text-[10px] font-light flex-1 min-w-0" style={{color:'var(--ink-soft)'}}>
                                     — {verb} <span style={{color:'var(--ink-soft)', opacity: 0.65}}>· {a.evidenceCount} {a.evidenceCount === 1 ? 'use' : 'uses'}</span>
                                   </span>
                                 </div>
@@ -672,7 +669,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                             })}
                           </div>
                         )}
-                        <p className="text-[9px] italic pt-1.5 border-t" style={{borderColor:'var(--line)', color:'var(--ink-soft)'}}>
+                        <p className="text-[9px] pt-1.5 border-t" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>
                           Correlation, not causation. Watch for the same signal twice before changing your routine.
                         </p>
                       </div>
@@ -686,13 +683,13 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
           {/* === TODAY (smaller hero + dotted compare slot for split-half) === */}
           {viewingYear === currentYear && (
             <div className="mb-12">
-              <div className="flex items-baseline justify-between border-b pb-3 mb-5" style={{borderColor:'var(--line)'}}>
+              <div className="flex items-baseline justify-between border-b pb-3 mb-5" style={{borderColor: 'var(--line)'}}>
                 <div>
-                  <div className="text-[9px] md:text-[10px] tracking-[0.4em] uppercase flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
+                  <div className="text-[10px] tracking-[0.28em] uppercase flex items-center gap-2" style={{color:'var(--ink-soft)', fontWeight:600}}>
                     <span className="w-1.5 h-1.5 rounded-full inline-block" style={{background:'var(--accent)'}} />
                     Today
                   </div>
-                  <h2 className="font-serif text-2xl md:text-3xl italic mt-1" style={{color:'var(--ink)'}}>{today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
+                  <h2 className="font-sans text-[22px] md:text-[26px] mt-1" style={{color:'var(--ink)', letterSpacing:'-0.022em'}}>{today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
                 </div>
               </div>
               {todayLog ? (
@@ -706,8 +703,8 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                       onClear={() => { setSplitBeforeId(null); setSplitSwapped(false); }}
                     />
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <button onClick={() => setSelectedPhoto(todayLog)} className="text-[10px] tracking-[0.2em] uppercase italic" style={{color:'var(--ink)', borderBottom:'1px dotted var(--ink)'}}>See today's analysis</button>
-                      <button onClick={() => enterCompare?.(splitBefore.id, todayLog.id)} className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1" style={{color:'var(--ink)'}}>Open full compare <Icon name="ArrowRight" size={11} /></button>
+                      <button onClick={() => setSelectedPhoto(todayLog)} className="text-[10px] tracking-[0.18em] uppercase" style={{color:'var(--ink)', borderBottom:'1px dotted var(--ink)', fontWeight:600}}>See today's analysis</button>
+                      <button onClick={() => enterCompare?.(splitBefore.id, todayLog.id)} className="text-[10px] tracking-[0.18em] uppercase flex items-center gap-1" style={{color:'var(--accent)', fontWeight:600}}>Open full compare <Icon name="ArrowRight" size={11} /></button>
                     </div>
                   </div>
                 ) : (
@@ -717,31 +714,31 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                       <Photo item={todayLog} alt="" className="w-full h-full object-cover transition hover:scale-[1.02]"
                         renderFallback={() => (
                           <div className="w-full h-full flex items-center justify-center" style={{background:'var(--cream-deep)'}}>
-                            <span className="font-serif italic text-5xl" style={{color:'var(--ink-soft)'}}>{todayLog.rating}</span>
+                            <span className="font-sans text-5xl" style={{color:'var(--ink-soft)'}}>{todayLog.rating}</span>
                           </div>
                         )}
                       />
                       <div className="absolute inset-x-0 bottom-0 p-1.5" style={{background:'linear-gradient(to top, rgba(0,0,0,0.7), transparent)'}}>
                         <div className="text-white text-[8px] tracking-[0.2em] uppercase">Today</div>
-                        <div className="text-white font-serif italic text-lg leading-none">{todayLog.rating}<span className="text-[10px] opacity-70">/10</span></div>
+                        <div className="text-white font-sans text-lg leading-none">{todayLog.rating}<span className="text-[10px] opacity-70">/10</span></div>
                       </div>
                     </button>
                     <button onClick={() => setShowSplitPicker(true)} className="relative aspect-square flex flex-col items-center justify-center text-center px-2 transition hover:bg-[var(--cream-deep)]" style={{border:'2px dashed var(--line)', background:'transparent'}}>
                       <Icon name="Plus" size={14} className="opacity-50 mb-1" />
                       <div className="text-[9px] tracking-[0.2em] uppercase leading-tight" style={{color:'var(--ink-soft)'}}>Tap to compare</div>
-                      <div className="text-[9px] font-light italic mt-1 leading-tight" style={{color:'var(--ink-soft)'}}>Pick a photo for half-face before/after.</div>
+                      <div className="text-[9px] font-light mt-1 leading-tight" style={{color:'var(--ink-soft)'}}>Pick a photo for half-face before/after.</div>
                     </button>
                   </div>
                 )
               ) : (
                 <div className="grid grid-cols-2 gap-3 max-w-md">
                   <div className="aspect-square flex flex-col items-center justify-center" style={{background:'var(--cream-deep)', border:'1px dashed var(--line)'}}>
-                    <span className="font-serif italic text-sm" style={{color:'var(--ink-soft)'}}>Not logged yet.</span>
+                    <span className="font-sans text-sm" style={{color:'var(--ink-soft)'}}>Not logged yet.</span>
                   </div>
                   <button onClick={() => setShowSplitPicker(true)} className="relative aspect-square flex flex-col items-center justify-center text-center px-2 transition hover:bg-[var(--cream-deep)]" style={{border:'2px dashed var(--line)'}}>
                     <Icon name="Plus" size={14} className="opacity-50 mb-1" />
                     <div className="text-[9px] tracking-[0.2em] uppercase leading-tight" style={{color:'var(--ink-soft)'}}>Compare two days</div>
-                    <div className="text-[9px] font-light italic mt-1 leading-tight" style={{color:'var(--ink-soft)'}}>Pick two photos.</div>
+                    <div className="text-[9px] font-light mt-1 leading-tight" style={{color:'var(--ink-soft)'}}>Pick two photos.</div>
                   </button>
                 </div>
               )}
@@ -750,10 +747,10 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                   {(todayLog.usedProducts || []).map(id => {
                     const p = products.find(pp => pp.id === id);
                     if (!p) return null;
-                    return <span key={id} className="text-[9px] tracking-[0.15em] uppercase px-2 py-0.5 border" style={{borderColor:'var(--line)', color:'var(--ink-soft)'}}>{p.name}</span>;
+                    return <span key={id} className="text-[9px] tracking-[0.15em] uppercase px-2 py-0.5 border" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>{p.name}</span>;
                   })}
                   {(todayLog.usedTags || []).map(t => (
-                    <span key={t} className="text-[9px] tracking-[0.15em] uppercase px-2 py-0.5 border" style={{borderColor:'var(--line)', color:'var(--ink-soft)'}}>#{t}</span>
+                    <span key={t} className="text-[9px] tracking-[0.15em] uppercase px-2 py-0.5 border" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>#{t}</span>
                   ))}
                 </div>
               )}
@@ -763,10 +760,10 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
           {/* === THIS WEEK === */}
           {viewingYear === currentYear && (
             <div className="mb-16">
-              <div className="flex items-baseline justify-between border-b pb-3 mb-6" style={{borderColor:'var(--line)'}}>
+              <div className="flex items-baseline justify-between border-b pb-3 mb-6" style={{borderColor: 'var(--line)'}}>
                 <div>
-                  <div className="text-[10px] tracking-[0.4em] uppercase" style={{color:'var(--ink-soft)'}}>This week</div>
-                  <h2 className="font-serif text-3xl italic mt-1" style={{color:'var(--ink)'}}>{weekRangeLabel}</h2>
+                  <div className="text-[10px] tracking-[0.28em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>This week</div>
+                  <h2 className="font-sans text-[22px] md:text-[26px] mt-1" style={{color:'var(--ink)', letterSpacing:'-0.022em'}}>{weekRangeLabel}</h2>
                 </div>
                 <div className="text-[10px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{weekDays.filter(w => w.log).length} of 7 logged</div>
               </div>
@@ -784,7 +781,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                         <Photo item={log} alt="" className="w-full h-full object-cover transition group-hover:scale-105" />
                         <div className="absolute inset-0 flex flex-col justify-end p-2" style={{background:'linear-gradient(to top, rgba(0,0,0,0.7), transparent 50%)'}}>
                           <div className="text-white text-[9px] tracking-[0.15em] uppercase font-medium">{dayLabel(date)} · {dateShort(date)}</div>
-                          <div className="text-white font-serif italic text-base leading-none">{log.rating}<span className="text-[9px] opacity-70">/10</span></div>
+                          <div className="text-white font-sans text-base leading-none">{log.rating}<span className="text-[9px] opacity-70">/10</span></div>
                         </div>
                         {procs.length > 0 && (
                           <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-sm" style={{background:'rgba(245,240,232,0.95)'}}>
@@ -838,11 +835,11 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                     {events.map(e => {
                       if (e.kind === 'procedure') {
                         return (
-                          <button key={e.key} onClick={() => { setActiveTab('journal'); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('etude:journal-view', { detail: 'procedures' })); } catch (_) {} }, 0); }} className="w-full flex items-center gap-3 p-3 border text-left transition hover:opacity-90" style={{borderColor:'var(--line)', background:'var(--cream-deep)'}}>
+                          <button key={e.key} onClick={() => { setActiveTab('journal'); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('etude:journal-view', { detail: 'procedures' })); } catch (_) {} }, 0); }} className="w-full flex items-center gap-3 p-3 border text-left transition hover:opacity-90" style={{borderColor: 'var(--line)', background:'var(--cream-deep)'}}>
                             <div className="w-2 h-2 rounded-full flex-shrink-0" style={{background:'var(--rose)'}}></div>
                             <div className="text-[9px] tracking-[0.25em] uppercase flex-shrink-0" style={{color:'var(--ink-soft)'}}>{dayLabel(new Date(e.date))} · {dateShort(new Date(e.date))}</div>
                             <div className="text-[10px] tracking-[0.15em] uppercase px-2 py-0.5 border flex-shrink-0" style={{borderColor:'var(--rose)', color:'var(--rose)'}}>Procedure</div>
-                            <div className="font-serif italic text-sm md:text-base flex-1 min-w-0 truncate" style={{color:'var(--ink)'}}>{e.procedure.name} <span className="text-xs not-italic" style={{color:'var(--ink-soft)'}}>· {e.procedure.type?.replace(/-/g, ' ')}</span></div>
+                            <div className="font-sans text-sm md:text-base flex-1 min-w-0 truncate" style={{color:'var(--ink)'}}>{e.procedure.name} <span className="text-xs not-italic" style={{color:'var(--ink-soft)'}}>· {e.procedure.type?.replace(/-/g, ' ')}</span></div>
                           </button>
                         );
                       }
@@ -850,20 +847,20 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                         const isToday = e.date === todayISO;
                         const isPast = e.sortDate < today;
                         return (
-                          <div key={e.key} className="flex items-center gap-3 p-3 border" style={{borderColor:'var(--line)', background:'var(--cream)', opacity: isPast ? 0.7 : 1}}>
+                          <div key={e.key} className="flex items-center gap-3 p-3 border" style={{borderColor: 'var(--line)', background:'var(--cream)', opacity: isPast ? 0.7 : 1}}>
                             <div className="w-2 h-2 rounded-full flex-shrink-0" style={{background:'var(--accent)'}}></div>
                             <div className="text-[9px] tracking-[0.25em] uppercase flex-shrink-0" style={{color:'var(--ink-soft)'}}>{isToday ? 'Today' : dateShort(e.sortDate)}</div>
-                            <div className="text-[10px] tracking-[0.15em] uppercase px-2 py-0.5 border flex-shrink-0" style={{borderColor:'var(--accent)', color:'var(--accent)'}}>{e.label}</div>
-                            <div className="font-serif italic text-sm md:text-base flex-1 min-w-0 truncate" style={{color:'var(--ink)'}}>{e.procedure.name}</div>
+                            <div className="text-[10px] tracking-[0.15em] uppercase px-2 py-0.5 border flex-shrink-0" style={{borderColor: 'var(--line)', color:'var(--accent)'}}>{e.label}</div>
+                            <div className="font-sans text-sm md:text-base flex-1 min-w-0 truncate" style={{color:'var(--ink)'}}>{e.procedure.name}</div>
                           </div>
                         );
                       }
                       return (
-                        <div key={e.key} className="flex items-center gap-3 p-3 border" style={{borderColor:'var(--line)', background:'var(--cream-deep)'}}>
-                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{background:'var(--sage)'}}></div>
+                        <div key={e.key} className="flex items-center gap-3 p-3 border" style={{borderColor: 'var(--line)', background:'var(--cream-deep)'}}>
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{background:'var(--accent-blue)'}}></div>
                           <div className="text-[9px] tracking-[0.25em] uppercase flex-shrink-0" style={{color:'var(--ink-soft)'}}>{dayLabel(new Date(e.date))} · {dateShort(new Date(e.date))}</div>
-                          <div className="text-[10px] tracking-[0.15em] uppercase px-2 py-0.5 border flex-shrink-0" style={{borderColor:'var(--sage)', color:'var(--sage)'}}>Product started</div>
-                          <div className="font-serif italic text-sm md:text-base flex-1 min-w-0 truncate" style={{color:'var(--ink)'}}>{e.product.name} <span className="text-xs not-italic" style={{color:'var(--ink-soft)'}}>· {e.product.category}</span></div>
+                          <div className="text-[10px] tracking-[0.15em] uppercase px-2 py-0.5 border flex-shrink-0" style={{borderColor:'var(--accent-blue)', color:'var(--accent-blue)'}}>Product started</div>
+                          <div className="font-sans text-sm md:text-base flex-1 min-w-0 truncate" style={{color:'var(--ink)'}}>{e.product.name} <span className="text-xs not-italic" style={{color:'var(--ink-soft)'}}>· {e.product.category}</span></div>
                         </div>
                       );
                     })}
@@ -876,10 +873,10 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
           {/* === THIS MONTH === */}
           {viewingYear === currentYear && thisMonthLogs.length > 0 && (
             <div className="mb-16">
-              <div className="flex items-baseline justify-between border-b pb-3 mb-6" style={{borderColor:'var(--line)'}}>
+              <div className="flex items-baseline justify-between border-b pb-3 mb-6" style={{borderColor: 'var(--line)'}}>
                 <div>
-                  <div className="text-[10px] tracking-[0.4em] uppercase" style={{color:'var(--ink-soft)'}}>This month</div>
-                  <h2 className="font-serif text-2xl italic mt-1" style={{color:'var(--ink)'}}>{today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
+                  <div className="text-[10px] tracking-[0.28em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>This month</div>
+                  <h2 className="font-sans text-2xl mt-1" style={{color:'var(--ink)'}}>{today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
                 </div>
                 <div className="text-[10px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{thisMonthLogs.length} entries · avg {(thisMonthLogs.reduce((s,l) => s + +l.rating, 0) / thisMonthLogs.length).toFixed(1)}</div>
               </div>
@@ -895,7 +892,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                       <Photo item={log} alt="" className="w-full h-full object-cover transition group-hover:scale-105"
                         renderFallback={() => (
                           <div className="w-full h-full flex items-center justify-center" style={{background:'var(--cream-deep)'}}>
-                            <span className="font-serif italic text-2xl" style={{color:'var(--ink-soft)'}}>{log.rating}</span>
+                            <span className="font-sans text-2xl" style={{color:'var(--ink-soft)'}}>{log.rating}</span>
                           </div>
                         )}
                       />
@@ -903,7 +900,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                         <div className="text-white text-[9px] font-medium">{new Date(log.date).getDate()}</div>
                       </div>
                       {procs.length > 0 && (
-                        <div className="absolute top-1 right-1 w-3 h-3 rounded-full" style={{background:'var(--sage)'}}></div>
+                        <div className="absolute top-1 right-1 w-3 h-3 rounded-full" style={{background:'var(--accent-blue)'}}></div>
                       )}
                     </button>
                   );
@@ -915,14 +912,14 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
           {/* === PRIOR MONTHS === */}
           {priorMonthsSorted.length > 0 && (
             <div className="mb-16">
-              <div className="border-b pb-3 mb-6" style={{borderColor:'var(--line)'}}>
-                <div className="text-[10px] tracking-[0.4em] uppercase" style={{color:'var(--ink-soft)'}}>{viewingYear === currentYear ? 'Earlier this year' : viewingYear}</div>
+              <div className="border-b pb-3 mb-6" style={{borderColor: 'var(--line)'}}>
+                <div className="text-[10px] tracking-[0.28em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>{viewingYear === currentYear ? 'Earlier this year' : viewingYear}</div>
               </div>
               <div className="space-y-10">
                 {priorMonthsSorted.map(([key, { label, entries }]) => (
                   <div key={key}>
                     <div className="flex items-baseline gap-3 mb-3">
-                      <h3 className="font-serif text-xl italic" style={{color:'var(--ink)'}}>{label}</h3>
+                      <h3 className="font-sans text-xl" style={{color:'var(--ink)'}}>{label}</h3>
                       <span className="text-[9px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{entries.length} entries · avg {(entries.reduce((s, l) => s + +l.rating, 0) / entries.length).toFixed(1)}</span>
                     </div>
                     <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 lg:grid-cols-15 gap-1">
@@ -936,7 +933,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                             <Photo item={log} alt="" className="w-full h-full object-cover transition group-hover:opacity-80"
                               renderFallback={() => (
                                 <div className="w-full h-full flex items-center justify-center" style={{background:'var(--cream-deep)'}}>
-                                  <span className="font-serif italic text-sm" style={{color:'var(--ink-soft)'}}>{log.rating}</span>
+                                  <span className="font-sans text-sm" style={{color:'var(--ink-soft)'}}>{log.rating}</span>
                                 </div>
                               )}
                             />
@@ -985,16 +982,16 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
           setSelectedPhoto(log);
         };
         return (
-          <div className="border mt-10 md:mt-12" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
-            <div className="flex items-center justify-between px-3 md:px-4 py-2.5 border-b" style={{borderColor:'var(--line)'}}>
+          <div className="border mt-10 md:mt-12" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
+            <div className="flex items-center justify-between px-3 md:px-4 py-2.5 border-b" style={{borderColor: 'var(--line)'}}>
               <button onClick={prevMonth} className="p-1.5" style={{color:'var(--ink-soft)'}} aria-label="Previous month"><Icon name="ChevronLeft" size={14} /></button>
               <div className="flex items-baseline gap-3">
                 <div className="text-[9px] tracking-[0.3em] uppercase flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
                   <span className="w-1.5 h-1.5 rounded-full inline-block" style={{background:'var(--accent)'}} />
                   Calendar
                 </div>
-                <h3 className="font-serif italic text-base md:text-lg" style={{color:'var(--ink)'}}>{monthLabel}</h3>
-                <button onClick={goToday} className="text-[9px] tracking-[0.2em] uppercase italic" style={{color:'var(--ink-soft)'}}>Today</button>
+                <h3 className="font-sans text-[15px] md:text-[17px]" style={{color:'var(--ink)', letterSpacing:'-0.018em', fontWeight:500}}>{monthLabel}</h3>
+                <button onClick={goToday} className="text-[9px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>Today</button>
               </div>
               <button onClick={nextMonth} disabled={isFutureMonth} className="p-1.5 disabled:opacity-30" style={{color:'var(--ink-soft)'}} aria-label="Next month"><Icon name="ChevronRight" size={14} /></button>
             </div>
@@ -1022,8 +1019,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                     style={{
                       background: isToday ? 'var(--accent-soft)' : (log ? 'var(--cream-deep)' : 'transparent'),
                       color: isFuture ? 'var(--line)' : (log ? 'var(--ink)' : 'var(--ink-soft)'),
-                      border: isToday ? '1px solid var(--accent)' : '1px solid transparent',
-                    }}
+                      border: isToday ? '1px solid var(--accent)' : '1px solid transparent'}}
                     title={
                       log ? `${dKey} · ${log.rating}/10 — tap to view & compare`
                       : procOnDay.length > 0 ? `${dKey} — ${procOnDay[0].name}`
@@ -1033,7 +1029,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                   >
                     <span className="text-[11px] font-light leading-none">{day}</span>
                     {log && (
-                      <span className="font-serif italic text-[10px] mt-0.5 leading-none" style={{color:'var(--accent)'}}>{log.rating}</span>
+                      <span className="font-sans text-[10px] mt-0.5 leading-none" style={{color:'var(--accent)'}}>{log.rating}</span>
                     )}
                     {/* Marker dots row, bottom of cell */}
                     <span className="absolute bottom-1 left-0 right-0 flex justify-center gap-0.5">
@@ -1045,7 +1041,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                 );
               })}
             </div>
-            <div className="text-[9px] italic px-3 md:px-4 pb-2.5" style={{color:'var(--ink-soft)'}}>
+            <div className="text-[9px] px-3 md:px-4 pb-2.5" style={{color:'var(--ink-soft)'}}>
               Tap any photo day to open it — use the Compare button inside to see it next to today.
             </div>
           </div>
@@ -1060,27 +1056,27 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
             </button>
             <Photo item={selectedPhoto} alt="" className="w-full max-h-[40vh] md:max-h-[55vh] object-contain" style={{background:'var(--cream-deep)'}} />
             <div className="px-4 py-3 md:px-5 md:py-4">
-              <div className="flex justify-between items-baseline gap-3 pb-2.5 border-b" style={{borderColor:'var(--line)'}}>
+              <div className="flex justify-between items-baseline gap-3 pb-2.5 border-b" style={{borderColor: 'var(--line)'}}>
                 <div className="min-w-0">
                   <div className="text-[9px] tracking-[0.25em] uppercase flex items-center gap-1.5" style={{color:'var(--ink-soft)'}}>
                     <span className="w-1 h-1 rounded-full inline-block" style={{background:'var(--accent)'}} />
-                    {selectedPhoto.area.replace(/-/g, ' ')}
+                    {(selectedPhoto.area || 'full-face').replace(/-/g, ' ')}
                   </div>
-                  <h3 className="font-serif text-lg md:text-xl italic leading-tight mt-0.5" style={{color:'var(--ink)'}}>{new Date(selectedPhoto.date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}</h3>
+                  <h3 className="font-sans text-lg md:text-xl leading-tight mt-0.5" style={{color:'var(--ink)'}}>{new Date(selectedPhoto.date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}</h3>
                 </div>
-                <div className="font-serif italic flex-shrink-0" style={{color:'var(--accent)'}}>
+                <div className="font-sans flex-shrink-0" style={{color:'var(--accent)'}}>
                   <span className="text-2xl md:text-3xl">{selectedPhoto.rating}</span>
                   <span className="text-[10px]" style={{color:'var(--ink-soft)'}}>/10</span>
                 </div>
               </div>
-              {selectedPhoto.notes && <p className="text-xs mt-2 font-light italic" style={{color:'var(--ink-soft)'}}>"{selectedPhoto.notes}"</p>}
+              {selectedPhoto.notes && <p className="text-xs mt-2 font-light" style={{color:'var(--ink-soft)'}}>"{selectedPhoto.notes}"</p>}
               {selectedPhoto.concerns?.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
                   {selectedPhoto.concerns.map(c => <span key={c} className="text-[9px] tracking-wider px-1.5 py-0.5 rounded-full" style={{background:'var(--cream-deep)', color:'var(--ink-soft)'}}>{c}</span>)}
                 </div>
               )}
               {selectedPhoto.ratingExplanation && (
-                <div className="mt-2.5 pt-2.5 border-t" style={{borderColor:'var(--line)'}}>
+                <div className="mt-2.5 pt-2.5 border-t" style={{borderColor: 'var(--line)'}}>
                   <div className="text-[8px] tracking-[0.25em] uppercase mb-1 flex items-center gap-1" style={{color:'var(--ink-soft)'}}>
                     <Icon name="Eye" size={9} /> Why this rating
                   </div>
@@ -1088,7 +1084,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                 </div>
               )}
               {selectedPhoto.aiAnalysis && (
-                <div className="mt-2.5 pt-2.5 border-t" style={{borderColor:'var(--line)'}}>
+                <div className="mt-2.5 pt-2.5 border-t" style={{borderColor: 'var(--line)'}}>
                   <div className="text-[8px] tracking-[0.25em] uppercase mb-1 flex items-center gap-1" style={{color:'var(--ink-soft)'}}>
                     <Icon name="Sparkles" size={9} /> Observation
                   </div>
@@ -1096,19 +1092,19 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                 </div>
               )}
               {/* Footer actions inside the detail modal */}
-              <div className="mt-2.5 pt-2 border-t flex items-center justify-between gap-3 flex-wrap" style={{borderColor:'var(--line)'}}>
+              <div className="mt-2.5 pt-2 border-t flex items-center justify-between gap-3 flex-wrap" style={{borderColor: 'var(--line)'}}>
                 {(() => {
                   const hp = (l) => l.photoPath || (typeof l.photo === 'string' && l.photo.startsWith('data:'));
                   const previousPhotoLog = hp(selectedPhoto) ? logs.filter(l => l.id !== selectedPhoto.id && hp(l) && new Date(l.date) < new Date(selectedPhoto.date)).sort((a, b) => new Date(b.date) - new Date(a.date))[0] : null;
                   return previousPhotoLog ? (
-                    <button onClick={() => { enterCompare?.(previousPhotoLog.id, selectedPhoto.id); setSelectedPhoto(null); }} className="text-[9px] tracking-[0.2em] uppercase italic flex items-center gap-1" style={{color:'var(--ink)', borderBottom:'1px dotted var(--ink)'}}>
+                    <button onClick={() => { enterCompare?.(previousPhotoLog.id, selectedPhoto.id); setSelectedPhoto(null); }} className="text-[9px] tracking-[0.18em] uppercase flex items-center gap-1" style={{color:'var(--accent)', fontWeight:600}}>
                       <Icon name="Eye" size={10} /> Compare with {new Date(previousPhotoLog.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </button>
                   ) : <span />;
                 })()}
                 <div className="flex items-center gap-3 ml-auto">
                   {onEditLog && (
-                    <button onClick={() => { onEditLog(selectedPhoto.id); setSelectedPhoto(null); }} className="text-[9px] tracking-widest uppercase italic flex items-center gap-1" style={{color:'var(--ink)'}}>
+                    <button onClick={() => { onEditLog(selectedPhoto.id); setSelectedPhoto(null); }} className="text-[9px] tracking-widest uppercase flex items-center gap-1" style={{color:'var(--ink)'}}>
                       <Icon name="Edit2" size={10} /> Edit
                     </button>
                   )}
@@ -1126,14 +1122,14 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
       {showSplitPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(28,25,23,0.6)', backdropFilter:'blur(4px)'}} onClick={() => { setShowSplitPicker(false); handlePriorCancel(); }}>
           <div onClick={e => e.stopPropagation()} className="w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl" style={{background:'var(--cream)'}}>
-            <div className="sticky top-0 border-b px-6 py-4 flex justify-between items-center z-10" style={{background:'var(--cream)', borderColor:'var(--line)'}}>
-              <h3 className="text-xl font-serif italic" style={{color:'var(--ink)'}}>{pickerStage === 'review' ? 'When was this photo from?' : 'Pick a photo to compare'}</h3>
+            <div className="sticky top-0 border-b px-6 py-4 flex justify-between items-center z-10" style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
+              <h3 className="text-[18px] md:text-[20px] font-sans" style={{color:'var(--ink)', letterSpacing:'-0.018em'}}>{pickerStage === 'review' ? 'When was this photo from?' : 'Pick a photo to compare'}</h3>
               <button onClick={() => { setShowSplitPicker(false); handlePriorCancel(); }} style={{color:'var(--ink-soft)'}}><Icon name="X" size={18} /></button>
             </div>
             <div className="p-6">
               {pickerStage === 'browse' && (
                 <>
-                  <p className="text-sm font-light italic mb-4" style={{color:'var(--ink-soft)'}}>Tap any photo from your timeline, or upload an old one from your camera library. It becomes the "Before" half against today's photo.</p>
+                  <p className="text-sm font-light mb-4" style={{color:'var(--ink-soft)'}}>Tap any photo from your timeline, or upload an old one from your camera library. It becomes the "Before" half against today's photo.</p>
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
                     {/* Upload-from-library tile — always first */}
                     <button onClick={() => fileUploadRef.current?.click()} className="relative aspect-square flex flex-col items-center justify-center text-center px-2 transition hover:bg-[var(--cream-deep)]" style={{border:'2px dashed var(--line)'}}>
@@ -1146,20 +1142,20 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                         <Photo item={log} alt="" className="w-full h-full object-cover" />
                         <div className="absolute inset-x-0 bottom-0 px-1.5 py-1" style={{background:'linear-gradient(to top, rgba(0,0,0,0.7), transparent)'}}>
                           <div className="text-white text-[8px] tracking-[0.15em] uppercase">{new Date(log.date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}</div>
-                          <div className="text-white font-serif italic text-xs leading-none">{log.rating}<span className="text-[8px] opacity-70">/10</span></div>
+                          <div className="text-white font-sans text-xs leading-none">{log.rating}<span className="text-[8px] opacity-70">/10</span></div>
                         </div>
                       </button>
                     ))}
                   </div>
                   {photoLogs.filter(l => l.id !== todayLog?.id).length === 0 && (
-                    <p className="font-serif text-sm italic mt-4" style={{color:'var(--ink-soft)'}}>No earlier photos in your timeline yet — upload an old one to compare today against your past.</p>
+                    <p className="font-sans text-sm mt-4" style={{color:'var(--ink-soft)'}}>No earlier photos in your timeline yet — upload an old one to compare today against your past.</p>
                   )}
                 </>
               )}
 
               {pickerStage === 'review' && pendingPhoto && (
                 <div className="space-y-4">
-                  <p className="text-sm font-light italic" style={{color:'var(--ink-soft)'}}>This photo will be saved to your journal as a backdated entry. Pick the date it was taken.</p>
+                  <p className="text-sm font-light" style={{color:'var(--ink-soft)'}}>This photo will be saved to your journal as a backdated entry. Pick the date it was taken.</p>
                   <div className="aspect-[4/3] overflow-hidden" style={{background:'var(--cream-deep)'}}>
                     <img src={pendingPhoto.base64} alt="" className="w-full h-full object-contain" />
                   </div>
@@ -1172,12 +1168,12 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                       onChange={e => setPendingPhoto(p => ({ ...p, date: e.target.value }))}
                       autoFocus
                       className={inputCls}
-                      style={{background:'var(--cream-deep)', borderColor:'var(--line)', color:'var(--ink)'}}
+                      style={{background:'var(--cream-deep)', borderColor: 'var(--line)', color:'var(--ink)'}}
                     />
-                    <div className="text-[10px] font-light italic mt-1.5" style={{color:'var(--ink-soft)'}}>The photo will save with this date so it appears in the right place on your timeline. Defaults to full-face — edit later in the journal entry if needed.</div>
+                    <div className="text-[10px] font-light mt-1.5" style={{color:'var(--ink-soft)'}}>The photo will save with this date so it appears in the right place on your timeline. Defaults to full-face — edit later in the journal entry if needed.</div>
                   </div>
                   <div className="flex gap-2 pt-2">
-                    <button onClick={handlePriorCancel} disabled={savingPrior} className="flex-1 py-2.5 tracking-[0.2em] text-[10px] uppercase border transition disabled:opacity-50" style={{borderColor:'var(--line)', color:'var(--ink-soft)'}}>Cancel</button>
+                    <button onClick={handlePriorCancel} disabled={savingPrior} className="flex-1 py-2.5 tracking-[0.2em] text-[10px] uppercase border transition disabled:opacity-50" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>Cancel</button>
                     <button onClick={handlePriorSave} disabled={!pendingPhoto.date || savingPrior} className="flex-1 py-2.5 tracking-[0.2em] text-[10px] uppercase transition disabled:opacity-40 flex items-center justify-center gap-1.5" style={{background:'var(--ink)', color:'var(--cream)'}}>
                       {savingPrior ? <><Icon name="Loader2" size={11} className="spin" /> Saving</> : <>Use this photo</>}
                     </button>

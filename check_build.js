@@ -63,8 +63,6 @@ const REQUIRED_FILES = [
   'src/components/CheckInDetailsModal.jsx',
   'src/components/checkin/CheckInPhotoStrip.jsx',
   'src/components/checkin/CheckInObservationChips.jsx',
-  'src/components/checkin/CheckInContextSheet.jsx',
-  'src/components/checkin/CheckInAlsoTodayActions.jsx',
   'src/components/routine/RoutineProductRow.jsx',
   'src/components/routine/EmptyRoutineState.jsx',
   'src/components/routine/RoutineSlotList.jsx',
@@ -356,6 +354,146 @@ const SOURCE_FILES = collectSourceFiles();
     }
     if (hits.length > 0) fail(`Extracted modal rendered propless (silent failure mode — user-visible bug only when modal opens): ${hits.join(', ')}`);
     else ok('All extracted modal render sites pass props');
+  }
+}
+
+// Guard 3.06 — GuidedPhotoCaptureModal capture count must be local and stable.
+// Regression caught on mobile Safari: opening the guided camera crashed
+// with "Can't find variable: capturedCount" because the header/Done button
+// referenced capturedCount after a refactor changed the local count names.
+{
+  const guided = SOURCE_FILES.find(f => f.rel === 'src/components/GuidedPhotoCaptureModal.jsx');
+  if (!guided) {
+    fail('Guard 3.06: GuidedPhotoCaptureModal.jsx not found');
+  } else {
+    if (/\bcapturedCount\b/.test(guided.text)) {
+      fail('GuidedPhotoCaptureModal must not use the stale capturedCount alias — use totalCapturedCount/guidedCapturedCount instead');
+    } else {
+      ok('GuidedPhotoCaptureModal avoids stale capturedCount alias');
+    }
+    const partialDailyAllowed =
+      guided.text.includes('requireFullGuidedSet = false') &&
+      guided.text.includes('requireFullGuidedSet') &&
+      guided.text.includes('guidedCapturedCount > 0') &&
+      guided.text.includes('if (!canFinish) return;');
+    if (!partialDailyAllowed) fail('Guided daily check-in must be able to finish after one captured photo');
+    else ok('Guided daily check-in can finish after one photo');
+  }
+}
+
+// Guard 3.065 — Rotation actives must be classified by ingredient family.
+// Regression caught in Regimen → Rotation: a product with daily cadence
+// but a strong active family (retinoid/BHA/etc.) was counted as a "basic"
+// because the UI split active/support rows using `days.length === 7`.
+// Daily actives are still actives. This guard keeps the split wired to
+// `isActiveEntry`, which checks the detected ingredient family.
+{
+  const rotation = SOURCE_FILES.find(f => f.rel === 'src/components/regimen/RegimenOccasionsView.jsx');
+  if (!rotation) {
+    fail('Guard 3.065: RegimenOccasionsView.jsx not found');
+  } else {
+    const hasFamilyClassifier =
+      rotation.text.includes('const isActiveEntry = (entry) => entry?.family') &&
+      rotation.text.includes('am.filter(isActiveEntry)') &&
+      rotation.text.includes('pm.filter(isActiveEntry)');
+    const cadenceSplitReturned =
+      /const\s+isDaily\s*=\s*\([^)]*\)\s*=>[\s\S]{0,500}\.filter\(e\s*=>\s*!\s*isDaily\(e\.product\)\)/.test(rotation.text) ||
+      /\.filter\(e\s*=>\s*!\s*isDaily\(e\.product\)\)/.test(rotation.text);
+    if (!hasFamilyClassifier) fail('Rotation day panel must classify active/support rows with isActiveEntry, not cadence');
+    else ok('Rotation day panel classifies scheduled actives by ingredient family');
+    if (cadenceSplitReturned) fail('Rotation day panel reintroduced cadence-based active split — daily retinoids would read as basics');
+    else ok('Rotation day panel does not treat daily cadence as basic');
+  }
+}
+
+// Guard 3.066 — Today's ritual log must be canonical.
+// Regression caught from Home → Regimen: "Used something else? → From shelf"
+// saved the product id into the day's regimenLog, but resolveTodayRitual
+// narrowed oversized slots back to built-routine products / plan fallback,
+// hiding the user's one-off add. Logs are user truth; overflow may hide
+// items behind +N, but resolver must not discard them.
+{
+  const resolver = SOURCE_FILES.find(f => f.rel === 'src/resolvers/routineResolvers.js');
+  if (!resolver) {
+    fail('Guard 3.066: routineResolvers.js not found');
+  } else {
+    if (resolver.text.includes('planFallback') || resolver.text.includes('narrowOversized')) {
+      fail('resolveTodayRitual must not use planFallback/narrowOversized for regimenLogs; day-specific adds disappear');
+    } else {
+      ok('resolveTodayRitual keeps regimenLog products canonical, with overflow only');
+    }
+  }
+}
+
+// Guard 3.07 — recommendation drawer must stay explainable + correctly routed.
+// Regressions caught in product review:
+//   - Exfoliate tile accidentally opened the Brighten filter.
+//   - Cards scored like a black box, with no visible "why this" line.
+//   - Brand-priority rules from brandRanking.js were bypassed in the drawer.
+{
+  const shelf = SOURCE_FILES.find(f => f.rel === 'src/components/regimen/RegimenShelfView.jsx');
+  const sidecar = SOURCE_FILES.find(f => f.rel === 'index.jsx.source');
+  if (shelf && /catId === 'exfoliate'\s*\?\s*['"]brighten['"]/.test(shelf.text)) {
+    fail('What-we’d-try Exfoliate tile routes to Brighten instead of Exfoliate');
+  } else {
+    ok('What-we’d-try Exfoliate tile keeps its own filter');
+  }
+  if (sidecar) {
+    const hasBrandPriority = sidecar.text.includes('getBrandPriority(p.brand)') && sidecar.text.includes('top-tier brand');
+    const hasWhyLine = sidecar.text.includes('const whyThisPick') && sidecar.text.includes('Why: {whyThisPick(p)}');
+    const hasVisibleRules = sidecar.text.includes('Rules: max 2 per brand') && sidecar.text.includes('top-tier boost') && sidecar.text.includes('ingredient fit');
+    const hasBrandCap = sidecar.text.includes('brandCounts[brandKey] >= 2');
+    const hasTopTierGuarantee = sidecar.text.includes('const hasTopTier') && sidecar.text.includes('topTierCandidate');
+    if (!hasBrandPriority) fail('Suggested matches drawer must score with getBrandPriority so top-tier brands surface');
+    else ok('Suggested matches drawer uses shared brand priority');
+    if (!hasWhyLine) fail('Suggested matches cards must render a visible Why line for trust');
+    else ok('Suggested matches cards explain why each product appears');
+    if (!hasVisibleRules) fail('Suggested matches drawer must show visible variety rules');
+    else ok('Suggested matches drawer shows variety rules');
+    if (!hasBrandCap) fail('Suggested matches drawer must cap repeated brands at 2');
+    else ok('Suggested matches drawer caps repeated brands');
+    if (!hasTopTierGuarantee) fail('Suggested matches drawer must guarantee a top-tier pick when one matches');
+    else ok('Suggested matches drawer guarantees top-tier presence when possible');
+  }
+}
+
+// Guard 3.09 — daily photo captures must funnel through check-in details.
+// Mental model: every daily capture/upload/detail shot goes to
+// checkInDetailsQueue, where the user confirms region + rating + context.
+// Only onboarding_baseline can save directly.
+{
+  const sidecar = SOURCE_FILES.find(f => f.rel === 'index.jsx.source');
+  if (sidecar) {
+    const guidedBranch = /guidedCaptureCtx\?\.intent !== 'onboarding_baseline'[\s\S]{0,700}setCheckInDetailsQueue\(queue\)/.test(sidecar.text);
+    const fullSetOnlyForSetIntents =
+      sidecar.text.includes("requireFullGuidedSet={guidedCaptureCtx?.intent === 'onboarding_baseline'}");
+    const preservesMetadata =
+      sidecar.text.includes('noticed: Array.isArray(form.noticed)') &&
+      sidecar.text.includes('contextFactors: Array.isArray(form.contextFactors)') &&
+      sidecar.text.includes('angle: shot.angle') &&
+      sidecar.text.includes("eye_area: 'eye-area'");
+    if (!guidedBranch) fail('Guided daily captures must route to CheckInDetailsModal before save');
+    else ok('Guided daily captures route through CheckInDetailsModal');
+    if (!fullSetOnlyForSetIntents) fail('Only baseline/set capture should require the full guided sequence; check-in should allow one photo');
+    else ok('Guided check-in does not require the full 5-photo set');
+    if (!preservesMetadata) fail('Saved check-in logs must preserve noticed/context/angle and eye-area metadata');
+    else ok('Saved check-in logs preserve context and per-photo metadata');
+  }
+}
+
+// Guard 3.10 — Home daily-photo CTAs must launch guided capture.
+// Any visible daily photo entry point should share the guided 5-photo
+// model, not the legacy single-shot camera, except for the helper's
+// explicit fallback when guided props are absent.
+{
+  const home = SOURCE_FILES.find(f => f.rel === 'src/components/HomeDashboard.jsx');
+  if (home) {
+    const directLegacyLaunches = (home.text.match(/setShowCheckInCamera\(true\)/g) || []).length;
+    const hasGuidedHelper = home.text.includes('const startGuidedCheckIn') && home.text.includes("setGuidedCaptureCtx({ intent: 'check_in' })");
+    if (!hasGuidedHelper) fail('HomeDashboard must expose startGuidedCheckIn for daily photo CTAs');
+    else ok('HomeDashboard daily photo CTAs have a guided-capture helper');
+    if (directLegacyLaunches > 1) fail('HomeDashboard has daily photo CTAs bypassing guided capture');
+    else ok('HomeDashboard daily photo CTAs route through guided capture');
   }
 }
 

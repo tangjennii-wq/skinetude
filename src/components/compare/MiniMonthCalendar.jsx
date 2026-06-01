@@ -33,14 +33,14 @@ const MiniMonthCalendar = ({ logs = [], onDayClick, showThumbs = false, procedur
   const goToday = () => setMonth(new Date(today.getFullYear(), today.getMonth(), 1));
 
   return (
-    <div className="border" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
-      <div className="flex items-center justify-between px-3 py-2 border-b" style={{borderColor:'var(--line)'}}>
+    <div className="border" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
+      <div className="flex items-center justify-between px-3 py-2 border-b" style={{borderColor: 'var(--line)'}}>
         <button onClick={prevMonth} className="p-1.5" style={{color:'var(--ink-soft)'}} aria-label="Previous month">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
         <div className="flex items-baseline gap-2">
-          <h3 className="font-serif italic text-sm md:text-base" style={{color:'var(--ink)'}}>{monthLabel}</h3>
-          <button onClick={goToday} className="text-[9px] tracking-[0.2em] uppercase italic" style={{color:'var(--ink-soft)'}}>Today</button>
+          <h3 className="font-sans text-sm md:text-base" style={{color:'var(--ink)'}}>{monthLabel}</h3>
+          <button onClick={goToday} className="text-[9px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>Today</button>
         </div>
         <button onClick={nextMonth} disabled={isFutureMonth} className="p-1.5 disabled:opacity-30" style={{color:'var(--ink-soft)'}} aria-label="Next month">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -69,8 +69,7 @@ const MiniMonthCalendar = ({ logs = [], onDayClick, showThumbs = false, procedur
               style={{
                 background: isToday ? 'var(--accent-soft)' : (log && !showThumbs ? 'var(--cream-deep)' : 'transparent'),
                 color: isFuture ? 'var(--line)' : (log ? 'var(--ink)' : 'var(--ink-soft)'),
-                border: isToday ? '1px solid var(--accent)' : '1px solid transparent',
-              }}
+                border: isToday ? '1px solid var(--accent)' : '1px solid transparent'}}
               title={log ? `${dKey} · ${log.rating}/10` : (proc ? `${dKey} · ${proc.name}` : dKey)}
             >
               {log && showThumbs && (
@@ -80,11 +79,10 @@ const MiniMonthCalendar = ({ logs = [], onDayClick, showThumbs = false, procedur
                 className="text-[10px] font-light leading-none relative z-10"
                 style={{
                   color: log && showThumbs ? '#fff' : undefined,
-                  textShadow: log && showThumbs ? '0 1px 2px rgba(0,0,0,0.6)' : undefined,
-                }}
+                  textShadow: log && showThumbs ? '0 1px 2px rgba(0,0,0,0.6)' : undefined}}
               >{day}</span>
               {log && !showThumbs && (
-                <span className="font-serif italic text-[10px] mt-0.5 leading-none" style={{color:'var(--accent)'}}>{log.rating}</span>
+                <span className="font-sans text-[10px] mt-0.5 leading-none" style={{color:'var(--accent)'}}>{log.rating}</span>
               )}
               {/* Marker dots — bottom of cell */}
               <span className="absolute bottom-0.5 left-0 right-0 flex justify-center gap-0.5 z-10">

@@ -22,6 +22,8 @@ const HomeDashboard = ({
   procedures,
   events,
   regimenLogs, setRegimenLogs,
+  buildPlan,
+  buildPlanAccepted,
   coverRoutine, setCoverRoutine,
   cycleData,
   hormonalContext,
@@ -36,12 +38,15 @@ const HomeDashboard = ({
   setShowCheckInChooser,
   setShowCheckInCamera,
   setShowHomeUploadPicker,
+  setShowGuidedCaptureModal,
+  setGuidedCaptureCtx,
   setShowProductModal,
   setEditingProductId,
   setProductForm,
   setShowApiKeyModal,
   setActiveTab,
   setJournalViewOverride,
+  setJournalMode,
   setRegimenView,
   setCoverRoutineRebuildToken,
   homeUploadInputRef,
@@ -59,6 +64,10 @@ const HomeDashboard = ({
   setOpenLesson,
   setRemoveScopePrompt,
   setUsedSomethingElseSheet,
+  setShowProcedureModal,
+  setShowScoreExplainer,
+  scoreExplainerSeen,
+  setScoreExplainerSeen,
 }) => {
   // === BOOT HYDRATION GRACE (May 2026 v2 per Jenni) ===
   // Briefly suppresses the fresh-user empty-state cover while
@@ -69,14 +78,93 @@ const HomeDashboard = ({
   // For genuinely fresh users, the empty cover appears 300ms late —
   // imperceptible.
   const [coverHydrated, setCoverHydrated] = useState(false);
+  const [coverRitualMenuOpen, setCoverRitualMenuOpen] = useState(false);
+  // === COVER HERO KEBAB (May 28 2026 per Jenni) ===
+  // Three-dot menu in the upper-right of the cover Skin Snapshot card.
+  // Carries the secondary navigation that used to live as a footer row
+  // ("View journal · Compare photos") plus journal-timeline + insights
+  // routes, plus a re-analyze escape hatch for the AI read. Replaces
+  // the orphaned bottom-of-card link row that was duplicating top-nav
+  // moves.
+  const [coverHeroMenuOpen, setCoverHeroMenuOpen] = useState(false);
+  // === PROCEDURE PROGRESS EXPORT (May 31 2026 per Jenni) ===
+  // Ref attached to the Procedure Progress <section> so the kebab's
+  // "Export / share" can render the card to a JPG via html2canvas
+  // (CDN-loaded in index.html). See exportProcedureProgress below.
+  const procedureProgressRef = useRef(null);
+  // Bug #12 (May 31 2026): double-tap on Export → two html2canvas runs
+  // against the same node → two downloads. Lock with a ref so the second
+  // invocation is a no-op until the first finishes (cleared in finally).
+  const isExportingRef = useRef(false);
   useEffect(() => {
     const t = setTimeout(() => setCoverHydrated(true), 300);
     return () => clearTimeout(t);
   }, []);
 
-  // Pearl of the Day — deterministic by ISO date, rotates at midnight local
+  // === FIRST-TIME SCORE EXPLAINER AUTO-SHOW (June 2026 per Jenni) ===
+  // The very first time a user has a composite render on their cover
+  // (they've taken a check-in photo + the AI has produced a metricSnapshot),
+  // auto-open the explainer drawer once. After dismiss the localStorage
+  // flag flips and we never auto-open again. Same drawer is reachable
+  // from the kebab + cover delta line + Profile any time.
+  const firstAutoShownRef = useRef(false);
+  useEffect(() => {
+    if (firstAutoShownRef.current) return;
+    if (typeof setShowScoreExplainer !== 'function') return;
+    if (scoreExplainerSeen) return;
+    const hasComposite = (logs || []).some(l => l && l.metricSnapshot);
+    if (!hasComposite) return;
+    firstAutoShownRef.current = true;
+    // Small delay so the cover gets to paint first — the drawer
+    // appearing instantly on page load reads as an unwelcome popup.
+    const t = setTimeout(() => setShowScoreExplainer(true), 900);
+    return () => clearTimeout(t);
+  }, [logs, scoreExplainerSeen, setShowScoreExplainer]);
+
+  // Export the Procedure Progress card as a downloadable JPG. Triggered
+  // from the kebab menu. Filename pattern keeps procedures organized in
+  // the Downloads folder by date: procedure-progress-<slug>-<iso>.jpg.
+  const exportProcedureProgress = async (procName) => {
+    // Bug #12 race lock: bail if an export is already underway.
+    if (isExportingRef.current) return;
+    if (typeof window === 'undefined' || typeof window.html2canvas !== 'function') {
+      toast && toast('Export not available offline', 'info');
+      return;
+    }
+    const node = procedureProgressRef.current;
+    if (!node) {
+      toast && toast('Export failed — try again', 'error');
+      return;
+    }
+    isExportingRef.current = true;
+    try {
+      const canvas = await window.html2canvas(node, { backgroundColor: '#FFFFFF', scale: 2 });
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      const slug = String(procName || 'procedure').toLowerCase().trim()
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'procedure';
+      const iso = (typeof localDateISO === 'function') ? localDateISO() : new Date().toISOString().slice(0, 10);
+      const filename = `procedure-progress-${slug}-${iso}.jpg`;
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast && toast('Saved to downloads', 'success');
+    } catch (err) {
+      console.warn('[procedure-progress-export]', err);
+      toast && toast('Export failed — try again', 'error');
+    } finally {
+      isExportingRef.current = false;
+    }
+  };
+
+  // Pearl of the Day — deterministic by ISO date, rotates at midnight local.
+  // Bug #19 (May 31 2026): when LESSONS is empty, `% 0` returns NaN and
+  // LESSONS[NaN] is undefined — downstream `pearlOfDay.title` crashes.
+  // Guard with a length check so we surface null when there's nothing to show.
   const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
-  const pearlOfDay = LESSONS[dayOfYear % LESSONS.length];
+  const pearlOfDay = LESSONS.length ? LESSONS[dayOfYear % LESSONS.length] : null;
   const today = new Date();
   // Note: `todayStr` is destructured from props above (passed by App).
   // Don't redeclare locally — that would collide with the prop.
@@ -150,6 +238,14 @@ const HomeDashboard = ({
   const todayLog = overridePick || todaysFullFace[0] || todaysPhotoLogs.sort((a, b) => (b.id || 0) - (a.id || 0))[0] || null;
   const priorPhotoLog = logs.filter(l => l.date !== todayStr && hasPhoto(l) && l.area === 'full-face').sort((a,b) => new Date(b.date) - new Date(a.date))[0]
     || logs.filter(l => l.date !== todayStr && hasPhoto(l)).sort((a,b) => new Date(b.date) - new Date(a.date))[0];
+  const startGuidedCheckIn = () => {
+    if (typeof setGuidedCaptureCtx === 'function' && typeof setShowGuidedCaptureModal === 'function') {
+      setGuidedCaptureCtx({ intent: 'check_in' });
+      setShowGuidedCaptureModal(true);
+      return;
+    }
+    setShowCheckInCamera(true);
+  };
 
   // Recurring-concern severity over last 30 days, with 14-day sparkline trend
   const concernRows = (() => {
@@ -193,10 +289,23 @@ const HomeDashboard = ({
   // Builds an inline AM/PM routine right on the cover, persists across sessions.
   // Note: we publish the latest closure to a ref so external triggers (modal submit,
   // new photo log) can call the build without rendering the dashboard tab.
-  const buildCoverRoutine = async () => {
+  //
+  // T4 fix (May 31 2026): accepts an optional `snapshot` arg so the App-level
+  // watcher at index.jsx.source:9685 can pass fresh values when this dashboard
+  // hasn't re-rendered since the inputs changed (off-Home edits leave the
+  // closure stale). Snapshot keys override closure values when provided.
+  const buildCoverRoutine = async (snapshot = null) => {
     if (!getApiKey()) { setShowApiKeyModal(true); return; }
-    const activePs = products.filter(p => !p.endDate);
+    const productsArg = (snapshot && Array.isArray(snapshot.products)) ? snapshot.products : products;
+    const userConcernsArg = (snapshot && Array.isArray(snapshot.userConcerns)) ? snapshot.userConcerns : userConcerns;
+    const sensitivitiesArg = (snapshot && Array.isArray(snapshot.sensitivities)) ? snapshot.sensitivities : sensitivities;
+    const userProfileArg = (snapshot && snapshot.userProfile && typeof snapshot.userProfile === 'object') ? snapshot.userProfile : userProfile;
+    const activePs = productsArg.filter(p => !p.endDate);
     if (activePs.length === 0) { toast('Add some products first', 'error'); return; }
+    // Bug #3 fix (May 2026): capture identity at call-start so a
+    // mid-call sign-out doesn't land the Claude response in the next
+    // user's state. Check the snapshot before every setState/saveData.
+    const userIdAtStart = user?.id;
     setCoverRoutineLoading(true);
     try {
       // === ASSEMBLE EVIDENCE FROM RECENT LOGS ===
@@ -225,15 +334,18 @@ const HomeDashboard = ({
       const trendSummary = trendLines.length ? trendLines.join('\n') : 'No trend data yet.';
 
       const productList = activePs.map(p => `· ${p.name} by ${p.brand || 'unknown'} — ${p.category} — actives: ${p.activeIngredients || 'none listed'} — concerns: ${(p.concerns || []).join(', ') || 'general'}`).join('\n');
-      const concernsLine = (userConcerns || []).join(', ') || 'none specified';
-      const sensLine = (sensitivities || []).join(', ') || 'none';
+      const concernsLine = (userConcernsArg || []).join(', ') || 'none specified';
+      const sensLine = (sensitivitiesArg || []).join(', ') || 'none';
+      // userProfileArg is captured for future barrier/Rx-aware prompting; not yet
+      // threaded into the prompt template but available for the next iteration.
+      void userProfileArg;
 
       // === DERMATOLOGY-GROUNDED ROUTINE PROMPT ===
       // Heavy guardrails: when the recent logs show redness/irritation/sensitivity, the
       // AI must downweight active acids/retinoids and prioritise barrier repair. When skin
       // is calm and improving, it can lean into actives. This is the difference between
       // a smart recommendation and "just put vitamin C on a flare-up".
-      const prompt = `You are recommending today's AM and PM routine for a single user, choosing ONLY from their shelf below. This is a clinical decision — read the evidence first, THEN decide.
+      const prompt = `You are recommending today's AM and PM routine for a single user, choosing ONLY from their shelf below. This is an evidence-based decision — read the evidence first, THEN decide.
 
 USER STATED CONCERNS: ${concernsLine}
 SENSITIVITIES (must avoid these triggers): ${sensLine}
@@ -252,7 +364,7 @@ DECISION RULES — apply in order:
 2. If breakouts are trending up: keep niacinamide, zinc, salicylic acid spot use, but skip stronger acids. Don't pair with retinoids same night.
 3. If skin is calm and ratings ≥ 7 with no flags: lean into actives — vitamin C in AM, retinoid in PM, exfoliants 2-3x/week.
 4. NEVER recommend a product that contains an ingredient in the user's sensitivities list.
-5. SPF is mandatory in AM if the shelf has one. If the shelf has no sunscreen, the AM slot still includes everything else.
+5. SPF is non-negotiable. Always include SPF in the AM ideal regardless of what's on the shelf. If the shelf has an SPF, slot it in AM. If the shelf has NO SPF, return a "criticalGap" field in the JSON output (see schema below) — DO NOT silently drop SPF from AM.
 6. Order by derm best practice: cleanser → toner → serum (lightest first) → moisturizer → SPF (AM only). PM ends at moisturizer or treatment.
 
 CRITICAL OUTPUT REQUIREMENTS:
@@ -260,11 +372,18 @@ CRITICAL OUTPUT REQUIREMENTS:
 - Return STRICT JSON only — no prose, no markdown fence, no explanation:
 {
   "am": [{"product": "exact name from shelf"}],
-  "pm": [{"product": "exact name from shelf"}]
+  "pm": [{"product": "exact name from shelf"}],
+  "criticalGap": { "type": "spf-missing", "message": "No sunscreen on your shelf — this is the single highest-leverage skincare gap. Even one drugstore mineral SPF 50 (e.g. EltaMD UV Clear, La Roche-Posay Anthelios) covers it." }
 }
+- Include the "criticalGap" field ONLY when the shelf has no sunscreen at all. Omit it otherwise.
 - Each "product" must EXACTLY match a name from the shelf list.
 - Max 5 products per slot.`;
       const result = await callClaude(prompt, '', null, { model: 'claude-haiku-4-5-20251001', maxTokens: 600 });
+      // Bug #3 guard: bail if the user changed during the await.
+      if (user?.id !== userIdAtStart) {
+        console.warn('[buildCoverRoutine] user changed mid-call, bailing');
+        return;
+      }
       // === MULTI-STRATEGY JSON EXTRACTION ===
       // Tolerates: code fences, leading/trailing prose, multiple {} blocks in the response.
       const stripFences = (s) => String(s || '').replace(/```(?:json|JSON)?\s*([\s\S]*?)\s*```/g, '$1').trim();
@@ -303,6 +422,14 @@ CRITICAL OUTPUT REQUIREMENTS:
         ? slot.map(it => ({ product: String(it.product || '').trim() })).filter(it => it.product)
         : [];
       const trimmed = { am: trim(parsed.am), pm: trim(parsed.pm) };
+      // Preserve criticalGap so the Home cover card can surface the
+      // SPF-missing banner (only AI sets this; absent otherwise).
+      if (parsed.criticalGap && typeof parsed.criticalGap === 'object' && parsed.criticalGap.type) {
+        trimmed.criticalGap = {
+          type: String(parsed.criticalGap.type),
+          message: String(parsed.criticalGap.message || '')
+        };
+      }
       // Don't overwrite an existing routine with an empty one — protects against
       // AI returning [] when its decision tree skips everything (barrier-repair mode
       // with no gentle products on the shelf, etc.).
@@ -311,22 +438,38 @@ CRITICAL OUTPUT REQUIREMENTS:
           toast('Kept the previous routine — AI had nothing to swap to.', 'info');
         } else {
           toast('No routine fit your skin today — try again or check your shelf.', 'info');
+          // Bug #3 guard: re-check identity before any cross-user write.
+          if (user?.id !== userIdAtStart) {
+            console.warn('[buildCoverRoutine] user changed mid-call, bailing');
+            return;
+          }
           setCoverRoutine(trimmed); // empty so UI shows the empty-state note
           await saveData('coverRoutine', trimmed);
         }
       } else {
+        // Bug #3 guard: re-check identity before any cross-user write.
+        if (user?.id !== userIdAtStart) {
+          console.warn('[buildCoverRoutine] user changed mid-call, bailing');
+          return;
+        }
         setCoverRoutine(trimmed);
         await saveData('coverRoutine', trimmed);
         toast('Routine built ✨');
       }
     } catch (e) {
-      console.error(e);
-      toast('Build failed', 'error');
+      console.warn('[buildCoverRoutine]', e);
+      toast(`Build failed: ${e?.message || 'unknown error'}`, 'error');
     }
     setCoverRoutineLoading(false);
   };
   // Publish the latest closure for external triggers (modal submit, photo-log save).
-  buildCoverRoutineRef.current = buildCoverRoutine;
+  // T4 fix (May 31 2026): moved into useEffect — ref assignment during render
+  // is a React anti-pattern (concurrent renders + Strict Mode double-invoke
+  // could leave the ref pointing at a discarded closure). No dep array so it
+  // refreshes on every render — cheap, since it's just a ref write.
+  useEffect(() => {
+    buildCoverRoutineRef.current = buildCoverRoutine;
+  });
   // Display normalization — extract only product names (descriptors dropped per UX spec).
   const parsedCoverRoutine = (() => {
     if (!coverRoutine) return null;
@@ -334,7 +477,9 @@ CRITICAL OUTPUT REQUIREMENTS:
       ? arr.map(it => ({ product: String(it.product || '').trim() })).filter(it => it.product)
       : [];
     if (typeof coverRoutine === 'object') {
-      return { am: trimSlot(coverRoutine.am), pm: trimSlot(coverRoutine.pm) };
+      const out = { am: trimSlot(coverRoutine.am), pm: trimSlot(coverRoutine.pm) };
+      if (coverRoutine.criticalGap && coverRoutine.criticalGap.type) out.criticalGap = coverRoutine.criticalGap;
+      return out;
     }
     // Legacy text fallback — parse "AM:\n1. X — y" and drop the descriptor.
     const sections = { am: [], pm: [] };
@@ -431,9 +576,9 @@ CRITICAL OUTPUT REQUIREMENTS:
     };
   })();
   const arrowFor = (dir) => dir === 'up' ? '↑' : dir === 'down' ? '↓' : '';
-  // For positives: up = sage (good), down = rose (bad). For negatives: up = rose (bad), down = sage (good).
-  const colorForPos = (dir) => dir === 'up' ? 'var(--sage)' : dir === 'down' ? 'var(--rose)' : 'var(--ink-soft)';
-  const colorForNeg = (dir) => dir === 'up' ? 'var(--rose)' : dir === 'down' ? 'var(--sage)' : 'var(--ink-soft)';
+  // For positives: up = blue (good), down = rose (bad). For negatives: up = rose (bad), down = blue (good).
+  const colorForPos = (dir) => dir === 'up' ? 'var(--accent-blue)' : dir === 'down' ? 'var(--rose)' : 'var(--ink-soft)';
+  const colorForNeg = (dir) => dir === 'up' ? 'var(--rose)' : dir === 'down' ? 'var(--accent-blue)' : 'var(--ink-soft)';
 
   // Procedures — most recent (past) and next upcoming (if scheduled in future).
   // Reads live from `procedures` state, so any edit in Procedures tab reflects here immediately.
@@ -475,7 +620,7 @@ CRITICAL OUTPUT REQUIREMENTS:
     const w = 56, h = 14;
     const step = w / (days.length - 1);
     const pts = days.map((v, i) => `${(i * step).toFixed(1)},${(h - (v / max) * h).toFixed(1)}`).join(' ');
-    const stroke = trendDir === 'improving' ? 'var(--sage)' : trendDir === 'worsening' ? 'var(--rose)' : 'var(--ink-soft)';
+    const stroke = trendDir === 'improving' ? 'var(--accent-blue)' : trendDir === 'worsening' ? 'var(--rose)' : 'var(--ink-soft)';
     return (
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="flex-shrink-0">
         <polyline fill="none" stroke={stroke} strokeWidth="1.25" points={pts} strokeLinecap="round" strokeLinejoin="round" />
@@ -489,7 +634,7 @@ CRITICAL OUTPUT REQUIREMENTS:
   // yet. Skips the heavy skin-snapshot + today's routine + weekly
   // rotation surfaces (which all show their own empty states)
   // and replaces them with: value-prop card, sample routine,
-  // explore routines, étude insight. Returning users with a
+  // explore routines, Frida insight. Returning users with a
   // built routine fall through to the standard dashboard below.
   const completionInfo = getUserCompletionState({
     products, logs, regimenLogs, userProfile, userConcerns, onboardingState,
@@ -500,7 +645,11 @@ CRITICAL OUTPUT REQUIREMENTS:
   // their skin snapshot + auto-generated metric columns render.
   // The empty-state oval only shows when there's literally nothing
   // logged yet AND no questionnaire data.
-  if ((isExploring || isPartialProfile) && !completionInfo.hasPhotoCheckIn) {
+  const isFreshEmptyStart = (isExploring || isPartialProfile)
+    && !completionInfo.hasPhotoCheckIn
+    && !completionInfo.hasShelfProducts
+    && !completionInfo.hasGeneratedRoutine;
+  if (isFreshEmptyStart) {
     // === HYDRATION GRACE GUARD ===
     // During the 300ms hydration window, suppress the fresh-user
     // empty cover entirely. If the user actually has data, it lands
@@ -511,19 +660,22 @@ CRITICAL OUTPUT REQUIREMENTS:
     }
     const firstName = (user?.name || '').split(' ')[0];
     const hasName = !!firstName && firstName.toLowerCase() !== 'friend';
+    const freshPalette = {
+      cream: '#ffffff',
+      creamDeep: '#fffdf9',
+      peach: '#fde6dc',
+      blue: '#cfe7ee',
+      red: 'var(--accent)',
+      redSoft: 'rgba(229,60,45,0.10)',
+      redLine: 'rgba(229,60,45,0.34)',
+      redStrongLine: 'rgba(229,60,45,0.50)',
+    };
     return (
       <div className="space-y-3 md:space-y-4 md:max-w-2xl md:mx-auto pb-6 px-4 md:px-6">
         {/* === GREETING (no name for fully empty users) === */}
         <section>
-          <h1 className="font-serif italic text-[28px] md:text-[36px] leading-[1.05] tracking-tight" style={{color:'var(--ink)'}}>
+          <h1 className="font-sans text-[28px] md:text-[36px] leading-[1.05] tracking-tight" style={{color:'var(--ink)'}}>
             {greeting}{hasName ? `, ${firstName}` : '.'}
-            <span className="ml-1.5 inline-block align-middle" style={{color:'var(--sage)', fontSize:'0.65em', verticalAlign:'middle'}}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{display:'inline-block'}} xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 21 L12 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-                <path d="M12 11 C7 9, 6 5, 8 3 C11 4, 13 7, 12 11 Z" fill="currentColor" fillOpacity="0.55" stroke="currentColor" strokeWidth="0.8"/>
-                <path d="M12 14 C16 12, 17 9, 16 6 C13 7, 11 10, 12 14 Z" fill="currentColor" fillOpacity="0.55" stroke="currentColor" strokeWidth="0.8"/>
-              </svg>
-            </span>
           </h1>
           <div className="text-[10px] tracking-[0.32em] uppercase mt-1.5" style={{color:'var(--ink-soft)'}}>
             {today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase()}
@@ -554,7 +706,11 @@ CRITICAL OUTPUT REQUIREMENTS:
               - card padding tighter (px-4) on mobile
               - title 28px mobile / 26px desktop, 2-3 lines max
               - upload pill remains overlapping the oval bottom */}
-        <section className="rounded-[18px] px-4 py-4 md:px-7 md:py-6" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+        <section className="rounded-[16px] px-4 py-4 md:px-6 md:py-5" style={{
+          background: '#ffffff',
+          border: `1.5px solid ${freshPalette.redStrongLine}`,
+          boxShadow: '0 8px 18px rgba(122, 75, 48, 0.045)',
+        }}>
           {/* === EMPTY-STATE GRID (May 2026 v2 per Jenni) ===
               Was: 0.44 / 0.56 with a 132–200px tall oval — title
               "Your skin story starts here." wrapped into 5 narrow
@@ -562,21 +718,22 @@ CRITICAL OUTPUT REQUIREMENTS:
               circle. Frees ~50px for the text column so the title
               fits in 2 lines like the populated cover. */}
           <div
-            className="grid items-center gap-3 md:gap-8"
-            style={{gridTemplateColumns: 'minmax(108px, 0.32fr) minmax(0, 0.68fr)'}}
+            className="grid items-center gap-4 md:gap-8"
+            style={{gridTemplateColumns: 'minmax(112px, 0.36fr) minmax(0, 0.64fr)'}}
           >
             <div className="flex justify-start">
-              <div className="relative" style={{width: 'clamp(108px, 28vw, 132px)', paddingBottom: 18}}>
+              <div className="flex flex-col items-center gap-1.5" style={{width: 'clamp(112px, 30vw, 132px)'}}>
                 <button
                   type="button"
-                  onClick={() => setShowCheckInCamera(true)}
+                  onClick={startGuidedCheckIn}
                   className="flex flex-col items-center justify-center transition hover:brightness-[0.97]"
                   style={{
                     width: '100%',
                     aspectRatio: '1 / 1',
                     borderRadius: '50%',
-                    background: 'radial-gradient(ellipse at 40% 35%, rgba(192,95,60,0.12), rgba(192,95,60,0.03))',
-                    border: '1.5px dashed rgba(192,95,60,0.42)',
+                    background: '#ffffff',
+                    border: `2px dashed ${freshPalette.redStrongLine}`,
+                    boxShadow: 'none',
                     padding: '0 10px',
                     textAlign: 'center',
                     cursor: 'pointer',
@@ -584,32 +741,22 @@ CRITICAL OUTPUT REQUIREMENTS:
                   aria-label="Take a skin check-in"
                   title="Tap to take your first skin check-in"
                 >
-                  <Icon name="Camera" size={20} style={{color:'var(--accent)'}} />
-                  <div style={{fontSize: 10, marginTop: 5, lineHeight: 1.3, color:'var(--ink)', fontWeight: 600, whiteSpace:'nowrap', letterSpacing: '0.04em', textTransform: 'uppercase'}}>Tap to begin</div>
+                  <Icon name="Camera" size={22} style={{color:'var(--accent)'}} />
+                  <div style={{fontSize: 10, marginTop: 6, lineHeight: 1.2, color:'var(--ink)', fontWeight: 700, whiteSpace:'nowrap', letterSpacing: '0.06em', textTransform: 'uppercase'}}>Tap to begin</div>
                 </button>
-                {/* Upload pill — overlaps the oval bottom on every viewport.
-                    May 2026: opens the 3-path picker instead of the direct
-                    file input. Users now choose between guided capture,
-                    today-only upload, and bulk history import. */}
                 <button
                   type="button"
                   onClick={() => setShowHomeUploadPicker(true)}
-                  className="absolute inline-flex items-center transition hover:bg-[var(--cream-deep)]"
+                  className="inline-flex items-center justify-center transition hover:opacity-70"
                   style={{
-                    left: '50%',
-                    bottom: 0,
-                    transform: 'translateX(-50%)',
-                    height: 30,
                     gap: 5,
-                    padding: '0 11px',
-                    borderRadius: 999,
-                    background: 'var(--cream)',
-                    border: '1px solid var(--line)',
-                    boxShadow: '0 2px 6px rgba(28,25,23,0.08)',
-                    color: 'var(--ink)',
+                    padding: '4px 0',
+                    background: 'transparent',
+                    border: '0',
+                    color: 'var(--accent)',
                     fontSize: 9.5,
-                    fontWeight: 600,
-                    letterSpacing: '0.10em',
+                    fontWeight: 750,
+                    letterSpacing: '0.12em',
                     textTransform: 'uppercase',
                     whiteSpace: 'nowrap',
                     cursor: 'pointer',
@@ -617,27 +764,18 @@ CRITICAL OUTPUT REQUIREMENTS:
                   aria-label="Upload photos from library"
                   title="Upload one or more existing photos to backfill your timeline"
                 >
-                  <Icon name="Upload" size={10} style={{color:'var(--ink-soft)'}} />
-                  <span>Upload photos</span>
+                  <Icon name="Upload" size={10} style={{color:'var(--accent)'}} />
+                  <span>Upload</span>
                 </button>
               </div>
             </div>
-            {/* RIGHT: eyebrow + headline + body + sample-routines link.
-                Title responsive via Tailwind text-[..] / md:text-[..]
-                — explicit two sizes rather than clamp() so mobile
-                and desktop are independently tuneable. Removed the
-                <br/> so the title wraps naturally to 2-3 lines in
-                the narrower mobile column without weird splits.
-                min-w-0 lets the column actually shrink inside the
-                grid (without this, long words push the column
-                wider than its 56% share). */}
             <div className="min-w-0">
-              <div style={{fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-soft)', marginBottom: 6}}>Skin Check-In</div>
+              <div style={{fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 6, whiteSpace: 'nowrap'}}>Check-In</div>
               <h2
-                className="text-[24px] md:text-[26px]"
-                style={{lineHeight: 1.05, letterSpacing: '-0.022em', fontWeight: 700, color: 'var(--ink)', marginBottom: 8}}
-              >Your skin story starts here.</h2>
-              <p style={{fontSize: 12.5, lineHeight: 1.45, color: 'var(--ink-soft)', marginBottom: 12, maxWidth: 340}}>A quick check-in helps Étude personalize your routine.</p>
+                className="text-[22px] md:text-[24px]"
+                style={{lineHeight: 1.05, letterSpacing: '-0.022em', fontWeight: 750, color: 'var(--ink)', marginBottom: 8, whiteSpace: 'nowrap'}}
+              >Start here.</h2>
+              <p style={{fontSize: 12.5, lineHeight: 1.35, color: 'var(--ink-soft)', marginBottom: 10, whiteSpace:'nowrap'}}>One photo. Then routine.</p>
               <button
                 type="button"
                 onClick={() => setSampleRoutinePreview(FOUNDATIONAL_SAMPLE_ROUTINE)}
@@ -645,11 +783,15 @@ CRITICAL OUTPUT REQUIREMENTS:
                 style={{
                   gap: 5, padding: '4px 0',
                   background: 'transparent', color: 'var(--accent)',
-                  fontSize: 10, fontWeight: 600, letterSpacing: '0.16em',
-                  textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'normal',
+                  border: '0',
+                  borderRadius: 0,
+                  boxShadow: 'none',
+                  fontSize: 10, fontWeight: 750, letterSpacing: '0.16em',
+                  textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
                 }}
               >
-                <span>Explore sample routines</span>
+                <span className="sm:hidden">Samples</span>
+                <span className="hidden sm:inline">Explore sample routines</span>
                 <Icon name="ArrowRight" size={10} />
               </button>
             </div>
@@ -659,7 +801,7 @@ CRITICAL OUTPUT REQUIREMENTS:
         {/* === WHERE TO START + A SIMPLE START — 2-col side-by-side === */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch">
           {/* === WHERE TO START — three-step progress card with INDIVIDUAL CTAs ===
-              Replaces the static "Why Étude" card. Each step has its
+              Replaces the static "Why Frida" card. Each step has its
               own button and completion state derived from
               completionInfo. As the user finishes a step, ✓ replaces
               the number and the next step gains the terracotta
@@ -674,7 +816,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                 sub: 'Snap your first photo. We start reading from day one.',
                 icon: 'Camera',
                 ctaLabel: 'Open camera',
-                onClick: () => setShowCheckInCamera(true),
+                onClick: startGuidedCheckIn,
               },
               {
                 n: 2,
@@ -699,9 +841,9 @@ CRITICAL OUTPUT REQUIREMENTS:
             // which CTA reads as the "next move" the user should make.
             const currentStepIdx = steps.findIndex(s => !s.done);
             return (
-              <section className="rounded-[14px] px-5 py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+              <section className="rounded-[14px] px-5 py-5" style={{background:'#ffffff', border: `1.5px solid ${freshPalette.redLine}`, boxShadow: '0 6px 14px rgba(122,75,48,0.035)'}}>
                 <div style={{fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 500, color:'var(--accent)', marginBottom: 6}}>Where to start</div>
-                <h3 style={{fontSize: 20, lineHeight: 1.1, letterSpacing: '-0.018em', fontWeight: 700, color:'var(--ink)', marginBottom: 14}}>Three moves to make today.</h3>
+                <h3 style={{fontSize: 20, lineHeight: 1.1, letterSpacing: '-0.018em', fontWeight: 700, color:'var(--ink)', marginBottom: 14}}>Three moves today.</h3>
                 <div className="space-y-3">
                   {steps.map((s, i) => {
                     const isCurrent = i === currentStepIdx;
@@ -718,11 +860,11 @@ CRITICAL OUTPUT REQUIREMENTS:
                             // Done = filled. Current = strong tint. Future = soft tint
                             // (not pure gray) so the step still reads as actionable.
                             background: s.done
-                              ? 'var(--accent)'
-                              : 'rgba(192,95,60,0.10)',
+                              ? freshPalette.red
+                              : freshPalette.redSoft,
                             border: s.done
-                              ? '1px solid var(--accent)'
-                              : '1px solid rgba(192,95,60,0.22)',
+                              ? `2px solid ${freshPalette.red}`
+                              : `2px solid ${freshPalette.redLine}`,
                             color: s.done ? 'var(--cream)' : 'var(--accent)',
                             fontSize: 11,
                             fontWeight: 700,
@@ -746,13 +888,18 @@ CRITICAL OUTPUT REQUIREMENTS:
                               className="inline-flex items-center transition hover:opacity-80"
                               style={{
                                 gap: 6,
-                                // All non-done CTAs read as terracotta links so steps 2/3 don't look inactive.
+                                background: 'transparent',
                                 color: 'var(--accent)',
-                                fontWeight: 600,
+                                border: '0',
+                                borderRadius: 0,
+                                padding: '3px 0',
+                                boxShadow: 'none',
+                                fontWeight: 750,
                                 fontSize: 10,
                                 letterSpacing: '0.14em',
                                 textTransform: 'uppercase',
                                 cursor: 'pointer',
+                                whiteSpace: 'nowrap',
                               }}
                             >
                               <span>{s.ctaLabel}</span>
@@ -768,11 +915,11 @@ CRITICAL OUTPUT REQUIREMENTS:
             );
           })()}
           {/* A SIMPLE START — sample routine preview (compact) */}
-          <section className="rounded-[14px] px-5 py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
-            <div style={{fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 500, color:'var(--ink-soft)', marginBottom: 6}}>A Simple Start</div>
+          <section className="rounded-[14px] px-5 py-5" style={{background:'#ffffff', border: `1.5px solid ${freshPalette.redLine}`, boxShadow: '0 6px 14px rgba(122,75,48,0.035)'}}>
+            <div style={{fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 500, color:'var(--accent)', marginBottom: 6}}>A Simple Start</div>
             <h3 style={{fontSize: 20, lineHeight: 1.1, letterSpacing: '-0.018em', fontWeight: 700, color:'var(--ink)', marginBottom: 4}}>A sample routine.</h3>
             <p style={{fontSize: 12.5, lineHeight: 1.4, color:'var(--ink-soft)', marginBottom: 14}}>You can personalize anytime.</p>
-            <div className="rounded-[10px] px-3.5 py-3.5 mb-3" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
+            <div className="rounded-[10px] px-3.5 py-3.5 mb-3" style={{background:'#ffffff', border: `1.5px solid ${freshPalette.redLine}`}}>
               <div style={{display:'grid', gridTemplateColumns:'1fr 1px 1fr', columnGap:12}}>
                 <div style={{minWidth:0}}>
                   <div style={{fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color:'var(--accent)', marginBottom: 8}}>AM</div>
@@ -801,9 +948,10 @@ CRITICAL OUTPUT REQUIREMENTS:
               className="w-full transition hover:opacity-90 text-center"
               style={{
                 height: 38, borderRadius: 999,
-                background:'rgba(192,95,60,0.06)',
-                color:'var(--accent)',
-                border:'1px solid rgba(192,95,60,0.16)',
+                background:freshPalette.red,
+                color:'var(--cream)',
+                border:`2px solid ${freshPalette.red}`,
+                boxShadow:'0 5px 12px rgba(229,60,45,0.16)',
                 fontWeight: 600, fontSize: 10.5,
                 letterSpacing:'0.14em',
                 cursor:'pointer', textTransform:'uppercase',
@@ -823,7 +971,7 @@ CRITICAL OUTPUT REQUIREMENTS:
             to before — acceptable trade for mobile correctness. */}
         <section>
           <div className="mb-2.5">
-            <div style={{fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 500, color:'var(--ink-soft)'}}>Explore Sample Routines</div>
+            <div style={{fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 650, color:'var(--accent)'}}>Explore Sample Routines</div>
           </div>
           <div className="grid grid-cols-3 gap-2 md:gap-3">
             {SAMPLE_ROUTINES.map(r => (
@@ -833,8 +981,8 @@ CRITICAL OUTPUT REQUIREMENTS:
                 onClick={() => setSampleRoutinePreview(r)}
                 className="text-left transition hover:bg-[var(--cream-deep)] p-[10px] md:p-[14px]"
                 style={{
-                  background:'var(--cream-deep)',
-                  border:'1px solid var(--line)',
+                  background:'var(--cream)',
+                  border: `1.5px solid ${freshPalette.redLine}`,
                   borderRadius: 12,
                   cursor:'pointer',
                   display: 'flex',
@@ -844,7 +992,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                   minWidth: 0,
                 }}
               >
-                <span className="inline-flex items-center justify-center" style={{width: 26, height: 26, borderRadius: '50%', background:'rgba(192,95,60,0.08)', border:'1px solid rgba(192,95,60,0.16)', flexShrink: 0}}>
+                <span className="inline-flex items-center justify-center" style={{width: 26, height: 26, borderRadius: '50%', background:freshPalette.redSoft, border:`1.5px solid ${freshPalette.redLine}`, flexShrink: 0}}>
                   <Icon name={r.icon} size={12} style={{color:'var(--accent)'}} />
                 </span>
                 <div className="text-[11.5px] md:text-[13px]" style={{color:'var(--ink)', fontWeight: 600, letterSpacing:'-0.008em', lineHeight: 1.2}}>{r.label}</div>
@@ -854,17 +1002,17 @@ CRITICAL OUTPUT REQUIREMENTS:
           </div>
         </section>
 
-        {/* === ÉTUDE INSIGHT === quiet */}
+        {/* === FRIDA INSIGHT === quiet */}
         <section
           className="rounded-[14px] px-5 py-5"
           style={{
-            background: 'linear-gradient(135deg, rgba(192,95,60,0.08) 0%, rgba(192,95,60,0.02) 100%)',
-            border: '1px solid rgba(192,95,60,0.16)',
+            background: '#ffffff',
+            border: '1px solid rgba(229,60,45,0.16)',
           }}
         >
           <div className="flex items-center gap-1.5 mb-2">
             <Icon name="Sparkles" size={11} style={{color:'var(--accent)'}} />
-            <div style={{fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 500, color:'var(--accent)'}}>Étude Insight</div>
+            <div style={{fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 500, color:'var(--accent)'}}>Frida Insight</div>
           </div>
           <h3 style={{fontSize: 18, lineHeight: 1.15, letterSpacing: '-0.018em', fontWeight: 700, color:'var(--ink)', marginBottom: 6}}>Consistency is good.<br/>Smart consistency is better.</h3>
           <p style={{fontSize: 12.5, lineHeight: 1.45, color:'var(--ink-soft)'}}>Small, intentional choices compound into healthier skin over time.</p>
@@ -872,8 +1020,8 @@ CRITICAL OUTPUT REQUIREMENTS:
 
         {/* === PARTIAL PROFILE — extra invite to add products === */}
         {isPartialProfile && (
-          <section className="rounded-[14px] px-5 py-4 flex items-center gap-3" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
-            <span className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
+          <section className="rounded-[14px] px-5 py-4 flex items-center gap-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+            <span className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
               <Icon name="Plus" size={13} style={{color:'var(--ink-soft)'}} />
             </span>
             <div className="min-w-0 flex-1">
@@ -901,23 +1049,22 @@ CRITICAL OUTPUT REQUIREMENTS:
     // Keep Home in a phone-like reading column on desktop. The app is
     // designed around mobile proportions, so the cover should not expand
     // into a wide desktop composition.
-    <div className="space-y-3 md:space-y-4 md:max-w-[430px] md:mx-auto pb-6">
-      {/* === GREETING === editorial serif italic with a sage botanical accent.
-           Date sits below as a small uppercase eyebrow. */}
+    // (May 28 2026 per Jenni) Added pt-3 md:pt-6 so the greeting has
+    // breathing room beneath the sticky top nav — without it the page
+    // header was being visually clipped on desktop scroll.
+    <div className="space-y-3 md:space-y-4 md:max-w-[430px] md:mx-auto pt-3 md:pt-6 pb-6">
+      {/* === GREETING === Date sits below as a small uppercase eyebrow.
+           Leaf sprig removed 2026-05-31 per design-direction audit
+           (one focal point per section). */}
       <section>
-        <h1 className="font-serif italic text-[28px] md:text-[36px] leading-[1.05] tracking-tight" style={{color:'var(--ink)'}}>
+        <h1 className="font-sans text-[28px] md:text-[36px] leading-[1.05] tracking-tight" style={{color:'var(--ink)'}}>
           {greeting}, {(user?.name || 'friend').split(' ')[0]}
-          <span className="ml-1.5 inline-block align-middle" style={{color:'var(--sage)', fontSize:'0.65em', verticalAlign:'middle'}}>
-            {/* Small botanical sprig SVG to match the mockup's leaf accent. */}
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{display:'inline-block'}} xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 21 L12 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-              <path d="M12 11 C7 9, 6 5, 8 3 C11 4, 13 7, 12 11 Z" fill="currentColor" fillOpacity="0.55" stroke="currentColor" strokeWidth="0.8"/>
-              <path d="M12 14 C16 12, 17 9, 16 6 C13 7, 11 10, 12 14 Z" fill="currentColor" fillOpacity="0.55" stroke="currentColor" strokeWidth="0.8"/>
-            </svg>
-          </span>
         </h1>
-        <div className="text-[10px] tracking-[0.32em] uppercase mt-1.5" style={{color:'var(--ink-soft)'}}>
-          {today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase()}
+        {/* Date eyebrow — date only (May 29 v6 per Jenni).
+            Streak moved into the Check-in card right column, under
+            the View analysis link — pairs the daily focal info. */}
+        <div className="flex items-center gap-2 mt-1.5 text-[10px] tracking-[0.32em] uppercase" style={{color:'var(--ink-soft)'}}>
+          <span>{today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase()}</span>
         </div>
       </section>
 
@@ -939,21 +1086,35 @@ CRITICAL OUTPUT REQUIREMENTS:
       const hasPhotoHistory = photoLogs.length > 0;
       const canComparePhotos = photoLogs.length >= 2;
       const todaysPhotoLogs = logs.filter(l => l.date === heroViewDate && hasPhoto(l));
-      const todaysFullFace = todaysPhotoLogs
-        .filter(l => l.area === 'full-face')
-        .sort((a, b) => (b.id || 0) - (a.id || 0));
+      // === NEWEST WINS (May 2026 bug fix per Jenni) ===
+      // Was: strict area === 'full-face' filter ran first, so an OLD
+      // full-face photo beat a NEW non-full-face photo. Adding a fresh
+      // photo set (e.g. forehead close-ups) didn't update the cover
+      // because nothing in the new set matched the strict filter.
+      // Now: sort all of today's photos by id desc — newest wins by
+      // default. The dailyCoverPick override still trumps everything
+      // so a manual user pin sticks. Full-face is preferred only as a
+      // soft tiebreaker when two photos share the same id (rare).
+      const todaysByRecency = [...todaysPhotoLogs].sort((a, b) => (b.id || 0) - (a.id || 0));
       const overridePick = (heroIsViewingToday && dailyCoverPick && dailyCoverPick[todayStr])
         ? logs.find(l => l.id === dailyCoverPick[todayStr])
         : null;
-      const todayLog = overridePick || todaysFullFace[0] || todaysPhotoLogs.sort((a, b) => (b.id || 0) - (a.id || 0))[0] || null;
+      const todayLog = overridePick || todaysByRecency[0] || null;
       const hasTodayPhoto = hasPhoto(todayLog);
+      // === WITHIN-DAY PHOTO PAGER (May 2026 per Jenni) ===
+      // Index + total for the small "1 of N · see others" affordance
+      // below the cover photo. Index follows the visible todayLog so
+      // taps move the user through todaysByRecency in newest→oldest
+      // order. Only renders when there are 2+ photos today.
+      const todayPhotoIndex = todayLog ? todaysByRecency.findIndex(l => l.id === todayLog.id) : -1;
+      const todayPhotoCount = todaysByRecency.length;
       // Metric quartet — shows AI-rated level word + arrow + % change vs the
       // most recent prior log with a snapshot. Score map normalizes each metric
       // to a 0-100 scale where higher = better outcome (cleaner skin, plumper
       // hydration, smoother texture, fewer breakouts). Two metric kinds:
-      //   - pos (hydration, texture): higher score → MORE of a good thing → ↑ arrow + green
-      //   - neg (redness, breakouts): higher score → LESS of a bad thing → ↓ arrow + green
-      // Color is always green for improvement, rose for worsening, ink-soft for flat.
+      //   - pos (hydration, texture): higher score → MORE of a good thing → ↑ arrow + blue
+      //   - neg (redness, breakouts): higher score → LESS of a bad thing → ↓ arrow + blue
+      // Color is always blue for improvement, rose for worsening, ink-soft for flat.
       const SCORE_MAP = {
         redness:    { Clear: 100, Low: 80, Mild: 55, Moderate: 30, High: 10 },
         hydration:  { Plump: 100, Good: 80, Balanced: 55, Dry: 30, Parched: 10 },
@@ -969,23 +1130,42 @@ CRITICAL OUTPUT REQUIREMENTS:
         return SCORE_MAP[key] && tc in SCORE_MAP[key] ? tc : null;
       };
       const todaySnap = todayLog?.metricSnapshot || null;
-      // todayAvg = composite 0-100 across ALL SIX metrics.
-      // Must match what the Skin Read drawer computes so the cover
-      // readout and the drawer's hero score show the SAME number.
-      // (Earlier mismatch: cover used 4 metrics → 7.9, drawer used 6
-      // → 8.5. Standardized on 6 here since we now score Barrier +
-      // Sensitivity independently.)
-      const todayAvg = todaySnap ? (() => {
-        const vals = ['redness','hydration','texture','breakouts','barrier','sensitivity']
-          .map(k => SCORE_MAP[k]?.[titleCase(todaySnap[k])])
-          .filter(v => typeof v === 'number');
-        return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : null;
-      })() : null;
-      // Find the most recent prior log (different date) that has a snapshot.
+      // === COMPOSITE INDEX v1 (June 2026 per Jenni) ===
+      // Was: local unweighted mean of 6 categorical domains. Now: goal-
+      // weighted blend of AI photo (50%) + noticed chips (30%) + 1-10
+      // rating (20%), with sensitivity dropped as an outcome domain.
+      // Uses the shared computeCompositeScore so cover + Skin Read
+      // drawer + Compare + Journal can never disagree on the number.
+      const goalKey = userProfile?.actionGoal || 'MAINTENANCE';
+      const todayDisplay = todayLog ? displayScore(todayLog, goalKey) : null;
+      const todayCompositeFull = todayLog ? computeCompositeScore(todayLog, goalKey) : null;
+      const todayAvg = todayCompositeFull?.composite ?? null;
+      // Find the most recent prior log (different date) for the metric-tile
+      // delta arrows. Still uses metricSnapshot only (the tiles compare
+      // visual deltas, not the full composite).
       const priorLogWithSnap = logs
         .filter(l => l.id !== todayLog?.id && l.metricSnapshot && l.date !== todayStr)
         .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
       const priorSnap = priorLogWithSnap?.metricSnapshot || null;
+      const priorAvg = priorSnap ? (() => {
+        const vals = ['redness','hydration','texture','breakouts','barrier']
+          .map(k => SCORE_MAP[k]?.[titleCase(priorSnap[k])])
+          .filter(v => typeof v === 'number');
+        return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : null;
+      })() : null;
+      // === BASELINE + DELTA (June 2026) ===
+      // Baseline = median of first 10 qualifying logs. Mode-gated copy:
+      //   establishing (n<7): "Anchoring baseline · Day X of 10"
+      //   forming (7-9):      surface ONE most-benign pattern, no delta yet
+      //   anchored (10+):     show delta vs baseline
+      //   refreshing (90+d):  prompt re-anchor (UX in next pass)
+      const baseline = computeBaseline(logs || [], goalKey);
+      const baselineDelta = (baseline.mode === 'anchored' && todayCompositeFull?.composite != null)
+        ? computeBaselineDelta(todayCompositeFull, baseline)
+        : null;
+      const mostBenignPattern = baseline.mode === 'forming'
+        ? pickMostBenignPattern(logs || [], goalKey)
+        : null;
       const metricFor = (key, kind) => {
         const word = normalizeWord(key, todaySnap?.[key]);
         if (!word) return { label: key, level: null, dir: null, pct: null, color: 'var(--ink-soft)' };
@@ -1005,7 +1185,7 @@ CRITICAL OUTPUT REQUIREMENTS:
           // pos metrics: improvement = more = ↑. neg metrics: improvement = less = ↓.
           if (improving) {
             dir = kind === 'pos' ? 'up' : 'down';
-            color = 'var(--sage)';
+            color = 'var(--accent-blue)';
           } else {
             dir = kind === 'pos' ? 'down' : 'up';
             color = 'var(--rose)';
@@ -1078,6 +1258,22 @@ CRITICAL OUTPUT REQUIREMENTS:
         return streak;
       };
       const loggingStreak = computeStreak();
+      // === METRIC ICON MAPPER (May 28 2026 per Jenni) ===
+      // Editorial glyphs for the delta + steady chips. Each metric
+      // gets a Lucide icon that visually evokes its meaning, so the
+      // chips read as scannable iconography rather than a row of
+      // identical pills. Falls back to Circle for any unmapped label.
+      const metricIcon = (label) => {
+        const k = String(label || '').toLowerCase();
+        if (k.includes('hydration')) return 'Droplet';
+        if (k.includes('redness'))   return 'Flame';
+        if (k.includes('texture'))   return 'Waves';
+        if (k.includes('breakout'))  return 'CircleDot';
+        if (k.includes('barrier'))   return 'Shield';
+        if (k.includes('sensitiv'))  return 'Activity';
+        if (k.includes('clear'))     return 'Check';
+        return 'Circle';
+      };
       // === SINCE-LAST-READING DELTAS ===
       // Pulls the metrics that actually shifted relative to the
       // previous logged reading (priorSnap), sorts by magnitude,
@@ -1093,13 +1289,13 @@ CRITICAL OUTPUT REQUIREMENTS:
           .filter(m => m.dir && m.level) // had a change AND have a current level
           .map(m => {
             const priorWord = normalizeWord(m.label.toLowerCase(), priorSnap?.[m.label.toLowerCase()]);
-            const improved = m.color === 'var(--sage)';
+            const improved = m.color === 'var(--accent-blue)';
             return {
               label: m.label,
               from: priorWord || '—',
               to: m.level,
               dir: m.dir,           // 'up' | 'down'
-              improved,             // true = sage, false = rose
+              improved,             // true = blue, false = rose
               pct: m.pct || 0,
             };
           })
@@ -1139,68 +1335,348 @@ CRITICAL OUTPUT REQUIREMENTS:
         }
         setSkinReadDrawerLogId(todayLog.id);
       };
+      const openJournalTimeline = () => {
+        setActiveTab('journal');
+        if (typeof setJournalMode === 'function') setJournalMode('timeline');
+        if (typeof setJournalViewOverride === 'function') setJournalViewOverride(null);
+      };
+      const openTodayRoutine = () => {
+        setActiveTab('regimen');
+        if (typeof setRegimenView === 'function') setRegimenView('today');
+      };
+      const todayRegimenLog = (regimenLogs || []).find(r => r.date === todayStr);
+      // === DONE detection — slot-specific only (May 29 2026 v4 per Jenni) ===
+      // The "submitted + slot has products" fallback got dropped — it
+      // fired for PM the moment AM was committed (because pmProducts
+      // is populated as soon as the log exists). False positive bug
+      // worse than missing tier 3 entirely. Now strictly: slot is
+      // done iff the writer marked the slot-specific fields. New
+      // commits always set one of these; older logs that lack both
+      // will read as not-done until the user re-confirms.
+      const amDone = !!(todayRegimenLog && (
+        (Array.isArray(todayRegimenLog.amDone) && todayRegimenLog.amDone.length > 0) ||
+        todayRegimenLog.amBatchConfirmed === true
+      ));
+      const pmDone = !!(todayRegimenLog && (
+        (Array.isArray(todayRegimenLog.pmDone) && todayRegimenLog.pmDone.length > 0) ||
+        todayRegimenLog.pmBatchConfirmed === true
+      ));
+      // Done/Missing language (May 31 2026 per Jenni). Compact metric badge —
+      // mirrors the regimen card eyebrow but trimmed for the 3-letter slot.
+      const routineReadout = amDone && pmDone ? 'Done' : amDone ? 'AM done' : pmDone ? 'PM done' : 'Missing';
+      const trendReadout = !priorSnap || !todaySnap
+        ? '—'
+        : (deltaChips || []).some(d => d.improved === false)
+          ? 'watch'
+          : (deltaChips || []).some(d => d.improved === true)
+            ? 'improving'
+            : 'steady';
+      const signalReadout = (() => {
+        if (!todaySnap) return '—';
+        const redness = metricSpec.find(m => m.label === 'Redness' && m.level);
+        const breakouts = metricSpec.find(m => m.label === 'Breakouts' && m.level);
+        const hydration = metricSpec.find(m => m.label === 'Hydration' && m.level);
+        if (redness) return `${redness.level.toLowerCase()} redness`;
+        if (breakouts) return breakouts.level.toLowerCase() === 'clear' ? 'clear' : `${breakouts.level.toLowerCase()} breakouts`;
+        if (hydration) return `${hydration.level.toLowerCase()} hydration`;
+        return 'steady';
+      })();
+      const statusTiles = [
+        {
+          label: 'Read',
+          value: todayAvg != null ? (todayAvg / 10).toFixed(1) : '—',
+          tone: 'accent',
+          action: hasTodayPhoto ? openTodayAnalysis : startGuidedCheckIn,
+          title: hasTodayPhoto ? 'Open full skin read' : 'Take a skin check-in',
+        },
+        {
+          label: 'Trend',
+          value: trendReadout,
+          tone: trendReadout === 'improving' ? 'blue' : 'accent',
+          action: openJournalTimeline,
+          title: 'Open skin timeline',
+        },
+        {
+          label: 'Routine',
+          value: routineReadout,
+          tone: amDone || pmDone ? 'blue' : 'accent',
+          action: openTodayRoutine,
+          title: "Open today's routine",
+        },
+        {
+          label: 'Signal',
+          value: signalReadout,
+          tone: 'accent',
+          action: hasTodayPhoto ? openTodayAnalysis : startGuidedCheckIn,
+          title: hasTodayPhoto ? 'Open metric details' : 'Take a skin check-in',
+        },
+      ];
+      const steadyChips = priorSnap && todaySnap
+        ? metricSpec
+            .filter(m => m.level && !m.dir)
+            .map(m => ({
+              label: m.label === 'Breakouts' ? 'Breakouts' : m.label,
+              value: m.label === 'Breakouts' && m.level.toLowerCase() === 'clear' ? 'clear' : m.level.toLowerCase(),
+            }))
+            .slice(0, 2)
+        : [];
+      const priorNudge = (() => {
+        if (!priorSnap) return null;
+        const r = titleCase(priorSnap.redness);
+        const h = titleCase(priorSnap.hydration);
+        const b = titleCase(priorSnap.breakouts);
+        const t = titleCase(priorSnap.texture);
+        const score = priorAvg != null ? (priorAvg / 10).toFixed(1) : null;
+        const day = priorLogWithSnap?.date === heroYesterdayKey ? 'Yesterday' : 'Last read';
+        if ((h === 'Plump' || h === 'Good') && (r === 'Clear' || r === 'Low')) {
+          return `${day}${score ? ` ${score}` : ''}. See if it held.`;
+        }
+        if (r === 'High' || r === 'Moderate') {
+          return `${day}: redness. Check before blaming routine.`;
+        }
+        if (b && b !== 'Clear') {
+          return `${day}: breakout signal. Check if it cooled.`;
+        }
+        if (t === 'Smooth' || b === 'Clear') {
+          return `${day}${score ? ` ${score}` : ''}. See if it holds.`;
+        }
+        return `${day}${score ? ` ${score}` : ''}. Fill in today.`;
+      })();
       return (
-        <section className="atelier-card px-5 py-5 md:px-6 md:py-5">
-          {/* === STREAK RIBBON ===
-              Tiny line above the eyebrow row acknowledging
-              consecutive days the user has shown up (photo or
-              regimen entry). Quiet Figtree 500, ink-soft.
-              Hides at 0 (nothing to celebrate) and 1 (single
-              day isn't a streak). Tang & Gainey voice: dry,
-              observational, never congratulatory. */}
-          {loggingStreak >= 2 && (
-            <div className="mb-2.5 text-[10px] tracking-[0.04em]" style={{color:'var(--ink-soft)', fontWeight:500}}>
-              {loggingStreak} days in a row · {loggingStreak >= 7 ? 'this is the consistency' : 'showing up'}
+        // === TAP-ANYWHERE (May 28 2026 per Jenni) ===
+        // Whole card routes to the primary action for the state:
+        //   - photo + analysis ready → opens analysis drawer
+        //   - photo but still analyzing → opens drawer to loading state
+        //   - no photo yet → starts guided check-in
+        // Inner controls (date pager, score, routine chip, Read
+        // Analysis pill, View journal, Compare photos, API key
+        // prompt) all stopPropagation so they keep their own jobs.
+        // Photo button and score button route to the same action so
+        // their stopPropagation is for cleanliness, not correctness.
+        <section
+          className="atelier-card px-5 py-5 md:px-6 md:py-5"
+          onClick={() => {
+            if (hasTodayPhoto) {
+              openTodayAnalysis();
+            } else if (typeof setShowCheckInChooser === 'function') {
+              setShowCheckInChooser(true);
+            } else {
+              startGuidedCheckIn();
+            }
+          }}
+          style={{
+            cursor: 'pointer',
+            // === HERO RED BORDER — bold on outer only (May 30 v4 per Jenni) ===
+            // Outer card wears 1.5px var(--accent). Inner card elements
+            // (metric strip, AM/PM pill, dividers) use faint var(--line).
+            border: '1.5px solid var(--accent)',
+            boxShadow: '0 1px 2px rgba(229,60,45,0.06), 0 8px 22px rgba(229,60,45,0.06)',
+          }}
+        >
+          {/* === STATUS EYEBROW (May 28 2026 v2 per Jenni) ===
+              Today's glance: streak count + three subtle status
+              indicators (check-in / routine AM / routine PM). No
+              voice commentary — just the facts, small. Sage check
+              when done, ink-soft x when not yet. The check-in dot
+              shadows the photo oval (since the oval is already
+              right there) but acts as a quiet "this counted"
+              confirmation. */}
+          {/* === STATUS EYEBROW (May 29 2026 v12 per Jenni) ===
+              Sentence form. The Check-in card eyebrow only tracks
+              check-in now — routine status moved to the Regimen card
+              eyebrow (its job). Conversational copy, brand colors
+              carry done vs missing. */}
+          <div className="flex items-center justify-between gap-3 mb-3">
+            {/* === EYEBROW — always on, neutral ink (May 29 v5 per Jenni) ===
+                Black text both states. Lets the red border + kebab
+                carry the pop; eyebrow is the quiet status label. */}
+            <div className="text-[9.5px] tracking-[0.04em]" style={{fontWeight:650, textTransform:'uppercase', color:'var(--ink)', whiteSpace:'nowrap'}}>
+              {hasTodayPhoto ? 'Checked in ✓' : 'Ready to check-in?'}
             </div>
-          )}
-          {/* Eyebrow row: SKIN SNAPSHOT on left, date pager on right.
-              Pager is enabled within HERO_MAX_DAYS_BACK days of today
-              and disabled at the bounds. Tapping the label resets to
-              today when on a past day.
-              NOTE (May 2026): tried a fully centered Wes Anderson
-              bilateral version and it read as too symmetric/sterile.
-              Reverted to the original asymmetric editorial layout. */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Skin Snapshot</div>
-            <div className="date-pager">
-              <button
-                type="button"
-                onClick={() => shiftHeroDay(-1)}
-                disabled={heroDaysBack >= HERO_MAX_DAYS_BACK}
-                aria-label="Previous day"
-                title="Previous day"
-              >
-                <Icon name="ChevronLeft" size={13} />
-              </button>
-              <button
-                type="button"
-                onClick={() => !heroIsViewingToday && setRitualViewDate(todayStr)}
-                style={{
-                  color: heroIsViewingToday ? 'var(--accent)' : 'var(--ink)',
-                  padding: '0 6px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  letterSpacing: '0.02em',
-                  textTransform: 'none',
-                  width: 'auto',
-                  minWidth: '56px',
-                }}
-                title={heroIsViewingToday ? 'Today' : 'Jump back to today'}
-              >
-                {heroDayLabel}
-              </button>
-              <button
-                type="button"
-                onClick={() => shiftHeroDay(1)}
-                disabled={heroIsViewingToday}
-                aria-label="Next day"
-                title="Next day"
-              >
-                <Icon name="ChevronRight" size={13} />
-              </button>
+            <div className="flex items-center gap-2">
+              <div className="date-pager">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); shiftHeroDay(-1); }}
+                  disabled={heroDaysBack >= HERO_MAX_DAYS_BACK}
+                  aria-label="Previous day"
+                  title="Previous day"
+                >
+                  <Icon name="ChevronLeft" size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); if (!heroIsViewingToday) setRitualViewDate(todayStr); }}
+                  style={{
+                    color: heroIsViewingToday ? 'var(--accent)' : 'var(--ink)',
+                    padding: '0 6px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    letterSpacing: '0.02em',
+                    textTransform: 'none',
+                    width: 'auto',
+                    minWidth: '56px',
+                  }}
+                  title={heroIsViewingToday ? 'Today' : 'Jump back to today'}
+                >
+                  {heroDayLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); shiftHeroDay(1); }}
+                  disabled={heroIsViewingToday}
+                  aria-label="Next day"
+                  title="Next day"
+                >
+                  <Icon name="ChevronRight" size={13} />
+                </button>
+              </div>
+              {/* === HERO KEBAB MENU (May 28 2026 per Jenni) ===
+                  Secondary nav for this card. Items vary by state
+                  (today + photo vs today-empty vs past day). Closes
+                  on item tap, same pattern as the Regimen kebab below.
+                  Outside-click-close isn't wired (matches existing
+                  cover-card pattern) — tap kebab again or tap item. */}
+              <div className="relative flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setCoverHeroMenuOpen(v => !v); }}
+                  className="w-7 h-7 rounded-full flex items-center justify-center transition"
+                  style={{
+                    // === KEBAB POP (May 29 v4 per Jenni) ===
+                    // Red-on-white pop — echoes the hero accent border
+                    // and gives the upper-right a punctuation mark.
+                    color: 'var(--accent)',
+                    border: '1px solid var(--line)',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-primary-soft)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  aria-label="More options"
+                  aria-expanded={coverHeroMenuOpen}
+                  title="More"
+                >
+                  <Icon name="MoreHorizontal" size={14} />
+                </button>
+                {coverHeroMenuOpen && (
+                  <div
+                    className="absolute right-0 top-9 z-30 w-56 rounded-[14px] overflow-hidden shadow-xl"
+                    style={{background:'var(--cream)', border: '1px solid var(--line)'}}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Today-only actions — hidden when paging back. */}
+                    {heroIsViewingToday && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCoverHeroMenuOpen(false);
+                            if (typeof setShowCheckInChooser === 'function') {
+                              setShowCheckInChooser(true);
+                            } else {
+                              startGuidedCheckIn();
+                            }
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
+                          style={{color:'var(--ink)', cursor:'pointer'}}
+                        >
+                          <Icon name="Camera" size={13} style={{color:'var(--accent)'}} />
+                          <span className="text-[10.5px] tracking-[0.12em] uppercase">
+                            {hasTodayPhoto ? 'Add another check-in' : 'Check in'}
+                          </span>
+                        </button>
+                        {hasTodayPhoto && todayLog?.id != null && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCoverHeroMenuOpen(false);
+                              if (typeof retryLogAnalysis === 'function') retryLogAnalysis(todayLog.id);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
+                            style={{color:'var(--ink-soft)', cursor:'pointer'}}
+                          >
+                            <Icon name="RefreshCw" size={13} />
+                            <span className="text-[10.5px] tracking-[0.12em] uppercase">Re-analyze</span>
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {/* Navigation block — present on all states. Border-top
+                        only renders when today-actions sit above it. */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCoverHeroMenuOpen(false);
+                        setActiveTab('journal');
+                        if (typeof setJournalViewOverride === 'function') setJournalViewOverride(null);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
+                      style={{color:'var(--ink-soft)', cursor:'pointer', borderTop: heroIsViewingToday ? '1px solid var(--line)' : 'none'}}
+                    >
+                      <Icon name="BookOpen" size={13} />
+                      <span className="text-[10.5px] tracking-[0.12em] uppercase">Open journal</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCoverHeroMenuOpen(false);
+                        setActiveTab('journal');
+                        if (typeof setJournalViewOverride === 'function') {
+                          // Defer so journal mounts before override applies.
+                          setTimeout(() => setJournalViewOverride('timeline'), 0);
+                        }
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
+                      style={{color:'var(--ink-soft)', cursor:'pointer'}}
+                    >
+                      <Icon name="Calendar" size={13} />
+                      <span className="text-[10.5px] tracking-[0.12em] uppercase">Timeline</span>
+                    </button>
+                    {canComparePhotos && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCoverHeroMenuOpen(false);
+                          setActiveTab('compare');
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
+                        style={{color:'var(--ink-soft)', cursor:'pointer'}}
+                      >
+                        <Icon name="Eye" size={13} />
+                        <span className="text-[10.5px] tracking-[0.12em] uppercase">Compare photos</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCoverHeroMenuOpen(false);
+                        setActiveTab('insights');
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
+                      style={{color:'var(--ink-soft)', cursor:'pointer'}}
+                    >
+                      <Icon name="Sparkles" size={13} />
+                      <span className="text-[10.5px] tracking-[0.12em] uppercase">Insights</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-          {/* === Photo on left, text column on right (original layout) === */}
+          {/* === BODY — photo column + text column (May 28 2026 per Jenni) ===
+              Photo is the visual anchor — keep it. Text column to the
+              right carries headline, voice, score, and view-analysis
+              pill. (Earlier this session a stale comment claimed the
+              oval was removed; Jenni confirmed she still wants it.
+              Restored the flex layout and the photo column's normal
+              dimensions.) */}
           <div className="flex items-start gap-4">
             <div
               className="relative flex-shrink-0"
@@ -1214,251 +1690,473 @@ CRITICAL OUTPUT REQUIREMENTS:
                 // so the text column gets ~50px more width and the
                 // title fits in 2 lines. Populated stays at the wider
                 // oval since the face photo + score chip need the room.
-                width: hasTodayPhoto ? 'clamp(132px, 34vw, 166px)' : 'clamp(108px, 28vw, 124px)',
-                height: hasTodayPhoto ? 'clamp(166px, 43vw, 210px)' : 'clamp(108px, 28vw, 124px)',
+                width: hasTodayPhoto ? 'clamp(132px, 34vw, 166px)' : 'clamp(138px, 39vw, 180px)',
+                height: hasTodayPhoto ? 'clamp(166px, 43vw, 210px)' : 'clamp(138px, 39vw, 180px)',
                 marginBottom: heroIsViewingToday && hasTodayPhoto ? 22 : 0,
                 transform: hasTodayPhoto ? 'translateY(-6px)' : 'none',
               }}
             >
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   // Tap behavior:
                   // - No photo today → opens the CHECK-IN CAMERA
                   //   directly. Previously this routed to the older
-                  //   Log modal, but Jenni (May 2026) collapsed the
-                  //   empty-state UI to "oval IS the check-in" —
-                  //   no separate pill, no chooser sheet. Tap oval
-                  //   → camera. Upload remains a small affordance
-                  //   to the side of the oval for file-picker users.
-                  // - Photo exists → opens the SkinReadDrawer for the
-                  //   current cover photo, where the user can sibling-
-                  //   toggle through today's other shots and use the
-                  //   "Set as main photo" button. Camera affordance at
-                  //   4 o'clock still goes to a chooser for retake.
-                  if (hasTodayPhoto && todayLog?.id != null) {
-                    setSkinReadDrawerLogId(todayLog.id);
+                  //   Log modal, but Jenni (May 29 2026) consolidated
+                  //   the empty-state UI to a SINGLE entry: tap oval
+                  //   → opens the chooser sheet where the user picks
+                  //   between Camera / Upload. Removes the parallel
+                  //   "Upload photo" pill that used to sit below.
+                  // - Photo exists → ALSO opens the chooser now (May 29
+                  //   v2 per Jenni). The camera icon on the photo
+                  //   reads as "tap to take another," not "tap to
+                  //   view." Analysis lives on the score badge + the
+                  //   View analysis link — two clear paths there.
+                  // - stopPropagation: section also has a tap-anywhere
+                  //   handler; without this the action would fire twice.
+                  if (typeof setShowCheckInChooser === 'function') {
+                    setShowCheckInChooser(true);
                   } else {
-                    setShowCheckInCamera(true);
+                    startGuidedCheckIn();
                   }
                 }}
                 className="absolute inset-0 transition hover:opacity-90 focus:outline-none cursor-pointer"
                 style={{cursor:'pointer'}}
                 aria-label={hasTodayPhoto ? "View today's photo" : "Check in today"}
               >
-                <div className="absolute inset-0 rounded-full overflow-hidden border-2 border-dashed flex flex-col items-center justify-center" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
+                <div className="absolute inset-0 rounded-full overflow-hidden border-2 border-dashed flex flex-col items-center justify-center" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
                   {hasTodayPhoto ? (
                     <Photo item={todayLog} alt="" className="w-full h-full object-cover rounded-full" />
                   ) : (
                     <>
                       <Icon name="Camera" size={28} style={{color:'var(--ink-soft)'}} />
-                      <div className="text-[10.5px] mt-2" style={{color:'var(--accent)', fontWeight:600, letterSpacing:'0.18em', textTransform:'uppercase'}}>Check-in today</div>
+                      <div className="text-[10.5px] mt-2" style={{color:'var(--accent)', fontWeight:600, letterSpacing:'0.18em', textTransform:'uppercase'}}>Check in</div>
                     </>
                   )}
                 </div>
               </button>
-              {/* === UPLOAD AFFORDANCE — slim pill (May 2026) ===
-                  No photo today → keep the oval as the take-photo action,
-                  but label the secondary upload path explicitly so the
-                  upload arrow does not read as mystery chrome. */}
-              {heroIsViewingToday && !hasTodayPhoto && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setShowCheckInChooser(true); }}
-                  className="absolute inline-flex items-center justify-center transition hover:opacity-90 cursor-pointer z-10"
-                  style={{
-                    left: '50%',
-                    bottom: '-15px',
-                    transform: 'translateX(-50%)',
-                    height: 30,
-                    gap: 6,
-                    padding: '0 12px',
-                    borderRadius: 999,
-                    background: 'var(--cream)',
-                    border: '1px solid var(--line)',
-                    color: 'var(--ink)',
-                    boxShadow: '0 2px 6px rgba(28,25,23,0.12)',
-                    fontSize: 11,
-                    fontWeight: 500,
-                    whiteSpace: 'nowrap',
-                    cursor: 'pointer',
-                  }}
-                  aria-label="Upload photo from library"
-                  title="Upload photo"
-                >
-                  <Icon name="Upload" size={13} style={{color:'var(--ink-soft)'}} />
-                  <span>Upload photo</span>
-                </button>
-              )}
-              {heroIsViewingToday && hasTodayPhoto && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setShowCheckInChooser(true); }}
-                  className="absolute flex items-center justify-center transition hover:opacity-90 cursor-pointer z-10"
-                  style={{
-                    left: '50%',
-                    bottom: '-19px',
-                    transform: 'translateX(-50%)',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                  }}
-                  aria-label="Add a new photo today"
-                  title="Add photo"
-                >
-                  <span
-                    className="flex items-center gap-1.5 rounded-full"
-                    style={{
-                      height: 27,
-                      padding: '0 12px',
-                      background: 'var(--cream)',
-                      border: '1px solid var(--line)',
-                      color: 'var(--ink)',
-                      boxShadow: '0 2px 6px rgba(28,25,23,0.12)',
-                      fontSize: '10.5px',
-                      fontWeight: 500,
-                      letterSpacing: '0.05em',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    <Icon name="Camera" size={12} />
-                    <span>Add photo</span>
-                  </span>
-                </button>
-              )}
-              {hasTodayPhoto && todayAvg != null && (
+              {/* === SCORE BADGE (May 28 2026 per Jenni) ===
+                  Score moves from the right column to a stamped badge
+                  on the photo. Marries photo + score as one visual
+                  unit so the eye reads them together instead of
+                  treating the face and the number as competing
+                  hero elements. Bottom-right corner, slight outside
+                  offset for the "wax-seal" feel. Tappable → opens
+                  analysis. */}
+              {/* Score badge moved off the photo (May 29 2026 v5 per Jenni)
+                  — now paired with View analysis in the right column.
+                  Photo = check-in surface only; score circle + link =
+                  analysis surface. One affordance per visual element. */}
+              {/* Upload pill removed (May 29 2026 per Jenni) —
+                  consolidated to a single empty-state CTA: tap the
+                  oval opens the chooser sheet (Camera or Upload).
+                  See the photo button's onClick above. */}
+              {/* CHECK-IN pill removed from photo bottom (May 28 2026
+                  v3 per Jenni) — moved to the right column under the
+                  View analysis link. A subtle camera watermark sits
+                  centered on the photo as a quiet brand mark instead
+                  of a competing pill. Note: tap on photo still opens
+                  the viewer drawer, so the camera mark is decorative,
+                  not a button — kept low opacity to avoid implying
+                  "tap me for camera." */}
+              {/* === CAMERA WATERMARK (May 29 2026 v3 per Jenni) ===
+                  Back as a subtle visual cue ONLY (pointer-events:
+                  none). The whole photo is still the camera tap
+                  target — the watermark just signals "this is a
+                  photo-capture surface." Low opacity so it whispers
+                  instead of competing with the face. */}
+              {hasTodayPhoto && (
+                // === CAMERA WATERMARK — circle (May 29 2026 v5 per Jenni) ===
+                // Pill shape was inconsistent with the score badge's
+                // circle. Both are round now. Camera icon + CHECK IN
+                // caption stack inside. Still pointer-events:none —
+                // photo body handles the tap.
                 <div
-                  className="absolute rounded-[20px] px-3 py-2 text-center"
+                  className="absolute pointer-events-none flex flex-col items-center justify-center"
                   style={{
-                    right: '-12px',
-                    bottom: '10px',
-                    background: 'var(--cream-deep)',
-                    border: '1px solid var(--line)',
-                    boxShadow: '0 8px 18px rgba(54,42,34,0.12)',
-                    minWidth: '54px',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: 60,
+                    height: 60,
+                    borderRadius: '50%',
+                    background: 'rgba(28,25,23,0.32)',
+                    border: '1px solid rgba(255,255,255,0.5)',
+                    backdropFilter: 'blur(2px)',
+                    opacity: 0.6,
+                    zIndex: 5,
+                    gap: 2,
                   }}
+                  aria-hidden
                 >
-                  <div className="font-serif leading-none" style={{color:'var(--accent)', fontSize:'24px', fontWeight:700, letterSpacing:'-0.03em'}}>
-                    {(todayAvg / 10).toFixed(1)}
-                  </div>
-                  <div className="text-[9px] mt-0.5" style={{color:'var(--accent)', fontWeight:500}}>today</div>
+                  <Icon name="Camera" size={16} style={{color:'rgba(255,251,244,1)'}} />
+                  <span style={{
+                    fontSize: 7,
+                    color: 'rgba(255,251,244,1)',
+                    fontWeight: 700,
+                    letterSpacing: '0.14em',
+                    textTransform: 'uppercase',
+                    lineHeight: 1,
+                  }}>Check in</span>
                 </div>
               )}
             </div>
-            {/* Text column. Populated state stays clamped at 178px so
-                the score chip + face photo don't fight for space.
-                Empty state lifts the clamp so the longer title
-                ("Your skin story") flows naturally next to the
-                smaller empty-state circle. (May 2026 v2 per Jenni —
-                empty-state layout was wrapping 5 narrow lines.) */}
-            <div className="flex-1 min-w-0 pt-0" style={{maxWidth: hasTodayPhoto ? 178 : undefined}}>
-              <h2 className="font-serif text-[24px] md:text-[27px] leading-[1.05] mb-2" style={{color: hasTodayPhoto ? 'var(--accent)' : 'var(--ink)', letterSpacing:'-0.025em'}}>
-                {hasTodayPhoto ? 'Today' : 'Your skin story'}
-              </h2>
+            {/* Text + score column — clamped at 180px so the score
+                stack and the photo don't fight for horizontal space. */}
+            <div className="flex-1 min-w-0 pt-0" style={{maxWidth: hasTodayPhoto ? 180 : undefined}}>
               {(() => {
-                // === Two-line description ===
-                // Line 1 = primary AI read (or instruction if no photo)
-                // Line 2 = supporting AI observation OR contextual nudge
-                let line1 = '', line2 = '';
+                // === HEADLINE + VOICE LINE (May 2026 v4 — Tang & Gainey pass per Jenni) ===
+                // Source: project_brand_voice memory. Two doctor best
+                // friends texting about skincare. Gainey: sharp,
+                // deadpan, 1-3 sentences, skips the warmup, "a little
+                // dark." Tang: wry, observational, lands the read.
+                // Blend (default): Gainey-led directness, Tang-soft
+                // landing. The previous copy ("Steady read. Keep
+                // going.") was generic-wellness. This pass rewrites
+                // every line so it reads like an 11pm text to your
+                // best friend after a shift.
+                //
+                // Voice rules applied:
+                //   - No exclamation points (except genuine)
+                //   - Never moralize about skipped routines
+                //   - Never say "based on" / "looks like" — just say it
+                //   - No "consult a dermatologist" — WE ARE the doctors
+                //   - Brief: two short sentences beats five
+                //   - Honest: don't pretend something worked if it didn't
+                let headline = '', voice = '';
                 const tc = (w) => w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : '';
                 if (!hasTodayPhoto) {
-                  line1 = 'No photo logged yet.';
-                  line2 = 'Camera or upload — either works.';
+                  // (May 29 2026 per Jenni) Headline now reads as
+                  // a doctor-friend question instead of a flat label.
+                  // Conversational, slightly nosy, brand-aligned.
+                  headline = 'Where’s today?';
+                  voice = priorNudge || 'One photo fills the read. Then the routine has context.';
                 } else if (todayLog?.analyzing) {
-                  line1 = 'Reading your skin…';
-                  line2 = 'A moment.';
+                  headline = 'Reading.';
+                  voice = 'Give us a second.';
                 } else if (!todaySnap && !todayLog?.aiAnalysis) {
-                  // No metrics AND no prose. If API key isn't set,
-                  // the auto-fire never runs and the state persists
-                  // — but per Jenni: no CTA, no retry buttons, no
-                  // "tap to generate." Just acknowledge the photo
-                  // was saved and stay quiet. The auto-fire at the
-                  // bottom of the daily save handler kicks
-                  // retryLogAnalysis when keys exist; users without
-                  // keys see this peaceful state and the analysis
-                  // simply doesn't load. (No CTA = no broken
-                  // promise.)
-                  line1 = 'Photo logged.';
-                  line2 = '';
+                  headline = 'Got the photo.';
+                  voice = '';
                 } else if (!todaySnap && todayLog?.aiAnalysis) {
-                  // DEFENSIVE FALLBACK: prose exists but the metric parser
-                  // came back empty (rare — Claude wrote bullets without
-                  // any inline metric pairs). Try one more rescue pass via
-                  // parseSkinMetrics. If still nothing, at least don't
-                  // pretend the analysis didn't happen — surface that it
-                  // did and route the user to read it.
                   const rescued = parseSkinMetrics(todayLog.aiAnalysis);
                   if (rescued) {
-                    const r = tc(rescued.redness), h = tc(rescued.hydration), t = tc(rescued.texture),
-                          b = tc(rescued.breakouts), ba = tc(rescued.barrier), s = tc(rescued.sensitivity);
-                    if (r === 'High' || s === 'Inflamed' || ba === 'Stripped') line1 = 'Skin is reactive today.';
-                    else if (r === 'Moderate' || s === 'Reactive') line1 = 'More redness today.';
-                    else line1 = 'Reading captured.';
-                    line2 = 'Tap Read Analysis for the full read.';
+                    const r = tc(rescued.redness), s = tc(rescued.sensitivity), ba = tc(rescued.barrier);
+                    if (r === 'High' || s === 'Inflamed' || ba === 'Stripped') headline = 'Skin’s flaring.';
+                    else if (r === 'Moderate' || s === 'Reactive') headline = 'Redness is back.';
+                    else headline = 'Read’s in.';
+                    voice = 'Open the analysis for the full read.';
                   } else {
-                    line1 = 'Analysis ready.';
-                    line2 = 'Tap Read Analysis below.';
+                    headline = 'Analysis ready.';
+                    voice = 'Hit Read Analysis below.';
                   }
                 } else {
                   const r = tc(todaySnap.redness), h = tc(todaySnap.hydration), t = tc(todaySnap.texture),
                         b = tc(todaySnap.breakouts), ba = tc(todaySnap.barrier), s = tc(todaySnap.sensitivity);
-                  // Pick line 1 (dominant primary read)
-                  if (r === 'High' || s === 'Inflamed' || ba === 'Stripped') line1 = 'Skin is reactive today.';
-                  else if (r === 'Moderate' || s === 'Reactive') line1 = 'More redness today.';
-                  else if (b === 'Severe' || b === 'Many') line1 = 'Active breakouts today.';
-                  else if (b === 'Some') line1 = 'A few breakouts today.';
-                  else if (h === 'Plump' && (r === 'Clear' || r === 'Low')) line1 = 'Glowing today.';
-                  else if (h === 'Good' && (r === 'Clear' || r === 'Low')) line1 = 'Calm complexion today.';
-                  else if (t === 'Smooth' && b === 'Clear') line1 = 'Even and clear today.';
-                  else line1 = 'Steady today.';
-                  // === Line 2: layered fallback ===
-                  // Priority order:
-                  //   1. delta-based cause→effect (most teaching value)
-                  //   2. specific concern from today's snapshot
-                  //   3. first-log encouragement (no prior reading exists)
-                  //   4. consistent-reading observation (prior exists, nothing shifted)
-                  // The old "Routine is working." string was almost
-                  // always firing because no other branch matched —
-                  // now it only appears when truly nothing else fits.
-                  if (deltaChips.length > 0) {
-                    // The "Since last reading" chips already carry the
-                    // change story. Keep the headline copy from repeating
-                    // the same signal twice.
-                    line2 = '';
-                  } else if (h === 'Parched') line2 = 'Skin reads as dehydrated.';
-                  else if (h === 'Dry') line2 = 'Slight dehydration noted.';
-                  else if (ba === 'Compromised') line2 = 'Barrier asking for support.';
-                  else if (t === 'Bumpy' || t === 'Rough') line2 = 'Texture a touch rougher.';
-                  else if (s === 'Tender') line2 = 'Tender to the touch.';
-                  else if (b === 'Few' && line1 !== 'A few breakouts today.') line2 = 'A small spot or two.';
-                  else if (!priorSnap) {
-                    // First reading — no prior to compare against.
-                    // Per Jenni (May 2026): leave the second line blank
-                    // here. The "Log again tomorrow" prompt was reading
-                    // text-heavy on the cover; the message lands better
-                    // when the headline stands alone.
-                    line2 = '';
-                  } else {
-                    // Have a prior reading but nothing shifted.
-                    line2 = '';
-                  }
+                  // === HEADLINE — Gainey-led: short, direct, observational ===
+                  // Tone: doctor-friend at the end of a shift, not edgy.
+                  // (May 27 — Jenni flagged "pissed" + "cocky" as too
+                  // casual. Replaced with "flaring" and a softer
+                  // landing on the smooth-clear branch.)
+                  // === HEADLINE — warmer doctor-friend voice (May 29 2026 per Jenni) ===
+                  // Was clinical one-words ("Holding.", "Glowing."). Now
+                  // a conversational fragment so the editorial tone
+                  // carries from empty state into filled state — no
+                  // abrupt shift to AI-verdict mode.
+                  if (r === 'High' || s === 'Inflamed' || ba === 'Stripped') headline = 'Skin’s flaring today.';
+                  else if (r === 'Moderate' || s === 'Reactive') headline = 'Redness is back today.';
+                  else if (b === 'Severe' || b === 'Many') headline = 'Breaking out today.';
+                  else if (b === 'Some') headline = 'A couple of guests today.';
+                  else if (h === 'Plump' && (r === 'Clear' || r === 'Low')) headline = 'Glowing today.';
+                  else if (h === 'Good' && (r === 'Clear' || r === 'Low')) headline = 'Reads calm today.';
+                  else if (t === 'Smooth' && b === 'Clear') headline = 'Behaving today.';
+                  else headline = 'Skin’s holding today.';
+                  // === VOICE — Tang & Gainey Blend: friend advice, not medical ===
+                  // What one would text the other at 11pm. Direct fix,
+                  // small dose of warmth, occasional dryness. Never
+                  // moralize, never lecture, no slang.
+                  // === VOICE LINES — one-line tight (May 29 v5 per Jenni) ===
+                  // Right column is narrow (180px). Each line trimmed
+                  // to ~25 chars so it never wraps at mobile width.
+                  if (ba === 'Stripped' || ba === 'Compromised') voice = 'Ceramides only tonight.';
+                  else if (r === 'High' || s === 'Inflamed') voice = 'Pause actives. Centella, bed.';
+                  else if (r === 'Moderate' || s === 'Reactive') voice = 'Centella under moisturizer.';
+                  else if (b === 'Severe' || b === 'Many') voice = 'Hands off. Patch the worst.';
+                  else if (b === 'Some') voice = 'One BHA tonight. Just one.';
+                  else if (h === 'Parched') voice = 'Humectant first, then cream.';
+                  else if (h === 'Dry') voice = 'Double the moisturizer.';
+                  else if (t === 'Bumpy' || t === 'Rough') voice = 'Squalane, ceramides, sleep.';
+                  else if (s === 'Tender') voice = 'Gentle hands tonight.';
+                  else if (b === 'Few') voice = 'Hands off. Picking worsens it.';
+                  else if (h === 'Plump' && (r === 'Clear' || r === 'Low')) voice = 'No notes. Screenshot it.';
+                  else if (h === 'Good' && (r === 'Clear' || r === 'Low')) voice = 'This is working. Keep going.';
+                  else if (t === 'Smooth' && b === 'Clear') voice = 'Streak’s holding.';
+                  else voice = 'Hold the routine.';
+                  // Voice is NOT suppressed when delta chips are present.
+                  // Chips report what changed (observation). Voice gives
+                  // guidance (what to do). Different jobs — both belong.
                 }
-                const supportingLine = line2;
                 return (
-                  <div className="mb-2">
-                    <p className="text-[15px] leading-snug font-light" style={{color:'var(--ink)'}}>
-                      {line1}
-                    </p>
-                    {supportingLine && (
-                      <p className="text-[13px] leading-snug mt-2 font-light" style={{color:'var(--ink-soft)'}}>
-                        {supportingLine}
-                      </p>
-                    )}
-                  </div>
+                  <>
+                    {/* === SOFT CROSSFADE (May 2026 per Jenni) ===
+                        Headline + voice swap on data settle. Key by the
+                        headline text so React remounts the <p>s with a
+                        fresh fade-in animation, smoothing the brief
+                        "Steady today → More redness today" flicker that
+                        happens when the cover picks a newer photo and
+                        the snap resolves a moment later. The opacity
+                        keyframe is short (220ms) so settled states still
+                        feel instant on slow renders. */}
+                    <div key={headline + '|' + voice} style={{animation: 'snapFade 220ms ease-out'}}>
+                      {/* === HEADLINE — quieted (May 28 2026 per Jenni) ===
+                          Was accent (same red as the score). With the
+                          score as the focal point, the headline drops
+                          to ink so only one element wears the brand
+                          red. Letter-spacing and serif weight still
+                          carry the editorial tone. */}
+                      <h2
+                        className="font-sans text-[18px] md:text-[22px] leading-[1.12] mb-2"
+                        style={{color: 'var(--ink)', letterSpacing:'-0.022em', whiteSpace: hasTodayPhoto ? 'normal' : 'nowrap'}}
+                      >
+                        {headline}
+                      </h2>
+                      {voice && (
+                        <p className="text-[12.5px] leading-snug font-light" style={{color:'var(--ink)', maxWidth: hasTodayPhoto ? undefined : 176}}>
+                          {voice}
+                        </p>
+                      )}
+                    </div>
+                  </>
                 );
               })()}
+              {hasTodayPhoto ? (
+                // === RIGHT COLUMN — text-link CTAs (restored May 28 2026 v11 per Jenni) ===
+                // Tried action tiles below the photo+text row — too
+                // loud, competed with the score badge and broke the
+                // editorial quiet. Reverted to paired text links in
+                // the right column: View analysis (accent, primary)
+                // and Check-in (ink-soft, secondary).
+                <div className="mt-3 flex flex-col gap-2" style={{maxWidth: 180}}>
+                  {/* === SCORE BADGE + VIEW ANALYSIS (May 29 2026 v5 per Jenni) ===
+                      Score badge moved off the photo, paired inline with
+                      the View analysis link. Both tap → analysis drawer.
+                      Photo = check-in surface only; this row = analysis
+                      surface. */}
+                  {todayLog?.id != null && (
+                    <div className="inline-flex items-center gap-1.5" style={{whiteSpace: 'nowrap'}}>
+                      {todayAvg != null && (
+                        // Score 52/18 — paired with the View analysis
+                        // link, so badge reads as part of a row rather
+                        // than its own hero element.
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); openTodayAnalysis(); }}
+                          className="flex items-center justify-center transition hover:scale-105 focus:outline-none"
+                          style={{
+                            width: 50,
+                            height: 50,
+                            borderRadius: '50%',
+                            background: 'var(--cream)',
+                            border: '2px solid var(--accent)',
+                            boxShadow: '0 2px 8px rgba(28,25,23,0.12)',
+                            cursor: 'pointer',
+                            flexShrink: 0,
+                          }}
+                          aria-label={`Skin read ${(todayAvg / 10).toFixed(1)} out of 10. Tap to view analysis.`}
+                          title={`${(todayAvg / 10).toFixed(1)} / 10 · tap to view analysis`}
+                        >
+                          <span style={{
+                            fontSize: 18,
+                            lineHeight: 1,
+                            fontWeight: 700,
+                            color: 'var(--accent)',
+                            letterSpacing: '-0.025em',
+                          }}>
+                            {(todayAvg / 10).toFixed(1)}
+                          </span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openTodayAnalysis(); }}
+                        className="inline-flex items-center gap-1 transition hover:opacity-75"
+                        style={{
+                          color: 'var(--accent)',
+                          fontSize: 11.5,
+                          fontWeight: analysisIsFresh ? 700 : 600,
+                          letterSpacing: '0.01em',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                        }}
+                        disabled={todayLog?.id == null}
+                        aria-label={analysisIsFresh ? 'Read new analysis' : 'View analysis'}
+                      >
+                        {todayLog?.analyzing ? (
+                          <>
+                            <Icon name="Loader2" size={12} className="spin" />
+                            Reading…
+                          </>
+                        ) : (
+                          <>
+                            <Icon name="Sparkles" size={12} />
+                            {analysisIsFresh ? 'Read analysis' : 'View analysis'}
+                            <Icon name="ArrowRight" size={11} />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                  {/* === BASELINE STATUS / DELTA / WARNING (June 2026 per Jenni) ===
+                      A small text-only line beneath the score row. Shows
+                      ONE of (in priority order):
+                        1. AI-only warning if rating + chips missing
+                        2. Most-benign pattern at day 7-9 (forming mode)
+                        3. Delta vs baseline at day 10+ (anchored mode)
+                        4. Baseline-anchoring status at day 1-6 (establishing)
+                      Editorial / terse. Tap → opens score explainer. */}
+                  {todayLog?.id != null && todayAvg != null && (() => {
+                    const open = () => setShowScoreExplainer && setShowScoreExplainer(true);
+                    if (todayDisplay?.mode === 'ai-only') {
+                      return (
+                        <button
+                          type="button"
+                          onClick={open}
+                          className="text-left inline-flex items-center gap-1 transition hover:opacity-75"
+                          style={{color:'var(--ink-soft)', fontSize:10.5, letterSpacing:'0.06em', textTransform:'uppercase', fontWeight:600, cursor:'pointer', background:'transparent', border:'none'}}
+                          title="AI photo only — log a rating + chips to deepen the read"
+                        >
+                          <Icon name="Info" size={10} />
+                          <span>Photo only · add a rating</span>
+                        </button>
+                      );
+                    }
+                    if (mostBenignPattern) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={open}
+                          className="text-left transition hover:opacity-75"
+                          style={{color:'var(--ink-soft)', fontSize:11, lineHeight:1.35, cursor:'pointer', background:'transparent', border:'none', maxWidth:180, padding:0}}
+                          title="How your score works"
+                        >
+                          {mostBenignPattern.copy}
+                        </button>
+                      );
+                    }
+                    if (baselineDelta?.composite_delta != null) {
+                      const d = baselineDelta.composite_delta;
+                      const sign = d > 0 ? '+' : '';
+                      const color = d > 2 ? 'var(--accent-blue)' : d < -2 ? 'var(--rose)' : 'var(--ink-soft)';
+                      return (
+                        <button
+                          type="button"
+                          onClick={open}
+                          className="text-left inline-flex items-center gap-1 transition hover:opacity-75"
+                          style={{color, fontSize:11, fontWeight:600, letterSpacing:'-0.005em', cursor:'pointer', background:'transparent', border:'none'}}
+                          title={`Vs ${baseline.n}-log baseline (${baseline.composite})`}
+                        >
+                          <span>{sign}{d} vs baseline</span>
+                          <Icon name="Info" size={10} style={{opacity:0.55}} />
+                        </button>
+                      );
+                    }
+                    if (baseline.mode === 'establishing') {
+                      return (
+                        <button
+                          type="button"
+                          onClick={open}
+                          className="text-left transition hover:opacity-75"
+                          style={{color:'var(--ink-soft)', fontSize:10.5, letterSpacing:'0.06em', textTransform:'uppercase', fontWeight:600, cursor:'pointer', background:'transparent', border:'none'}}
+                          title="Frida is anchoring your baseline"
+                        >
+                          Anchoring baseline · {baseline.n}/10
+                        </button>
+                      );
+                    }
+                    return null;
+                  })()}
+                  {/* === STREAK INLINE — all gold + encouragement (May 29 v7 per Jenni) ===
+                      Full line in gold so it reads as one unit (not a
+                      split number+label). Encouragement kicks in at
+                      10+ days to balance the line and reward the
+                      milestone. Tiered: 10+ "keep at it", 30+ "real
+                      consistency". */}
+                  {loggingStreak >= 2 && (() => {
+                    const milestone = loggingStreak >= 30 ? '— real consistency'
+                                    : loggingStreak >= 10 ? '— keep at it'
+                                    : '';
+                    return (
+                      <div className="mt-1 text-[11px]" style={{color:'var(--ink)', fontWeight:500, letterSpacing:'0.01em'}}>
+                        <span style={{fontWeight:700}}>{loggingStreak}</span>
+                        <span style={{marginLeft:4}}>day streak{milestone ? ' ' + milestone : ''}</span>
+                      </div>
+                    );
+                  })()}
+                  {/* Standalone "+ Check-in" link removed (May 29 v4
+                      per Jenni) — photo watermark now carries a "CHECK
+                      IN" label and the photo body is the tap target.
+                      View analysis link stands alone here for the
+                      analysis path. */}
+                  {/* Dead "Check-in" button block removed 2026-05-31 (was gated {false &&}). */}
+                </div>
+              ) : (
+                // === EMPTY-STATE CTA (May 30 2026 v13 per Jenni) ===
+                // Mirror the filled state: empty score circle ("—") +
+                // CTA link. Keeps the right column in the same shape
+                // across states so the layout doesn't shift when a
+                // photo arrives.
+                <div className="mt-3">
+                  <div className="flex flex-row items-center gap-2">
+                    {/* Empty score circle — red dashed border, faded em-dash. */}
+                    <div
+                      className="flex items-center justify-center"
+                      style={{
+                        width: 44, height: 44, borderRadius: '50%',
+                        background: 'var(--cream)',
+                        border: '2px dashed var(--accent)',
+                        flexShrink: 0,
+                      }}
+                      aria-hidden
+                    >
+                      <span style={{fontSize:16, lineHeight:1, fontWeight:700, color:'var(--accent)', letterSpacing:'-0.025em', opacity:0.35}}>—</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (typeof setShowCheckInChooser === 'function') {
+                          setShowCheckInChooser(true);
+                        } else {
+                          startGuidedCheckIn();
+                        }
+                      }}
+                      className="inline-flex max-w-full items-center gap-1 transition hover:opacity-75 text-left"
+                      style={{
+                        color: 'var(--accent)',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        letterSpacing: '0.01em',
+                        cursor: 'pointer',
+                      }}
+                      aria-label="Add a photo for today's analysis"
+                    >
+                      <Icon name="Sparkles" size={12} />
+                      <span className="sm:hidden">Analyze</span>
+                      <span className="hidden sm:inline">Add for analysis</span>
+                      <Icon name="ArrowRight" size={11} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+          {/* Action tiles tried + reverted May 28 2026 v11 — too loud
+              for the editorial direction. CTAs back in right column
+              as text links (see RIGHT COLUMN block above). */}
           {hasTodayPhoto && !todaySnap && !getApiKey() && (
             <button
-              onClick={() => setShowApiKeyModal(true)}
-              className="w-full mt-4 mb-1 text-left text-[11px] italic px-3 py-2 rounded-[10px] flex items-center gap-2 transition hover:opacity-80"
+              onClick={(e) => { e.stopPropagation(); setShowApiKeyModal(true); }}
+              className="w-full mt-4 mb-1 text-left text-[11px] px-3 py-2 rounded-[10px] flex items-center gap-2 transition hover:opacity-80"
               style={{background:'var(--cream)', border:'1px dashed var(--accent)', color:'var(--accent)'}}
             >
               <Icon name="Key" size={11} />
@@ -1466,115 +2164,202 @@ CRITICAL OUTPUT REQUIREMENTS:
             </button>
           )}
           {hasTodayPhoto && !todaySnap && getApiKey() && todayLog?.analyzing && (
-            <div className="mt-4 mb-1 text-[11px] italic px-3 py-2 rounded-[10px] flex items-center gap-2" style={{background:'var(--cream)', border:'1px solid var(--line)', color:'var(--ink-soft)'}}>
+            <div className="mt-4 mb-1 text-[11px] px-3 py-2 rounded-[10px] flex items-center gap-2" style={{background:'var(--cream)', border: '1px solid var(--line)', color:'var(--ink-soft)'}}>
               <Icon name="Loader2" size={11} className="spin" />
               <span>Reading your skin…</span>
             </div>
           )}
-          {hasTodayPhoto && todaySnap && (
-            <div className="mt-3 pt-3 border-t" style={{borderColor:'var(--line)'}}>
-              <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar">
-                {metricSpec
-                  .filter(m => m.level)
-                  .map(m => {
-                    const level = (m.level || '').toLowerCase();
-                    const copy =
-                      m.label === 'Redness' ? `${level} redness` :
-                      m.label === 'Hydration' ? `${level} hydration` :
-                      m.label === 'Texture' ? `${level} texture` :
-                      level === 'clear' ? 'clear' : `${level} breakouts`;
+          {/* === METRIC GRID (May 28 2026 v6 per Jenni) ===
+              Always renders — including empty/pending state, where
+              each tile shows a single "—" instead of arrow + verb.
+              The point: the grid is a visual promise of what the
+              user gets after checking in, so seeing the shape
+              waiting for data is encouragement to check in.
+              When today's snap is missing, tiles dim slightly and
+              the dashes read as "pending." Once the snap arrives,
+              the same tiles fill with arrow + verb. */}
+          {(() => {
+            // === CHIP RAIL ALIGNED TO COMPOSITE v1 (June 2026 per Jenni) ===
+            // Was: 5 tiles incl sensitivity (which the AI no longer extracts).
+            // Now: 5 tiles matching the 5 composite outcome domains —
+            // hydration, barrier, redness, breakouts (labeled "Pores" for
+            // brand-voice continuity), and texture. Sensitivity is dropped
+            // here for the same reason it's dropped as a domain: a photo
+            // can't see felt-sense reactivity. It remains as a check-in chip.
+            const SCORE_MAP = {
+              redness:    { Clear: 100, Low: 80, Mild: 55, Moderate: 30, High: 10 },
+              hydration:  { Plump: 100, Good: 80, Balanced: 55, Dry: 30, Parched: 10 },
+              texture:    { Smooth: 100, Even: 80, Uneven: 55, Rough: 30, Bumpy: 10 },
+              breakouts:  { Clear: 100, Few: 75, Some: 50, Many: 25, Severe: 10 },
+              barrier:    { Strong: 100, Steady: 80, Holding: 55, Compromised: 30, Stripped: 10 },
+            };
+            const tc = (w) => w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : null;
+            const scoreFor = (snap, k) => snap ? (SCORE_MAP[k]?.[tc(snap[k])] ?? null) : null;
+            const cur = {
+              hydration: scoreFor(todaySnap, 'hydration'),
+              barrier: scoreFor(todaySnap, 'barrier'),
+              redness: scoreFor(todaySnap, 'redness'),
+              congestion: scoreFor(todaySnap, 'breakouts'),
+              texture: scoreFor(todaySnap, 'texture'),
+            };
+            const prev = priorSnap ? {
+              hydration: scoreFor(priorSnap, 'hydration'),
+              barrier: scoreFor(priorSnap, 'barrier'),
+              redness: scoreFor(priorSnap, 'redness'),
+              congestion: scoreFor(priorSnap, 'breakouts'),
+              texture: scoreFor(priorSnap, 'texture'),
+            } : null;
+            const isPending = !todaySnap;
+            const verbForMetric = (key, now, was) => {
+              // Pending state: no snap → "—" arrow, "pending" direction.
+              if (now == null) return { arrow: '—', dir: 'pending' };
+              const delta = was == null ? 0 : (now - was);
+              const better = delta > 5, worse = delta < -5;
+              const dir = better ? 'pos' : worse ? 'neg' : 'flat';
+              // Hydration / Barrier / Texture: pos = up (higher score better).
+              // Redness / Congestion (breakouts): pos = down.
+              const downIsBetter = key === 'redness' || key === 'congestion';
+              const arrow = dir === 'flat' ? '—' : (downIsBetter ? (better ? '↓' : '↑') : (better ? '↑' : '↓'));
+              return { arrow, dir };
+            };
+            // === STABLE 3-STATE VOCAB (May 29 v6 per Jenni) ===
+            // When a metric isn't moving, the word reflects the
+            // absolute level too — stably-good vs stably-bad both
+            // matter, "Stable" alone doesn't say which.
+            //   val >= 70 → stably good (blue text)
+            //   val < 50  → stably bad  (rose text)
+            //   else      → neutral     (ink-soft "Stable")
+            // Scores are normalized so higher = better for all metrics
+            // including redness/sensitivity (low score = bad).
+            const verbFor = (key, dir, value) => {
+              // Em-dash in pending state retired (May 31 2026 per Jenni) —
+              // the row of em-dashes read as "broken UI" rather than
+              // "awaiting check-in." Pending cells render icon + label only;
+              // a single "Check in to see your score" line sits below.
+              if (dir === 'pending') return { word: '', tone: 'pending' };
+              if (dir === 'pos') {
+                const w = key === 'hydration' ? 'Up'
+                        : key === 'barrier' ? 'Strong'
+                        : key === 'redness' ? 'Soft'
+                        : key === 'congestion' ? 'Clear'
+                        : key === 'texture' ? 'Smoother' : '';
+                return { word: w, tone: 'pos' };
+              }
+              if (dir === 'neg') {
+                const w = key === 'hydration' ? 'Down'
+                        : key === 'barrier' ? 'Stressed'
+                        : key === 'redness' ? 'Up'
+                        : key === 'congestion' ? 'Up'
+                        : key === 'texture' ? 'Rougher' : '';
+                return { word: w, tone: 'neg' };
+              }
+              // flat — 3-state from absolute value. Neutral band is
+              // "watching" in gold (palette caution color), with
+              // metric-specific words instead of bland "Stable".
+              const good = value != null && value >= 70;
+              const bad  = value != null && value < 50;
+              const tone = good ? 'pos' : bad ? 'neg' : 'watching';
+              const w = key === 'hydration'  ? (good ? 'Plump'  : bad ? 'Dry'      : 'Okay')
+                     : key === 'barrier'    ? (good ? 'Strong' : bad ? 'Tender'   : 'Holding')
+                     : key === 'redness'    ? (good ? 'Calm'   : bad ? 'Flushed'  : 'Light')
+                     : key === 'congestion' ? (good ? 'Clear'  : bad ? 'Busy'     : 'Even')
+                     : key === 'texture'    ? (good ? 'Smooth' : bad ? 'Rough'    : 'Even')
+                     : 'Okay';
+              return { word: w, tone };
+            };
+            // === METRIC TILE COLOR MAP (June 2026 per Jenni — composite v1 align) ===
+            // Five tiles matching the five composite outcome domains:
+            // - hydration → powder blue (water)
+            // - barrier   → mustard (protective)
+            // - redness   → accent red (direct mapping)
+            // - pores     → quiet stone (still maps to breakouts/congestion;
+            //               kept the "Pores" label for editorial continuity)
+            // - texture   → clay rose (replaces sensitivity — same warm-neutral
+            //               temperature so the rail visually balances)
+            const tiles = [
+              { key: 'hydration',  label: 'Hydra',   icon: 'Droplet',  iconColor: 'var(--accent-blue)',    tintBg: 'rgba(134,202,231,0.14)' },
+              { key: 'barrier',    label: 'Barrier', icon: 'Shield',   iconColor: 'var(--gold)',           tintBg: 'rgba(232,179,53,0.12)' },
+              { key: 'redness',    label: 'Redness', icon: 'Flame',    iconColor: 'var(--accent)',         tintBg: 'rgba(229,60,45,0.08)' },
+              { key: 'congestion', label: 'Pores',   icon: 'Circle',   iconColor: 'var(--text-tertiary)',  tintBg: 'rgba(156,143,134,0.12)' },
+              { key: 'texture',    label: 'Texture', icon: 'Activity', iconColor: 'var(--rose)',           tintBg: 'rgba(184,86,72,0.10)' },
+            ];
+            return (
+              <div
+                className="mt-3 rounded-[14px] px-2 py-3 md:px-3"
+                style={{
+                  background:'var(--cream-deep)',
+                  border: '1px solid var(--line)',
+                  opacity: isPending ? 0.95 : 1,
+                }}
+              >
+                <div className="grid grid-cols-5 gap-1 md:gap-2">
+                  {tiles.map(t => {
+                    const v = cur[t.key];
+                    const direction = verbForMetric(t.key, v, prev?.[t.key]);
+                    // === TILE TINT + DIM (May 29 v3) ===
+                    // Moved tiles get a soft domain-tinted bg; steady
+                    // tiles dim to 55% so the eye lands on what moved.
+                    // Em-dash + "Steady" suppressed for flat tiles —
+                    // they were reading as broken / noise.
+                    const moved = direction.dir === 'pos' || direction.dir === 'neg';
+                    const verb = verbFor(t.key, direction.dir, v);
+                    const verbColor =
+                      verb.tone === 'pos' ? 'var(--accent-blue,#86CAE7)' :
+                      verb.tone === 'neg' ? 'var(--rose,#c9a094)' :
+                      verb.tone === 'watching' ? 'var(--gold)' :
+                      verb.tone === 'pending' ? 'var(--ink-soft)' :
+                      'var(--ink-soft)';
                     return (
-                      <span
-                        key={m.label}
-                        className="rounded-full px-3 py-1 text-[11px] flex-shrink-0 whitespace-nowrap"
-                        style={{background:'var(--cream-deep)', border:'1px solid var(--line)', color:'var(--ink)'}}
+                      <div
+                        key={t.key}
+                        className="flex flex-col items-center text-center min-w-0 py-1.5 px-0.5"
+                        style={{
+                          opacity: isPending ? 0.85 : 1,
+                          transition: 'opacity 200ms ease',
+                        }}
                       >
-                        {copy}
-                      </span>
+                        <Icon
+                          name={t.icon}
+                          size={13}
+                          style={{color: t.iconColor, opacity: verb.tone === 'pending' ? 0.55 : 1}}
+                        />
+                        <span
+                          className="text-[7.5px] tracking-[0.04em] uppercase mt-1 w-full leading-tight"
+                          style={{color:'var(--ink-soft)', fontWeight:650, whiteSpace:'nowrap'}}
+                        >
+                          {t.label}
+                        </span>
+                        <div className="flex items-baseline gap-0.5 mt-1">
+                          {moved && (
+                            <span className="text-[10px]" style={{color: verbColor, fontWeight:600}}>
+                              {direction.arrow}
+                            </span>
+                          )}
+                          {verb.word && (
+                            <span className="text-[10px]" style={{color: verbColor, fontWeight: moved ? 500 : 600, opacity: verb.tone === 'pending' ? 0.55 : 1}}>{verb.word}</span>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
-              </div>
-            </div>
-          )}
-          {/* === DELTA BAND — "since last reading" ===
-              Per Jenni (May 2026): show significant shifts in either
-              direction. Sage chips for improvements, rose chips for
-              regressions. Only the "no shift" / "no prior" cases hide the
-              band entirely — so the cover stays quiet on first reads and
-              on steady days, but calls out real changes (good or bad)
-              when they happen. */}
-          {hasTodayPhoto && todaySnap && priorSnap && (deltaChips || []).length > 0 && (
-            <div className="mt-3 pt-3 border-t" style={{borderColor:'var(--line)'}}>
-              <div className="text-[8.5px] tracking-[0.28em] uppercase mb-2" style={{color:'var(--ink-soft)', fontWeight:600}}>Since last reading</div>
-              <div className="flex flex-nowrap gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar">
-                {deltaChips.map(d => (
-                  <div
-                    key={d.label}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full flex-shrink-0 whitespace-nowrap"
-                    style={{
-                      background: d.improved ? 'rgba(138, 155, 126, 0.12)' : 'rgba(201, 138, 138, 0.10)',
-                      color: d.improved ? 'var(--sage)' : 'var(--rose)',
-                      border: '1px solid ' + (d.improved ? 'rgba(138, 155, 126, 0.30)' : 'rgba(201, 138, 138, 0.28)'),
-                    }}
-                  >
-                    <Icon name={d.dir === 'up' ? 'ArrowUpRight' : 'ArrowDownRight'} size={10} />
-                    <span className="text-[10px]" style={{fontWeight:500}}>{d.label}</span>
-                    <span className="text-[10px]" style={{opacity:0.75}}>{(d.from || '').toLowerCase()} → {(d.to || '').toLowerCase()}</span>
+                </div>
+                {/* Empty-state CTA (May 31 2026 per Jenni): one quiet line
+                    that explains what the strip will fill with once the user
+                    checks in. Replaces the row of em-dashes. */}
+                {isPending && (
+                  <div className="text-center mt-2 text-[10px] tracking-[0.04em]" style={{color:'var(--accent)', fontWeight:600, opacity:0.75}}>
+                    Check in to see your score
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-          )}
-          {hasTodayPhoto && heroIsViewingToday && (
-            <>
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={openTodayAnalysis}
-                  className={analysisIsFresh ? "pill-btn primary w-full" : "pill-btn secondary w-full"}
-                  disabled={todayLog?.id == null}
-                >
-                  {todayLog?.analyzing ? (
-                    <>
-                      <Icon name="Loader2" size={14} className="spin" style={{marginRight:6}} />
-                      Reading…
-                    </>
-                  ) : (
-                    <>
-                      <Icon name="Sparkles" size={14} style={{marginRight:6}} />
-                      {analysisIsFresh ? 'Read Analysis' : 'View Analysis'}
-                    </>
-                  )}
-                </button>
-              </div>
-            </>
-          )}
-          {heroIsViewingToday && hasPhotoHistory && (
-            <div className={hasTodayPhoto ? "mt-3 flex items-center justify-center gap-4 text-[11px]" : "mt-4 pt-3 border-t flex items-center justify-center gap-4 text-[11px]"} style={{color:'var(--accent)', fontWeight:500, borderColor:'var(--line)'}}>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('journal');
-                  setTimeout(() => setJournalViewOverride && setJournalViewOverride('timeline'), 0);
-                }}
-                className="inline-flex items-center gap-1 transition hover:opacity-75"
-              >
-                View timeline <Icon name="ArrowRight" size={11} />
-              </button>
-              {canComparePhotos && (
-                <>
-                  <span style={{color:'var(--line)'}}>|</span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('compare')}
-                    className="inline-flex items-center gap-1 transition hover:opacity-75"
-                  >
-                    Compare photos <Icon name="ArrowRight" size={11} />
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+            );
+          })()}
+          {/* === FOOTER LINKS REMOVED (May 28 2026 audit) ===
+              "View journal · Compare photos" sat under the metric chips
+              looking orphaned (they answered card-level nav, not
+              metric questions). Both are top-tab destinations already.
+              All nav for this card lives in the upper-right kebab menu
+              now — see HERO KEBAB MENU at the top of this section. */}
         </section>
       );
   })()}
@@ -1635,7 +2420,7 @@ CRITICAL OUTPUT REQUIREMENTS:
             sub: 'Snap your first selfie',
             icon: 'Camera',
             done: snapshotDone,
-            action: () => setShowCheckInCamera && setShowCheckInCamera(true),
+            action: startGuidedCheckIn,
           },
           {
             id: 'shelf',
@@ -1659,11 +2444,11 @@ CRITICAL OUTPUT REQUIREMENTS:
         return (
           <section
             className="mb-6 rounded-[20px] overflow-hidden"
-            style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}
+            style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}
           >
             <div className="px-5 pt-4 pb-1">
               <div className="text-[10px] tracking-[0.28em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>Next</div>
-              <div className="font-serif text-[18px] leading-tight mt-0.5" style={{color:'var(--ink)', letterSpacing:'-0.01em'}}>
+              <div className="font-sans text-[18px] leading-tight mt-0.5" style={{color:'var(--ink)', letterSpacing:'-0.01em'}}>
                 A few steps to make this yours.
               </div>
             </div>
@@ -1686,9 +2471,9 @@ CRITICAL OUTPUT REQUIREMENTS:
                     className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[10px]"
                     style={{
                       background: row.done
-                        ? 'rgba(138, 155, 126, 0.16)'
+                        ? 'rgba(199, 231, 245, 0.42)'
                         : 'color-mix(in srgb, var(--accent) 8%, transparent)',
-                      color: row.done ? 'var(--sage)' : 'var(--accent)',
+                      color: row.done ? 'var(--accent-blue)' : 'var(--accent)',
                       fontWeight: 600,
                       letterSpacing: '0.06em',
                     }}
@@ -1743,6 +2528,18 @@ CRITICAL OUTPUT REQUIREMENTS:
         const d = new Date(); d.setDate(d.getDate() - 1);
         return localDateISO(d);
       })();
+      // === TOMORROW PREVIEW (May 30 2026 per Jenni) ===
+      // Forward chevron normally caps at today. If the user has built
+      // a weekly pattern, allow advancing one day forward as a preview.
+      // No further than +1 day. The label shows "TOMORROW · preview"
+      // so the user knows they're peeking, not editing.
+      const tKey = (() => {
+        const d = new Date(); d.setDate(d.getDate() + 1);
+        return localDateISO(d);
+      })();
+      const hasBuiltPattern = (typeof userHasBuiltPattern === 'function') ? userHasBuiltPattern(activeProducts) : false;
+      const isPreviewingTomorrow = viewDate === tKey;
+      const canPreviewTomorrow = hasBuiltPattern && isViewingToday;
       const yesterdayCheckIn = (regimenLogs || []).find(r => r.date === yKey && r.submitted);
       const canRepeatYesterday = !!yesterdayCheckIn && !submittedToday && isViewingToday;
       // === Build AM and PM product lists separately ===
@@ -1780,6 +2577,7 @@ CRITICAL OUTPUT REQUIREMENTS:
         products: activeProducts,
         regimenLogs,
         date: viewDate,
+        acceptedPlan: buildPlanAccepted ? buildPlan : null,
       });
       const amList = coverResolved.am;
       const pmList = coverResolved.pm;
@@ -1795,15 +2593,18 @@ CRITICAL OUTPUT REQUIREMENTS:
       // else carries the calendar date.
       const dateShort = new Date(viewDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       const viewDayLabel = isViewingToday ? 'Today'
+        : isPreviewingTomorrow ? `Tomorrow · ${dateShort}`
         : viewDate === yKey ? `Yesterday · ${dateShort}`
         : new Date(viewDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-      // Scrub controls — go back/forward in days, capped at today.
+      // Scrub controls — go back/forward in days. Past is unlimited;
+      // future is capped at +1 day AND only allowed when the user has
+      // a built weekly pattern (so tomorrow has something to preview).
       const shiftDay = (deltaDays) => {
         const d = new Date(viewDate + 'T00:00:00');
         d.setDate(d.getDate() + deltaDays);
         const next = localDateISO(d);
-        // Don't allow scrubbing into the future.
-        if (next > todayStr) return;
+        if (next > tKey) return;                     // never beyond tomorrow
+        if (next > todayStr && !hasBuiltPattern) return; // future requires a built pattern
         setRitualViewDate(next);
       };
       // displayProducts is kept for the legacy 4-slot lineup downstream + Gemini art generation.
@@ -2046,6 +2847,71 @@ CRITICAL OUTPUT REQUIREMENTS:
         );
       });
       const hasAnyRoutine = amList.length > 0 || pmList.length > 0;
+      const getCoverSlotMeta = () => {
+        const todayKeyLocal = todayStr;
+        const todayLog = (regimenLogs || []).find(r => r.date === todayKeyLocal);
+        const slotKey = ritualSlot === 'pm' ? 'pmProducts' : 'amProducts';
+        const activeList = ritualSlot === 'pm' ? pmList : amList;
+        const slotEmpty = activeList.length === 0;
+        const patternBuilt = userHasBuiltPattern(products);
+        return { todayKeyLocal, todayLog, slotKey, slotEmpty, patternBuilt };
+      };
+      const clearCoverSlot = () => {
+        const { todayKeyLocal, todayLog, slotKey } = getCoverSlotMeta();
+        if (!todayLog) {
+          const dow = new Date().getDay();
+          const pat = getProductsForTodayFromPattern((products || []).filter(p => !p.endDate), dow);
+          const oppositeIds = (ritualSlot === 'pm' ? pat.am : pat.pm).map(p => p.id);
+          const emptyLog = {
+            id: Date.now(),
+            date: todayKeyLocal,
+            amProducts: ritualSlot === 'am' ? [] : oppositeIds,
+            pmProducts: ritualSlot === 'pm' ? [] : oppositeIds,
+            amExtras: [], pmExtras: [],
+            devices: [], sleep: '', supplements: [],
+            submitted: false,
+          };
+          const newList = [...(regimenLogs || []), emptyLog];
+          setRegimenLogs(newList);
+          saveData('regimenLogs', newList);
+          setCoverRoutineRebuildToken(t => t + 1);
+          toast(`Cleared ${ritualSlot.toUpperCase()} for today`, 'info');
+          return;
+        }
+        const newList = (regimenLogs || []).map(r => r.date === todayKeyLocal ? { ...r, [slotKey]: [] } : r);
+        setRegimenLogs(newList);
+        saveData('regimenLogs', newList);
+        setCoverRoutineRebuildToken(t => t + 1);
+        toast(`Cleared ${ritualSlot.toUpperCase()} routine`, 'info');
+      };
+      const restoreCoverSlot = () => {
+        const { todayKeyLocal, todayLog, slotKey } = getCoverSlotMeta();
+        const dow = new Date().getDay();
+        const pat = getProductsForTodayFromPattern((products || []).filter(p => !p.endDate), dow);
+        const patIds = (ritualSlot === 'am' ? pat.am : pat.pm).map(p => p.id);
+        if (!todayLog) {
+          const newLog = {
+            id: Date.now(),
+            date: todayKeyLocal,
+            amProducts: ritualSlot === 'am' ? patIds : [],
+            pmProducts: ritualSlot === 'pm' ? patIds : [],
+            amExtras: [], pmExtras: [],
+            devices: [], sleep: '', supplements: [],
+            submitted: false,
+          };
+          const newList = [...(regimenLogs || []), newLog];
+          setRegimenLogs(newList);
+          saveData('regimenLogs', newList);
+          setCoverRoutineRebuildToken(t => t + 1);
+          toast(`Restored ${ritualSlot.toUpperCase()} from your weekly plan`, 'info');
+          return;
+        }
+        const newList = (regimenLogs || []).map(r => r.date === todayKeyLocal ? { ...r, [slotKey]: patIds } : r);
+        setRegimenLogs(newList);
+        saveData('regimenLogs', newList);
+        setCoverRoutineRebuildToken(t => t + 1);
+        toast(`Restored ${ritualSlot.toUpperCase()} from your weekly plan`, 'info');
+      };
       const handleCoverExport = async (e) => {
         const card = e.currentTarget.closest('.export-target');
         if (!card) { toast('Couldn’t find the card to export', 'error'); return; }
@@ -2057,7 +2923,23 @@ CRITICAL OUTPUT REQUIREMENTS:
         }
       };
       return (
-        <section className="rounded-[20px] px-5 py-5 md:px-6 md:py-6 relative export-target" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+        <section id="today-ritual-card" className="rounded-[20px] px-5 py-5 md:px-6 md:py-6 relative export-target" style={{background:'var(--cream-deep)', border: '1.5px solid var(--accent)', boxShadow: '0 1px 2px rgba(229,60,45,0.06), 0 8px 22px rgba(229,60,45,0.06)'}}>
+          {/* === CRITICAL GAP BANNER (May 2026 — AI surfaces shelf gaps) ===
+              When the AI cover-routine build detects the shelf has no
+              SPF, it emits criticalGap:{type:'spf-missing'}. Render a
+              prominent red banner at the top of the ritual card so the
+              user sees the gap before scanning their routine. */}
+          {coverRoutine?.criticalGap?.type === 'spf-missing' && (
+            <div className="rounded-[12px] p-3 mb-3" style={{ background: 'rgba(229,60,45,0.06)', border: '1.5px solid var(--accent)' }}>
+              <div className="flex items-start gap-2">
+                <Icon name="AlertTriangle" size={14} style={{ color: 'var(--accent)', marginTop: 2 }} />
+                <div>
+                  <div className="text-[10px] tracking-[0.24em] uppercase mb-1" style={{ color: 'var(--accent)', fontWeight: 700 }}>Critical gap</div>
+                  <div className="text-[12px] leading-snug" style={{ color: 'var(--ink)' }}>{coverRoutine.criticalGap.message}</div>
+                </div>
+              </div>
+            </div>
+          )}
           {/* Header row — eyebrow + logged badge on left, quick-action
               icons (Repeat ↻ / Edit ✎) on the right. The icons are
               small but labeled with quiet uppercase text so the
@@ -2065,146 +2947,216 @@ CRITICAL OUTPUT REQUIREMENTS:
               user doesn't have to scan the pill row for routine ops. */}
           <div className="flex items-center justify-between mb-2 gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="text-[10.5px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Regimen</span>
-              {/* LOGGED badge moved to bottom-right of card (below action
-                  pills) so the header reads cleaner. */}
+              {/* === EYEBROW with AM/PM status (May 28 2026 v8 per Jenni) ===
+                  REGIMEN label + sun/moon status indicators. Each
+                  icon is tappable: sun → switch to AM slot, moon →
+                  switch to PM slot. Semantic done colors: sun gold
+                  (morning) when AM logged, moon blue (night) when
+                  PM logged, dim ink-soft when open. Mirrors the
+                  snapshot eyebrow above so the user sees the same
+                  status language in both cards. amDone/pmDone
+                  computed inline since this card has its own scope. */}
+              {/* === REGIMEN STATUS — sentence form (May 29 2026 v3 per Jenni) ===
+                  Was REGIMEN + sun/moon glyphs. Replaced with one
+                  conversational line, color-coded by state:
+                  sage = both done, gold = AM only, accent-blue = PM
+                  only, ink-soft (faded) = neither. */}
+              {(() => {
+                const todayRegLog = (regimenLogs || []).find(r => r.date === todayStr);
+                const amDoneR = !!(todayRegLog && (
+                  (Array.isArray(todayRegLog.amDone) && todayRegLog.amDone.length > 0) ||
+                  todayRegLog.amBatchConfirmed === true
+                ));
+                const pmDoneR = !!(todayRegLog && (
+                  (Array.isArray(todayRegLog.pmDone) && todayRegLog.pmDone.length > 0) ||
+                  todayRegLog.pmBatchConfirmed === true
+                ));
+                // Binary done/missing language per Jenni (May 31 2026) —
+                // dropped "open" for "missing" so the two states use parallel
+                // wording. Always shows both slots' status so the eyebrow is
+                // scannable.
+                let label = 'AM missing · PM missing';
+                let color = 'var(--ink-soft)';
+                let opacity = 0.7;
+                if (amDoneR && pmDoneR) { label = 'AM done · PM done'; color = 'var(--accent-sage-dark)'; opacity = 1; }
+                else if (amDoneR) { label = 'AM done · PM missing'; color = 'var(--gold)'; opacity = 1; }
+                else if (pmDoneR) { label = 'AM missing · PM done'; color = 'var(--accent-blue)'; opacity = 1; }
+                return (
+                  <span className="text-[10px] tracking-[0.04em] uppercase" style={{color, opacity, fontWeight:600}}>
+                    {label}
+                  </span>
+                );
+              })()}
+              {/* Old sun/moon glyph spans removed — sentence above replaces them. */}
             </div>
-            {/* Quick-action stack — today only. Past days are read-only
-                snapshots, so we hide both. Per Jenni (May 2026):
-                Clear AM/PM sits on top, Repeat yesterday below it
-                (vertical stack, right-aligned) so the destructive +
-                recovery actions read as a small column of utilities
-                rather than competing peers across the top of the card. */}
-            {isViewingToday && (
-              <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                {/* === CLEAR ↔ RESTORE (May 2026, mirrors Regimen Today) ===
-                    Per-slot: clears active slot for today, OR restores
-                    from the weekly pattern when the slot is empty +
-                    a pattern exists. Same single-source helpers as
-                    Regimen Today — written inline because handlers
-                    need closure on cover-scope state setters. */}
-                {(() => {
-                  const todayKeyLocal = todayStr;
-                  const todayLog = (regimenLogs || []).find(r => r.date === todayKeyLocal);
-                  const slotKey = ritualSlot === 'pm' ? 'pmProducts' : 'amProducts';
-                  const activeList = ritualSlot === 'pm' ? pmList : amList;
-                  const slotEmpty = activeList.length === 0;
-                  const patternBuilt = userHasBuiltPattern(products);
-                  if (slotEmpty && !patternBuilt) return null;
-                  const clearSlot = () => {
-                    if (!todayLog) {
-                      // === OPPOSITE-SLOT PRESERVE (May 2026 per Codex) ===
-                      // Pre-fix: clearing AM with no log written an
-                      // empty record for BOTH slots — which silently
-                      // killed today's PM pattern fallback too.
-                      // Fix: when no log exists, copy the OPPOSITE
-                      // slot's pattern-derived ids into the new log
-                      // so only the selected slot ends up empty.
-                      const dow = new Date().getDay();
-                      const pat = getProductsForTodayFromPattern((products || []).filter(p => !p.endDate), dow);
-                      const oppositeKey = ritualSlot === 'pm' ? 'amProducts' : 'pmProducts';
-                      const oppositeIds = (ritualSlot === 'pm' ? pat.am : pat.pm).map(p => p.id);
-                      const emptyLog = {
-                        id: Date.now(),
-                        date: todayKeyLocal,
-                        amProducts: ritualSlot === 'am' ? [] : (oppositeKey === 'amProducts' ? oppositeIds : []),
-                        pmProducts: ritualSlot === 'pm' ? [] : (oppositeKey === 'pmProducts' ? oppositeIds : []),
-                        amExtras: [], pmExtras: [],
-                        devices: [], sleep: '', supplements: [],
-                        submitted: false,
-                      };
-                      const newList = [...(regimenLogs || []), emptyLog];
-                      setRegimenLogs(newList);
-                      saveData('regimenLogs', newList);
-                      setCoverRoutineRebuildToken(t => t + 1);
-                      toast(`Cleared ${ritualSlot.toUpperCase()} for today`, 'info');
-                      return;
-                    }
-                    const newList = (regimenLogs || []).map(r => r.date === todayKeyLocal ? { ...r, [slotKey]: [] } : r);
-                    setRegimenLogs(newList);
-                    saveData('regimenLogs', newList);
-                    setCoverRoutineRebuildToken(t => t + 1);
-                    toast(`Cleared ${ritualSlot.toUpperCase()} routine`, 'info');
-                  };
-                  const restoreSlot = () => {
-                    const dow = new Date().getDay();
-                    const pat = getProductsForTodayFromPattern((products || []).filter(p => !p.endDate), dow);
-                    const patIds = (ritualSlot === 'am' ? pat.am : pat.pm).map(p => p.id);
-                    if (!todayLog) {
-                      const newLog = {
-                        id: Date.now(),
-                        date: todayKeyLocal,
-                        amProducts: ritualSlot === 'am' ? patIds : [],
-                        pmProducts: ritualSlot === 'pm' ? patIds : [],
-                        amExtras: [], pmExtras: [],
-                        devices: [], sleep: '', supplements: [],
-                        submitted: false,
-                      };
-                      const newList = [...(regimenLogs || []), newLog];
-                      setRegimenLogs(newList);
-                      saveData('regimenLogs', newList);
-                      setCoverRoutineRebuildToken(t => t + 1);
-                      toast(`Restored ${ritualSlot.toUpperCase()} from your weekly plan`, 'info');
-                      return;
-                    }
-                    const newList = (regimenLogs || []).map(r => r.date === todayKeyLocal ? { ...r, [slotKey]: patIds } : r);
-                    setRegimenLogs(newList);
-                    saveData('regimenLogs', newList);
-                    setCoverRoutineRebuildToken(t => t + 1);
-                    toast(`Restored ${ritualSlot.toUpperCase()} from your weekly plan`, 'info');
-                  };
-                  if (slotEmpty) {
+            <div className="relative flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setCoverRitualMenuOpen(v => !v)}
+                className="w-8 h-8 rounded-full flex items-center justify-center transition hover:bg-[var(--cream)]"
+                style={{color:'var(--ink-soft)', border: '1px solid var(--line)', background:'transparent', cursor:'pointer'}}
+                aria-label="Regimen actions"
+                aria-expanded={coverRitualMenuOpen}
+              >
+                <Icon name="MoreHorizontal" size={16} />
+              </button>
+              {coverRitualMenuOpen && (
+                <div
+                  className="absolute right-0 top-9 z-30 w-56 rounded-[14px] overflow-hidden shadow-xl"
+                  style={{background:'var(--cream)', border: '1px solid var(--line)'}}
+                >
+                  {isViewingToday && (() => {
+                    const meta = getCoverSlotMeta();
+                    const canSlotAction = !(meta.slotEmpty && !meta.patternBuilt);
+                    return (
+                      <>
+                        {canSlotAction && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              meta.slotEmpty ? restoreCoverSlot() : clearCoverSlot();
+                              setCoverRitualMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
+                            style={{color: meta.slotEmpty ? 'var(--accent)' : 'var(--ink-soft)', cursor:'pointer'}}
+                          >
+                            <Icon name={meta.slotEmpty ? 'RotateCcw' : 'Trash2'} size={13} />
+                            <span className="text-[10.5px] tracking-[0.12em] uppercase">
+                              {meta.slotEmpty ? `Restore ${ritualSlot.toUpperCase()}` : `Clear ${ritualSlot.toUpperCase()}`}
+                            </span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            submittedToday ? undoRepeatYesterday() : repeatYesterday();
+                            setCoverRitualMenuOpen(false);
+                          }}
+                          disabled={!submittedToday && (!repeatSourceLog || !isViewingToday)}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)] disabled:opacity-35"
+                          style={{color: submittedToday ? 'var(--accent)' : 'var(--ink-soft)', cursor: (submittedToday || repeatSourceLog) ? 'pointer' : 'default'}}
+                        >
+                          <Icon name={submittedToday ? 'Check' : 'RotateCcw'} size={13} />
+                          <span className="text-[10.5px] tracking-[0.12em] uppercase">{submittedToday ? 'Repeated' : 'Repeat yesterday'}</span>
+                        </button>
+                      </>
+                    );
+                  })()}
+                  {/* === FILL IN SCHEDULED REGIMEN (June 2026 per Jenni) ===
+                      One-tap "yes I did exactly what was planned today."
+                      Pulls the user's scheduled AM+PM from resolveTodayRitual
+                      (ignoring any existing log so it surfaces the PLAN, not
+                      a partial save). Writes a fully-submitted regimenLog
+                      with amDone/pmDone marked done. Disabled when no
+                      pattern is built yet (nothing to schedule). */}
+                  {isViewingToday && (() => {
+                    const meta = getCoverSlotMeta();
+                    if (!meta.patternBuilt) return null;  // no plan → no button
                     return (
                       <button
                         type="button"
-                        onClick={restoreSlot}
-                        className="flex items-center gap-1 transition hover:opacity-70"
-                        style={{color:'var(--accent)', cursor:'pointer'}}
-                        title={`Restore ${ritualSlot.toUpperCase()} from your weekly plan`}
-                        aria-label={`Restore ${ritualSlot.toUpperCase()}`}
+                        onClick={() => {
+                          setCoverRitualMenuOpen(false);
+                          try {
+                            const resolved = resolveTodayRitual({
+                              products: products || [],
+                              regimenLogs: [],   // ignore any existing log
+                              date: todayStr,
+                              acceptedPlan: buildPlanAccepted ? buildPlan : null,
+                            });
+                            const amIds = (resolved.am || []).map(p => p.id);
+                            const pmIds = (resolved.pm || []).map(p => p.id);
+                            if (amIds.length === 0 && pmIds.length === 0) {
+                              toast('Nothing scheduled for today', 'info');
+                              return;
+                            }
+                            const existing = (regimenLogs || []).find(r => r.date === todayStr);
+                            const log = {
+                              ...(existing || {}),
+                              id: existing?.id || Date.now(),
+                              date: todayStr,
+                              amProducts: amIds,
+                              pmProducts: pmIds,
+                              amDone: amIds,
+                              pmDone: pmIds,
+                              submitted: true,
+                              submittedAt: Date.now(),
+                            };
+                            const nextLogs = existing
+                              ? (regimenLogs || []).map(r => r.date === todayStr ? log : r)
+                              : [log, ...(regimenLogs || [])];
+                            setRegimenLogs(nextLogs);
+                            saveData('regimenLogs', nextLogs);
+                            setCoverRoutineRebuildToken(t => t + 1);
+                            toast('Filled in from your schedule ✨', 'success');
+                          } catch (e) {
+                            console.warn('[fill-scheduled]', e);
+                            toast('Couldn\'t fill — try again', 'error');
+                          }
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
+                        style={{color:'var(--accent)', cursor:'pointer', borderTop:'1px solid var(--line)'}}
+                        title="Save today's scheduled AM+PM as done"
                       >
-                        <Icon name="RotateCcw" size={12} />
-                        <span className="text-[10.5px] tracking-[0.18em] uppercase">Restore {ritualSlot.toUpperCase()}</span>
+                        <Icon name="Calendar" size={13} />
+                        <span className="text-[10.5px] tracking-[0.12em] uppercase">Fill in scheduled</span>
                       </button>
                     );
-                  }
-                  return (
+                  })()}
+                  <button
+                    type="button"
+                    onClick={() => { setCoverRitualMenuOpen(false); setActiveTab('regimen'); setRegimenView('today'); }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
+                    style={{color:'var(--ink-soft)', cursor:'pointer', borderTop:'1px solid var(--line)'}}
+                  >
+                    <Icon name="Layers" size={13} />
+                    <span className="text-[10.5px] tracking-[0.12em] uppercase">Rebuild routine</span>
+                  </button>
+                  {/* === LOG PROCEDURE (June 2026) ===
+                      Rehoused from the retired TodayRitualModal "Procedure today?"
+                      block. Same trigger — opens ProcedureModal — but lives on the
+                      cover kebab so it stays one tap from Today without crowding
+                      the edit-routine flow. */}
+                  {typeof setShowProcedureModal === 'function' && (
                     <button
                       type="button"
-                      onClick={clearSlot}
-                      className="flex items-center gap-1 transition hover:opacity-70"
+                      onClick={() => { setCoverRitualMenuOpen(false); setShowProcedureModal(true); }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
                       style={{color:'var(--ink-soft)', cursor:'pointer'}}
-                      title={`Clear ${ritualSlot.toUpperCase()} routine for today`}
-                      aria-label={`Clear ${ritualSlot.toUpperCase()}`}
                     >
-                      <Icon name="Trash2" size={12} />
-                      <span className="text-[10.5px] tracking-[0.18em] uppercase">Clear {ritualSlot.toUpperCase()}</span>
+                      <Icon name="Sparkles" size={13} />
+                      <span className="text-[10.5px] tracking-[0.12em] uppercase">Log procedure</span>
                     </button>
-                  );
-                })()}
-                {/* Repeat yesterday — moved underneath Clear AM
-                    per Jenni (May 2026). Renamed from "Repeat" to
-                    "Repeat yesterday" so the action is explicit
-                    about its source (the previous day's submitted
-                    log). Toggles to "Repeated" with check when
-                    today's log has already been submitted; tap
-                    again to undo. */}
-                <button
-                  type="button"
-                  onClick={submittedToday ? undoRepeatYesterday : repeatYesterday}
-                  disabled={!submittedToday && (!repeatSourceLog || !isViewingToday)}
-                  className="flex items-center gap-1 transition hover:opacity-70 disabled:opacity-30"
-                  style={{color: submittedToday ? 'var(--accent)' : 'var(--ink-soft)', cursor: (submittedToday || (repeatSourceLog && isViewingToday)) ? 'pointer' : 'default'}}
-                  title={submittedToday ? 'Repeated — tap to clear' : (repeatSourceLog ? (repeatSourceLog === yesterdayCheckIn ? "Repeat yesterday's AM/PM picks" : `Repeat last logged regimen (${repeatSourceLog?.date || ''})`) : 'No prior regimen to repeat')}
-                  aria-label="Repeat yesterday's regimen"
-                >
-                  <Icon name={submittedToday ? 'Check' : 'RotateCcw'} size={12} />
-                  <span className="text-[10.5px] tracking-[0.18em] uppercase">{submittedToday ? 'Repeated' : 'Repeat yesterday'}</span>
-                </button>
-                {/* Export icon moved to bottom-right of card (May 2026).
-                    See export button rendered after the action pills. */}
-              </div>
-            )}
+                  )}
+                  {/* === HOW YOUR SCORE WORKS (June 2026) ===
+                      Single entry to the explainer drawer. Same surface
+                      reachable from the cover delta line and Profile. */}
+                  {typeof setShowScoreExplainer === 'function' && (
+                    <button
+                      type="button"
+                      onClick={() => { setCoverRitualMenuOpen(false); setShowScoreExplainer(true); }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
+                      style={{color:'var(--ink-soft)', cursor:'pointer'}}
+                    >
+                      <Icon name="Info" size={13} />
+                      <span className="text-[10.5px] tracking-[0.12em] uppercase">How your score works</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => { handleCoverExport(e); setCoverRitualMenuOpen(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
+                    style={{color:'var(--ink-soft)', cursor:'pointer'}}
+                  >
+                    <Icon name="Download" size={13} />
+                    <span className="text-[10.5px] tracking-[0.12em] uppercase">Export routine</span>
+                  </button>
+                </div>
+              )}
+            </div>
+            {/* Dead quick-action stack (Clear / Restore / Repeat yesterday) removed 2026-05-31.
+                Was gated {false &&} — these actions live in the kebab menu above and on the
+                Regimen Today view. ~130 lines removed. */}
           </div>
           {/* Day scrubber — ◀ DAY LABEL ▶. Lets the user
               navigate to prior days to view + edit their regimen.
@@ -2221,7 +3173,10 @@ CRITICAL OUTPUT REQUIREMENTS:
               <Icon name="ChevronLeft" size={14} />
             </button>
             <div className="flex items-baseline gap-2">
-              <span className="font-serif italic text-[14px]" style={{color: isViewingToday ? 'var(--accent)' : 'var(--ink)'}}>{viewDayLabel}</span>
+              <span className="font-sans text-[14px]" style={{color: isViewingToday ? 'var(--accent)' : 'var(--ink)'}}>{viewDayLabel}</span>
+              {isPreviewingTomorrow && (
+                <span className="text-[8.5px] tracking-[0.2em] uppercase px-1.5 py-0.5 rounded-full" style={{ background: 'var(--accent-primary-soft)', color: 'var(--accent)', fontWeight: 700 }}>preview</span>
+              )}
               {/* "Logged" badge retired May 2026 (Jenni): the
                   "Today logged" status pill near the primary CTA
                   already conveys submission; the inline date badge
@@ -2230,7 +3185,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                 <button
                   type="button"
                   onClick={() => setRitualViewDate(todayStr)}
-                  className="text-[9px] tracking-[0.2em] uppercase italic transition hover:opacity-70"
+                  className="text-[9px] tracking-[0.2em] uppercase transition hover:opacity-70"
                   style={{color:'var(--accent)'}}
                 >
                   jump to today
@@ -2240,14 +3195,31 @@ CRITICAL OUTPUT REQUIREMENTS:
             <button
               type="button"
               onClick={() => shiftDay(1)}
-              disabled={isViewingToday}
+              disabled={isPreviewingTomorrow || (isViewingToday && !canPreviewTomorrow)}
+              title={isViewingToday && !hasBuiltPattern ? 'Build your weekly pattern to preview tomorrow' : ''}
               className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[var(--cream)] cursor-pointer disabled:opacity-30"
-              style={{color:'var(--ink-soft)', cursor: isViewingToday ? 'default' : 'pointer'}}
+              style={{color:'var(--ink-soft)', cursor: (isPreviewingTomorrow || (isViewingToday && !canPreviewTomorrow)) ? 'default' : 'pointer'}}
               aria-label="Next day"
             >
               <Icon name="ChevronRight" size={14} />
             </button>
           </div>
+          {/* Preview tomorrow — sits below the chevron row, right-aligned
+              under the forward chevron. Cleaner hierarchy than inline next
+              to "Today" (May 31 2026 per Jenni). */}
+          {isViewingToday && canPreviewTomorrow && (
+            <div className="flex justify-end -mt-2 mb-2 pr-1">
+              <button
+                type="button"
+                onClick={() => shiftDay(1)}
+                className="text-[9px] tracking-[0.2em] uppercase transition hover:opacity-70 flex items-center gap-0.5"
+                style={{color:'var(--ink-soft)'}}
+                aria-label="Preview tomorrow's regimen"
+              >
+                preview tmrw <Icon name="ChevronRight" size={9} />
+              </button>
+            </div>
+          )}
           {/* "From your current routine · Edit plan" subline retired
               May 2026 per Jenni: redundant with the Edit routine link
               at the bottom of the card, and added a third meta-line
@@ -2264,7 +3236,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                   tiles span full card width — 3+ visible per scroll,
                   no edge clipping. ritualSlot is shared with the Edit
                   modal and Regimen page so AM/PM choice persists. */}
-              <div className="rounded-full flex p-1 gap-1 mb-3" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+              <div className="rounded-full flex p-1 gap-1 mb-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
                 {[
                   { id: 'am', label: 'AM routine', icon: 'Sun' },
                   { id: 'pm', label: 'PM routine', icon: 'Moon' },
@@ -2277,9 +3249,9 @@ CRITICAL OUTPUT REQUIREMENTS:
                       onClick={() => setRitualSlot(t.id)}
                       className="flex-1 rounded-full py-2 px-3 flex items-center justify-center gap-1.5 transition"
                       style={{
-                        background: active ? 'var(--cream)' : 'transparent',
-                        color: active ? 'var(--ink)' : 'var(--ink-soft)',
-                        boxShadow: active ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+                        background: active ? 'var(--accent-soft)' : 'transparent',
+                        color: active ? 'var(--accent)' : 'var(--ink-soft)',
+                        boxShadow: 'none',
                         cursor:'pointer',
                       }}
                     >
@@ -2315,16 +3287,20 @@ CRITICAL OUTPUT REQUIREMENTS:
                   model required the user to check every row before
                   saving, which collapsed the daily-execution loop. */}
               {(() => {
+                // === DONE TRACKING (May 29 2026 per Jenni) ===
+                // Circles now reflect explicit DONE state (not "absent
+                // from skipped" — that was the old assume-done model
+                // and conflicted with the blank-circle visual). Toggle
+                // mutates amDone/pmDone arrays directly; save logic
+                // below reads both done + skipped to commit the right
+                // shape.
                 const slotForRender = ritualSlot;
-                const skippedKey = slotForRender === 'pm' ? 'pmSkipped' : 'amSkipped';
-                const skippedList = sourceCheckIn && Array.isArray(sourceCheckIn[skippedKey]) ? sourceCheckIn[skippedKey] : [];
-                const skippedSet = new Set(skippedList);
+                const doneKey = slotForRender === 'pm' ? 'pmDone' : 'amDone';
+                const doneList = sourceCheckIn && Array.isArray(sourceCheckIn[doneKey]) ? sourceCheckIn[doneKey] : [];
                 const renderList = slotForRender === 'pm' ? pmList : amList;
                 const renderOverflow = slotForRender === 'pm' ? pmOverflow : amOverflow;
                 const renderHidden = slotForRender === 'pm' ? pmHidden : amHidden;
-                const doneIdsForRender = [...renderList, ...renderHidden]
-                  .filter(p => p && p.id && !skippedSet.has(p.id))
-                  .map(p => p.id);
+                const doneIdsForRender = doneList;
                 return (
                   <div className="space-y-1 mb-2">
                     <RoutineSlotList
@@ -2332,6 +3308,8 @@ CRITICAL OUTPUT REQUIREMENTS:
                       products={renderList}
                       overflow={renderOverflow}
                       hiddenProducts={renderHidden}
+                      shelfProducts={products}
+                      regimenLogs={regimenLogs}
                       canRepeat={canRepeatRitual}
                       onRepeat={repeatYesterday}
                       onRemove={removeFromSlot}
@@ -2339,26 +3317,39 @@ CRITICAL OUTPUT REQUIREMENTS:
                       doneIds={doneIdsForRender}
                       onToggleDone={(product, slotKey) => {
                         if (!product || !product.id) return;
-                        const sk = slotKey === 'pm' ? 'pmSkipped' : 'amSkipped';
+                        const dk = slotKey === 'pm' ? 'pmDone' : 'amDone';
+                        // === LOCK SLOT TO USER'S CHOICE (May 31 2026 bug fix) ===
+                        // Without this, tapping a PM circle could trigger the
+                        // App-level auto-PM-switch effect (it re-runs on every
+                        // regimenLogs change). When a log already had both
+                        // amProducts and pmProducts populated and the clock
+                        // was before 5pm, that effect would flip ritualSlot
+                        // back to 'am' on the very next render — making the
+                        // PM circle appear to "do nothing" because the AM
+                        // slot view (with its OWN amDone state) re-rendered
+                        // over the top. Calling setRitualSlot (which is the
+                        // userSetRitualSlot wrapper at the App level) flips
+                        // the manual ref so the auto-switch effect respects
+                        // the slot the user is actively logging into.
+                        if (typeof setRitualSlot === 'function') setRitualSlot(slotKey);
                         const currentList = (regimenLogs || []).find(r => r.date === viewDate);
-                        const currentSkipped = currentList && Array.isArray(currentList[sk]) ? currentList[sk] : [];
-                        // Toggle skipped membership. Default-checked
-                        // means: if not currently in skipped → add
-                        // (user is un-checking); else → remove.
-                        const nextSkipped = currentSkipped.includes(product.id)
-                          ? currentSkipped.filter(x => x !== product.id)
-                          : [...currentSkipped, product.id];
+                        const currentDone = currentList && Array.isArray(currentList[dk]) ? currentList[dk] : [];
+                        // Toggle done membership directly. Empty circle
+                        // → mark done. Filled circle → mark not done.
+                        const nextDone = currentDone.includes(product.id)
+                          ? currentDone.filter(x => x !== product.id)
+                          : [...currentDone, product.id];
                         const updatedLog = currentList
-                          ? { ...currentList, [sk]: nextSkipped }
+                          ? { ...currentList, [dk]: nextDone }
                           : {
                               id: Date.now(),
                               date: viewDate,
                               amProducts: amList.map(p => p && p.id).filter(Boolean),
                               pmProducts: pmList.map(p => p && p.id).filter(Boolean),
-                              amDone: [],
-                              pmDone: [],
-                              amSkipped: slotKey === 'am' ? nextSkipped : [],
-                              pmSkipped: slotKey === 'pm' ? nextSkipped : [],
+                              amDone: slotKey === 'am' ? nextDone : [],
+                              pmDone: slotKey === 'pm' ? nextDone : [],
+                              amSkipped: [],
+                              pmSkipped: [],
                               notes: '',
                               submitted: false,
                             };
@@ -2401,21 +3392,37 @@ CRITICAL OUTPUT REQUIREMENTS:
             </>
           ) : (
             <>
-              {/* === EMPTY STATE — Tang & Gainey scaffolding ===
-                  Replaces the prior "What did you use today?"
-                  generic prompt. Now teaches the canonical AM/PM
-                  template so a fresh user has a real path, not
-                  just an open form. Only fires for TODAY/FUTURE
-                  empty (past-empty has its own branch above). */}
-              <h2 className="text-[17px] md:text-[18px] leading-[1.2] mb-2" style={{color:'var(--ink)', fontWeight:500, letterSpacing:'-0.012em'}}>
-                Stepping out bare? Brave.
-              </h2>
-              <p className="text-[12.5px] leading-relaxed mb-2" style={{color:'var(--ink)', fontWeight:400}}>
-                The basics — cleanser <span style={{color:'var(--ink-soft)'}}>→</span> moisturizer <span style={{color:'var(--ink-soft)'}}>→</span> SPF for morning, cleanser <span style={{color:'var(--ink-soft)'}}>→</span> treatment <span style={{color:'var(--ink-soft)'}}>→</span> moisturizer for night. Three steps each, that's enough.
-              </p>
-              <p className="text-[11.5px] leading-relaxed mb-4" style={{color:'var(--ink-soft)', fontWeight:400}}>
-                Pull from your shelf below, or add something new.
-              </p>
+              {(() => {
+                const hasBuiltRoutine = userHasBuiltPattern(products) || !!(buildPlanAccepted && buildPlan);
+                if (!hasBuiltRoutine) {
+                  return (
+                    <>
+                      <h2 className="text-[17px] md:text-[18px] leading-[1.2] mb-2" style={{color:'var(--ink)', fontWeight:500, letterSpacing:'-0.012em'}}>
+                        No routine built yet.
+                      </h2>
+                      <p className="text-[12.5px] leading-relaxed mb-2" style={{color:'var(--ink)', fontWeight:400}}>
+                        Tell Frida what you own, what your skin tolerates, and how often you want actives. We’ll turn the shelf into an actual week.
+                      </p>
+                      <p className="text-[11.5px] leading-relaxed mb-4" style={{color:'var(--ink-soft)', fontWeight:400}}>
+                        You can still mark today as skipped, but building the routine is the useful next move.
+                      </p>
+                    </>
+                  );
+                }
+                return (
+                  <>
+                    <h2 className="text-[17px] md:text-[18px] leading-[1.2] mb-2" style={{color:'var(--ink)', fontWeight:500, letterSpacing:'-0.012em'}}>
+                      Nothing in this slot yet.
+                    </h2>
+                    <p className="text-[12.5px] leading-relaxed mb-2" style={{color:'var(--ink)', fontWeight:400}}>
+                      Your weekly routine exists; today’s {ritualSlot.toUpperCase()} just needs a product logged or added.
+                    </p>
+                    <p className="text-[11.5px] leading-relaxed mb-4" style={{color:'var(--ink-soft)', fontWeight:400}}>
+                      Fill this slot from your shelf, or mark it skipped if bare was intentional.
+                    </p>
+                  </>
+                );
+              })()}
               {/* Bottle silhouettes intentionally removed (May 2026
                   per Jenni's "no bottle imagery" rule). The empty
                   state is just text-led now — the motivating
@@ -2436,7 +3443,7 @@ CRITICAL OUTPUT REQUIREMENTS:
             const slotDevices = allTodayDevices.filter(d => d.slot === ritualSlot);
             if (slotDevices.length === 0) return null;
             return (
-              <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-full px-2.5 py-1" style={{background:'var(--cream-deep)', border:'1px solid var(--line)', width:'fit-content'}}>
+              <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-full px-2.5 py-1" style={{background:'var(--cream-deep)', border: '1px solid var(--line)', width:'fit-content'}}>
                 <Icon name="Sparkles" size={10} style={{color:'var(--accent)', flexShrink:0, opacity:0.8}} />
                 <div className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[10.5px] leading-snug" style={{color:'var(--ink)', fontWeight:500}}>
                   <span className="tracking-[0.14em] uppercase mr-1.5" style={{color:'var(--ink-soft)', fontSize:8, fontWeight:650}}>
@@ -2457,7 +3464,7 @@ CRITICAL OUTPUT REQUIREMENTS:
               For users who already have a built regimen, Home is the
               EXECUTION/CHECK-IN surface, not a product-building one.
               Hierarchy:
-                1. Primary filled CTA — "Yes, I did my AM/PM ritual"
+                1. Primary filled CTA — "Yes, I did my AM/PM regimen"
                    commits the slot's items as done + submitted=true.
                 2. Secondary outlined — "Used something else?" opens
                    a today-only bottom sheet (From shelf / New product /
@@ -2470,6 +3477,13 @@ CRITICAL OUTPUT REQUIREMENTS:
               execute-today. Functionality preserved via the sheet. */}
           {(() => {
             if (!isViewingToday) {
+              // === PAST-EMPTY DEDUPE (May 2026 per Jenni) ===
+              // When the day has no log, the past-empty branch above
+              // already renders a "Log retroactively" CTA. Stacking
+              // "Edit log" under it created two redundant buttons.
+              // Suppress this CTA when there's nothing to edit — the
+              // user lands here only when a log already exists.
+              if (coverResolved.source === 'past-empty') return null;
               return (
                 <div className="grid grid-cols-1 gap-2 mt-4">
                   <button
@@ -2485,7 +3499,7 @@ CRITICAL OUTPUT REQUIREMENTS:
             }
             // === State-aware CTA per Jenni's prompts 1, 3, 4 (May 2026) ===
             // Three states, three labels:
-            //   1. all-checked (default)  → "Yes, I did my AM/PM ritual" (filled accent)
+            //   1. all-checked (default)  → "Yes, I did my AM/PM regimen" (filled accent)
             //   2. some-skipped           → "Save AM/PM check-in" (filled accent)
             //   3. empty slot             → "Yes, I skipped AM/PM products" (filled accent)
             // Plus a fourth, terminal state:
@@ -2515,15 +3529,32 @@ CRITICAL OUTPUT REQUIREMENTS:
             const skippedSetForCta = new Set(skippedListForCta);
             const skippedCount = ctaList.filter(p => p && p.id && skippedSetForCta.has(p.id)).length;
             const hasSomeSkipped = skippedCount > 0 && ctaList.length > 0;
+            // Done IDs (manually checked circles) for the current slot.
+            const doneKeyForCta = ctaSlot === 'pm' ? 'pmDone' : 'amDone';
+            const doneListForCta = sourceCheckIn && Array.isArray(sourceCheckIn[doneKeyForCta]) ? sourceCheckIn[doneKeyForCta] : [];
+            const doneSetForCta = new Set(doneListForCta);
+            const doneCount = ctaList.filter(p => p && p.id && doneSetForCta.has(p.id)).length;
+            const hasSomeManualDone = doneCount > 0 && doneCount < ctaList.length;
+            const totalCount = ctaList.length;
             const isEmptySlot = ctaList.length === 0;
+            const hasBuiltRoutineForCta = userHasBuiltPattern(products) || !!(buildPlanAccepted && buildPlan);
             const ctaIcon = slotSubmitted ? 'Check' : (ctaSlot === 'pm' ? 'Moon' : 'Sun');
+            // === SMART CTA LABEL (May 29 2026 v2 per Jenni) ===
+            // Unified to plain-English "yes, I did" framing — was too
+            // clinical ("Save AM check-in"). Three states:
+            //   1. submitted                       → "✓ Today logged"
+            //   2. empty slot                      → "Yes, I skipped {AM/PM} products"
+            //   3. some circles manually checked   → "Save 3 of 6 done"
+            //   4. default OR some X'd as skipped  → "Yes, I did today's {AM/PM} regimen"
+            //      (tapping commits all planned minus any X'd skipped —
+            //      the natural reading: "I did everything I didn't skip")
             const ctaLabel = slotSubmitted
               ? 'Today logged'
               : (isEmptySlot
                 ? (ctaSlot === 'pm' ? 'Yes, I skipped PM products' : 'Yes, I skipped AM products')
-                : (hasSomeSkipped
-                  ? (ctaSlot === 'pm' ? 'Save PM check-in' : 'Save AM check-in')
-                  : (ctaSlot === 'pm' ? 'Yes, I did my PM regimen' : 'Yes, I did my AM regimen')));
+                : (hasSomeManualDone
+                  ? `Save ${doneCount} of ${totalCount} done`
+                  : (ctaSlot === 'pm' ? "Yes, I did today's PM regimen" : "Yes, I did today's AM regimen")));
             // Inline save — writes the regimen log for viewDate with
             // exactly the checked products marked done (planned minus
             // skipped). Skipped IDs are preserved in the log so the
@@ -2537,11 +3568,29 @@ CRITICAL OUTPUT REQUIREMENTS:
               const prevPmDone = existing && Array.isArray(existing.pmDone) ? existing.pmDone : [];
               const prevAmSkipped = existing && Array.isArray(existing.amSkipped) ? existing.amSkipped : [];
               const prevPmSkipped = existing && Array.isArray(existing.pmSkipped) ? existing.pmSkipped : [];
-              // For the slot being committed: done = planned minus skipped.
+              // === COMMIT SHAPE (May 29 2026 per Jenni) ===
+              // If user manually checked SOME circles (partial) → commit
+              // only those as done. Otherwise → commit all planned minus
+              // any explicitly skipped (the "Yes, I did my regimen"
+              // catch-all path).
               const commitSkipped = ctaSlot === 'am' ? prevAmSkipped : prevPmSkipped;
               const commitPlanned = ctaSlot === 'am' ? amIds : pmIds;
+              const priorDoneForSlot = ctaSlot === 'am' ? prevAmDone : prevPmDone;
+              const userMarkedPartial = priorDoneForSlot.length > 0 && priorDoneForSlot.length < commitPlanned.length;
               const skippedSet = new Set(commitSkipped);
-              const commitDone = commitPlanned.filter(id => !skippedSet.has(id));
+              const commitDone = userMarkedPartial
+                ? priorDoneForSlot
+                : commitPlanned.filter(id => !skippedSet.has(id));
+              // === BATCH-CONFIRM TAG (May 2026 per Jenni) ===
+              // Marks this slot's commit as "user tapped Yes I did without
+              // touching individual product checkboxes." If amSkipped/
+              // pmSkipped came in empty (no per-product engagement), the
+              // analyzer downstream treats the day's product list as
+              // "planned but not verified" rather than "actively used."
+              // This prevents AHA/retinoid that the user has stopped
+              // touching from continuing to look like daily usage forever.
+              const isAmBatchSlot = ctaSlot === 'am' && commitSkipped.length === 0;
+              const isPmBatchSlot = ctaSlot === 'pm' && commitSkipped.length === 0;
               const nextLog = {
                 ...(existing || {}),
                 id: existing?.id || Date.now(),
@@ -2554,6 +3603,9 @@ CRITICAL OUTPUT REQUIREMENTS:
                 pmSkipped: ctaSlot === 'pm' ? commitSkipped : prevPmSkipped,
                 amExtras: existing?.amExtras || [],
                 pmExtras: existing?.pmExtras || [],
+                // Preserve prior batch flag on the OTHER slot; set on THIS slot.
+                amBatchConfirmed: ctaSlot === 'am' ? isAmBatchSlot : (existing?.amBatchConfirmed ?? false),
+                pmBatchConfirmed: ctaSlot === 'pm' ? isPmBatchSlot : (existing?.pmBatchConfirmed ?? false),
                 notes: existing?.notes || '',
                 submitted: true,
                 submittedAt: Date.now(),
@@ -2567,7 +3619,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                 console.error('[ritual quick-log] saveData failed:', e);
                 toast(`Save error: ${e?.message || 'unknown'}`, 'error');
               });
-              toast(`${ctaSlot.toUpperCase()} ritual logged ✨`, 'success');
+              toast(`${ctaSlot.toUpperCase()} regimen logged`, 'success');
             };
             // Undo for the submitted state — clears the slot's
             // submitted commit (resets amDone/pmDone for THIS slot,
@@ -2590,6 +3642,43 @@ CRITICAL OUTPUT REQUIREMENTS:
               saveData('regimenLogs', next).catch(() => {});
               toast(`${ctaSlot.toUpperCase()} log undone`, 'info');
             };
+            const buildStandingRoutine = () => {
+              setActiveTab('regimen');
+              setRegimenView('build');
+            };
+            const restoreEmptySlotFromRoutine = () => {
+              const dow = new Date().getDay();
+              const pat = getProductsForTodayFromPattern((products || []).filter(p => !p.endDate), dow);
+              const patIds = (ctaSlot === 'am' ? pat.am : pat.pm).map(p => p.id);
+              const slotKey = ctaSlot === 'pm' ? 'pmProducts' : 'amProducts';
+              const existing = (regimenLogs || []).find(r => r.date === viewDate);
+              if (!patIds.length) {
+                toast(`No ${ctaSlot.toUpperCase()} products in today's routine`, 'info');
+                return;
+              }
+              if (!existing) {
+                const newLog = {
+                  id: Date.now(),
+                  date: viewDate,
+                  amProducts: ctaSlot === 'am' ? patIds : [],
+                  pmProducts: ctaSlot === 'pm' ? patIds : [],
+                  amExtras: [], pmExtras: [],
+                  devices: [], sleep: '', supplements: [],
+                  submitted: false,
+                };
+                const next = [newLog, ...(regimenLogs || [])];
+                setRegimenLogs(next);
+                saveData('regimenLogs', next);
+                setCoverRoutineRebuildToken(t => t + 1);
+                toast(`Restored ${ctaSlot.toUpperCase()} from your weekly plan`, 'info');
+                return;
+              }
+              const next = (regimenLogs || []).map(r => r.date === viewDate ? { ...r, [slotKey]: patIds } : r);
+              setRegimenLogs(next);
+              saveData('regimenLogs', next);
+              setCoverRoutineRebuildToken(t => t + 1);
+              toast(`Restored ${ctaSlot.toUpperCase()} from your weekly plan`, 'info');
+            };
             return (
               <>
                 {slotSubmitted ? (
@@ -2610,12 +3699,52 @@ CRITICAL OUTPUT REQUIREMENTS:
                       fontWeight: 600, fontSize: 12.5, letterSpacing: '0.04em',
                       cursor: 'pointer',
                     }}
-                    aria-label={`${ctaSlot.toUpperCase()} ritual logged for today — tap to undo`}
+                    aria-label={`${ctaSlot.toUpperCase()} regimen logged for today — tap to undo`}
                     title={`Tap to undo today's ${ctaSlot.toUpperCase()} commit`}
                   >
-                    <Icon name="Check" size={13} style={{color:'var(--sage)'}} />
+                    <Icon name="Check" size={13} style={{color:'var(--accent-blue)'}} />
                     <span className="truncate">Today logged</span>
                   </button>
+                ) : isEmptySlot ? (
+                  <>
+                    <button
+                      onClick={hasBuiltRoutineForCta ? restoreEmptySlotFromRoutine : buildStandingRoutine}
+                      className="w-full rounded-full py-3 px-4 flex items-center justify-center gap-2 transition hover:opacity-90 mt-3"
+                      style={{
+                        background: 'var(--accent)',
+                        color: 'var(--cream)',
+                        border: '1px solid var(--accent)',
+                        fontWeight: 600, fontSize: 12.5, letterSpacing: '0.04em', cursor: 'pointer',
+                      }}
+                      title={hasBuiltRoutineForCta ? `Restore ${ctaSlot.toUpperCase()} from your weekly plan` : 'Build your standing routine'}
+                      type="button"
+                    >
+                      <Icon name={hasBuiltRoutineForCta ? 'RotateCcw' : 'Sparkles'} size={13} />
+                      <span className="truncate">{hasBuiltRoutineForCta ? `Restore ${ctaSlot.toUpperCase()}` : 'Build routine'}</span>
+                    </button>
+                    {hasBuiltRoutineForCta && (
+                      <button
+                        onClick={buildStandingRoutine}
+                        className="w-full rounded-full py-2.5 px-4 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)] mt-2"
+                        style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:11.5, letterSpacing:'0.02em', cursor:'pointer'}}
+                        title="Rebuild your standing routine"
+                        type="button"
+                      >
+                        <Icon name="Sparkles" size={12} />
+                        <span>Rebuild routine</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={logRitualNow}
+                      className="w-full rounded-full py-2.5 px-4 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)] mt-2"
+                      style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:11.5, letterSpacing:'0.02em', cursor:'pointer'}}
+                      title={`Log ${ctaSlot.toUpperCase()} as bare for today`}
+                      type="button"
+                    >
+                      <Icon name={ctaSlot === 'pm' ? 'Moon' : 'Sun'} size={12} />
+                      <span>Skip {ctaSlot.toUpperCase()} products today</span>
+                    </button>
+                  </>
                 ) : (
                   <button
                     onClick={logRitualNow}
@@ -2638,15 +3767,35 @@ CRITICAL OUTPUT REQUIREMENTS:
                   </button>
                 )}
                 {/* Secondary — opens today-only bottom sheet. */}
+                {!isEmptySlot && (
+                  <button
+                    onClick={() => setUsedSomethingElseSheet({ open: true, slot: ctaSlot, date: viewDate })}
+                    className="w-full rounded-full py-2.5 px-4 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)] mt-2"
+                    style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:11.5, letterSpacing:'0.02em', cursor:'pointer'}}
+                    title="Add a one-off product, procedure, supplement, or note for today only"
+                    type="button"
+                  >
+                    <Icon name="Plus" size={12} />
+                    <span>Used something else today? Add here</span>
+                  </button>
+                )}
+                {/* === REFINE ROUTINE LINK (June 2026 per Jenni) ===
+                    Quiet text link that routes to Regimen → Refine view.
+                    Pairs with the "Used something else?" CTA above to
+                    make the today-vs-forever distinction obvious:
+                    today-only changes happen here, routine changes
+                    happen in Refine. Restored after the "unified scope
+                    toggle" experiment was rolled back — two clear
+                    paths beats one clever toggle. */}
                 <button
-                  onClick={() => setUsedSomethingElseSheet({ open: true, slot: ctaSlot, date: viewDate })}
-                  className="w-full rounded-full py-2.5 px-4 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)] mt-2"
-                  style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:11.5, letterSpacing:'0.02em', cursor:'pointer'}}
-                  title="Add a one-off product, procedure, supplement, or note for today only"
                   type="button"
+                  onClick={() => { setActiveTab('regimen'); setRegimenView('build'); }}
+                  className="w-full mt-2 px-4 py-1.5 flex items-center justify-center gap-1 transition hover:opacity-70"
+                  style={{background:'transparent', color:'var(--ink-soft)', fontWeight:500, fontSize:10.5, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', border:'none'}}
+                  title="Change your routine going forward"
                 >
-                  <Icon name="Plus" size={12} />
-                  <span>Used something else today? Add here</span>
+                  <span>Refine routine</span>
+                  <Icon name="ArrowRight" size={11} />
                 </button>
                 {/* Quiet link — routes to Regimen tab → current
                     routine edit surface (NOT full rebuild) per
@@ -2659,16 +3808,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                     the place to redo the routine wholesale, not just nudge
                     a single product. Routes to the Regimen tab's editor
                     where add/remove/cadence all live. */}
-                <button
-                  onClick={() => { setActiveTab('regimen'); setRegimenView('today'); }}
-                  className="w-full text-[10px] tracking-[0.22em] uppercase mt-3 transition hover:opacity-70 py-1 flex items-center justify-end gap-1"
-                  style={{color:'var(--ink-soft)', cursor:'pointer', fontWeight:600}}
-                  title="Rebuild your standing routine — add, remove, change cadence"
-                  type="button"
-                >
-                  <span>Rebuild routine</span>
-                  <Icon name="ArrowRight" size={10} />
-                </button>
+                {/* Dead "Rebuild routine" button removed 2026-05-31 (was gated {false &&}). */}
               </>
             );
           })()}
@@ -2698,8 +3838,154 @@ CRITICAL OUTPUT REQUIREMENTS:
       );
   })()}
 
+      {/* === PROCEDURE PROGRESS (May 30 2026 per Jenni — relocated) ===
+          Moved from above the regimen to below it. Reads as reference
+          ("is this working?") rather than daily-action content, so it
+          earns its real estate below today's routine. Kebab menu in
+          the upper-right (export · view compare · view timeline)
+          replaces the inline 'Open compare' link for a cleaner header. */}
+      {(() => {
+        const today = new Date();
+        // T1 (May 31 2026): widened proc selection to include FUTURE-scheduled
+        // procedures, not just past. Previously we only looked at proc.date <=
+        // today; users who logged an upcoming appointment saw NOTHING here.
+        // We now grab the most recent procedure (past or future). When the
+        // resulting state has no real milestone tiles to render (future-only
+        // appointment or daysSinceProc < 0), we render the small countdown
+        // alternative card below instead of returning null.
+        const sortedAll = (procedures || [])
+          .filter(p => p && p.date)
+          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        const pastProc = sortedAll.find(p => new Date(p.date + 'T00:00:00') <= today);
+        const upcomingProc = sortedAll
+          .filter(p => new Date(p.date + 'T00:00:00') > today)
+          .sort((a, b) => (a.date || '').localeCompare(b.date || ''))[0];
+        const proc = pastProc || upcomingProc;
+        if (!proc) return null;
+
+        const procDate = new Date(proc.date + 'T00:00:00');
+        const daysSinceProc = Math.floor((today.getTime() - procDate.getTime()) / 86400000);
+
+        const MILESTONES = [
+          { label: 'Day of',   off: 0   },
+          { label: '1 week',   off: 7   },
+          { label: '1 month',  off: 30  },
+          { label: '2 months', off: 60  },
+          { label: '3 months', off: 90  },
+          { label: '6 months', off: 180 },
+        ];
+        const upcoming = MILESTONES.find(m => m.off > daysSinceProc);
+        const visible = MILESTONES.filter(m => m.off <= daysSinceProc);
+        if (upcoming) visible.push(upcoming);
+        // T1 (May 31 2026): when there are no past milestones to render
+        // (procedure is future-scheduled, daysSinceProc < 0), show a
+        // small countdown alternative card instead of returning null.
+        const noPastMilestones = !visible.some(m => m.off <= daysSinceProc && m.off >= 0 && daysSinceProc >= 0);
+        if (!visible.length || noPastMilestones || daysSinceProc < 0) {
+          const daysUntil = Math.max(0, Math.ceil((procDate.getTime() - today.getTime()) / 86400000));
+          const procDateLabelFuture = procDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          const countdownLine = daysUntil === 0
+            ? 'today'
+            : daysUntil === 1
+              ? 'tomorrow'
+              : `in ${daysUntil} days`;
+          return (
+            <section ref={procedureProgressRef} className="rounded-[14px] border p-4" style={{ background: 'var(--cream)', borderColor: 'var(--line)' }}>
+              <div className="text-[10px] tracking-[0.28em] uppercase" style={{ color: 'var(--accent)', fontWeight: 700 }}>Procedure progress</div>
+              <h3 className="text-[18px] leading-[1.1] mt-0.5 truncate" style={{ color: 'var(--ink)', fontWeight: 700, letterSpacing: '-0.02em' }}>{proc.name || 'Upcoming procedure'}</h3>
+              <div className="text-[11px] mt-0.5" style={{ color: 'var(--ink-soft)' }}>Scheduled · {procDateLabelFuture} · {countdownLine}</div>
+              <div className="flex items-center gap-1.5 mt-2 text-[11px]" style={{ color: 'var(--ink-soft)' }}>
+                <Icon name="Calendar" size={12} style={{ color: 'var(--ink-soft)' }} />
+                <span>Countdown to day 0</span>
+              </div>
+            </section>
+          );
+        }
+
+        const photoLogs = (logs || []).filter(l => l && l.date && (l.photoPath || (typeof l.photo === 'string' && l.photo.startsWith('data:'))));
+        const fullFace = photoLogs.filter(l => l.area === 'full-face');
+        const pool = fullFace.length ? fullFace : photoLogs;
+
+        const findClosest = (targetDate, maxDaysOff) => {
+          let best = null, bestDiff = Infinity;
+          const tT = targetDate.getTime();
+          pool.forEach(l => {
+            const t = new Date(l.date + 'T00:00:00').getTime();
+            const diff = Math.abs(t - tT);
+            if (diff / 86400000 > maxDaysOff) return;
+            if (diff < bestDiff) { best = l; bestDiff = diff; }
+          });
+          return best;
+        };
+
+        const tiles = visible.map(m => {
+          const target = new Date(procDate.getTime() + m.off * 86400000);
+          const isFuture = target > today;
+          const tol = m.off === 0 ? 3 : Math.min(21, Math.max(5, Math.round(m.off * 0.15)));
+          return {
+            key: 'm' + m.off,
+            label: m.label,
+            targetDate: target,
+            log: isFuture ? null : findClosest(target, tol),
+            isFuture
+          };
+        });
+
+        const procDateLabel = procDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+        // Menu uses native <details>/<summary> so it doesn't need
+        // additional React state to manage open/close. Closes on
+        // outside-click via the global handler below.
+        return (
+          <section ref={procedureProgressRef} className="rounded-[14px] border p-4" style={{ background: 'var(--cream)', borderColor: 'var(--line)' }}>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="min-w-0">
+                <div className="text-[10px] tracking-[0.28em] uppercase" style={{ color: 'var(--accent)', fontWeight: 700 }}>Procedure progress</div>
+                <h3 className="text-[18px] leading-[1.1] mt-0.5 truncate" style={{ color: 'var(--ink)', fontWeight: 700, letterSpacing: '-0.02em' }}>{proc.name || 'Recent procedure'}</h3>
+                <div className="text-[11px] mt-0.5" style={{ color: 'var(--ink-soft)' }}>{procDateLabel} · day {daysSinceProc}</div>
+              </div>
+              <details className="relative flex-shrink-0" style={{ listStyle: 'none' }}>
+                <summary className="w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer transition" style={{ borderColor: 'var(--line)', listStyle: 'none', color: 'var(--ink-soft)' }} aria-label="Procedure actions">
+                  <Icon name="MoreHorizontal" size={14} />
+                </summary>
+                <div className="absolute right-0 top-[36px] z-20 rounded-[10px] border shadow-lg overflow-hidden min-w-[170px]" style={{ background: 'var(--cream)', borderColor: 'var(--line)' }}>
+                  <button type="button" onClick={(e) => { e.currentTarget.closest('details').open = false; exportProcedureProgress(proc.name); }} className="w-full text-left px-3 py-2.5 text-[12px] flex items-center gap-2 transition hover:bg-[var(--cream-deep)]" style={{ color: 'var(--ink)' }}>
+                    <Icon name="Share2" size={12} style={{ color: 'var(--ink-soft)' }} /> Export / share
+                  </button>
+                  <button type="button" onClick={(e) => { e.currentTarget.closest('details').open = false; setActiveTab('compare'); }} className="w-full text-left px-3 py-2.5 text-[12px] flex items-center gap-2 transition hover:bg-[var(--cream-deep)] border-t" style={{ color: 'var(--ink)', borderColor: 'var(--line)' }}>
+                    <Icon name="GitCompare" size={12} style={{ color: 'var(--ink-soft)' }} /> View compare
+                  </button>
+                  <button type="button" onClick={(e) => { e.currentTarget.closest('details').open = false; setActiveTab('journal'); }} className="w-full text-left px-3 py-2.5 text-[12px] flex items-center gap-2 transition hover:bg-[var(--cream-deep)] border-t" style={{ color: 'var(--ink)', borderColor: 'var(--line)' }}>
+                    <Icon name="Calendar" size={12} style={{ color: 'var(--ink-soft)' }} /> View timeline
+                  </button>
+                </div>
+              </details>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'thin' }}>
+              {tiles.map(t => (
+                <div key={t.key} className="flex-shrink-0 flex flex-col items-center" style={{ width: 82 }}>
+                  <div className="w-[82px] h-[104px] rounded-[10px] border overflow-hidden mb-1.5 flex items-center justify-center" style={{ background: 'var(--cream-deep)', borderColor: 'var(--line)' }}>
+                    {t.log ? (
+                      <Photo item={t.log} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-[8.5px] tracking-[0.14em] uppercase text-center px-1 leading-tight" style={{ color: 'var(--ink-soft)', fontWeight: 700 }}>
+                        {t.isFuture ? 'soon' : 'no photo'}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-[9px] tracking-[0.16em] uppercase leading-tight text-center" style={{ color: t.log ? 'var(--ink)' : 'var(--ink-soft)', fontWeight: 700 }}>{t.label}</div>
+                  {t.log && (
+                    <div className="text-[8.5px] mt-0.5" style={{ color: 'var(--ink-soft)' }}>{new Date(t.log.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
+
       {/* === TODAY'S NOTE ===
-          Replaces the prior "Étude Insight: [pearl title]" strip,
+          Replaces the prior "Frida Insight: [pearl title]" strip,
           which read like a magazine article preview. Now it's a
           one-line observation keyed to the user's actual state —
           a friend with an opinion, not a content feed. Falls back
@@ -2708,8 +3994,10 @@ CRITICAL OUTPUT REQUIREMENTS:
       {(() => {
       // Wave 8.3 fix (May 2026): pearlOfDay used to live in HomeDashboard's
       // outer scope. Re-derive here so the child stays self-contained.
+      // Bug #19: same LESSONS empty-guard as the outer derivation — `% 0`
+      // returns NaN → LESSONS[NaN] is undefined → `pearlOfDay.title` crash.
       const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
-      const pearlOfDay = LESSONS[dayOfYear % LESSONS.length];
+      const pearlOfDay = LESSONS.length ? LESSONS[dayOfYear % LESSONS.length] : null;
       // Pull what we know about today to pick a contextual note.
       const todayKey = localDateISO();
       const tlog = (logs || []).find(l => l.date === todayKey);
@@ -2747,7 +4035,7 @@ CRITICAL OUTPUT REQUIREMENTS:
           return {
             eyebrow: 'Note',
             body: "Reactive day. Anything new this week is a suspect.",
-            why: "Most skincare reactions show up 24–72 hours after introduction. If sensitivity spiked today and you started or swapped a product in the last few days, that's the likely culprit — not the products you've been using for months.",
+            why: "Most skincare reactions show up 24–72 hours after introduction. If sensitivity spiked today and you started or swapped a product in the last few days, that's the place to look first — not the products you've been using for months.",
             evidence: "Patch-test convention is 48 hours for a reason — delayed-type hypersensitivity peaks around day 2–3 post-exposure.",
           };
         }
@@ -2772,7 +4060,7 @@ CRITICAL OUTPUT REQUIREMENTS:
             eyebrow: 'Note',
             body: "Retinoid + acid — strong combo. Alternate nights or you'll feel it.",
             why: "Both increase cell turnover and can compromise the barrier independently. Stacked nightly, the cumulative irritation often exceeds the benefit. Alternating gives the skin a recovery window without sacrificing the actives' work.",
-            evidence: "Most dermatologists recommend retinoid 3–4 nights/week with AHA/BHA on off-nights, especially during the first 8 weeks of retinoid use.",
+            evidence: "Retinoid 3–4 nights/week with AHA/BHA on off-nights is the gentler cadence — especially in the first 8 weeks of retinoid use.",
           };
         }
         if (b === 'Many' || b === 'Severe') {
@@ -2881,7 +4169,7 @@ CRITICAL OUTPUT REQUIREMENTS:
       const isTeaching = !pickNote() && !!ingredientTeaching; // teaching mode = different eyebrow
       const eyebrowText = contextual
         ? (isTeaching ? `Did you know · ${ingredientTeaching.ingredient}` : contextual.eyebrow)
-        : 'Étude Insight';
+        : 'Frida Insight';
       const bodyText = contextual ? contextual.body : (pearlOfDay?.title || 'Consistency');
       const isContextual = !!contextual;
       const hasExplanation = isContextual && (contextual.why || contextual.evidence);
@@ -2900,7 +4188,7 @@ CRITICAL OUTPUT REQUIREMENTS:
       return (
         <div
           className="w-full rounded-[14px] overflow-hidden"
-          style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}
+          style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}
         >
           <button
             onClick={handleClick}
@@ -2908,7 +4196,7 @@ CRITICAL OUTPUT REQUIREMENTS:
             style={{cursor: hasExplanation || !isContextual ? 'pointer' : 'default'}}
             aria-label={hasExplanation
               ? (expanded ? "Collapse explanation" : "Tap to see why")
-              : (isContextual ? "Today's note" : `Open Étude insight on ${bodyText}`)
+              : (isContextual ? "Today's note" : `Open Frida insight on ${bodyText}`)
             }
             aria-expanded={hasExplanation ? expanded : undefined}
           >
@@ -2942,7 +4230,7 @@ CRITICAL OUTPUT REQUIREMENTS:
               editorial styling — no accent fill, ink-soft
               for the eyebrows, var(--ink) for the prose. */}
           {expanded && (
-            <div className="px-4 pb-4 pt-1 border-t" style={{borderColor:'var(--line)'}}>
+            <div className="px-4 pb-4 pt-1 border-t" style={{borderColor: 'var(--line)'}}>
               {contextual.why && (
                 <div className="mt-3">
                   <div className="text-[8.5px] tracking-[0.28em] uppercase mb-1.5" style={{color:'var(--accent)', fontWeight:600}}>Why</div>
@@ -2952,7 +4240,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                 </div>
               )}
               {contextual.evidence && (
-                <div className="mt-3 pt-3 border-t" style={{borderColor:'var(--line)'}}>
+                <div className="mt-3 pt-3 border-t" style={{borderColor: 'var(--line)'}}>
                   <div className="text-[8.5px] tracking-[0.28em] uppercase mb-1.5" style={{color:'var(--ink-soft)', fontWeight:600}}>Evidence</div>
                   <p className="text-[11.5px] leading-relaxed" style={{color:'var(--ink-soft)', fontWeight:400}}>
                     {contextual.evidence}
@@ -2965,128 +4253,61 @@ CRITICAL OUTPUT REQUIREMENTS:
       );
   })()}
 
-      {/* === THIS WEEK STRIP — REMOVED ===
-          Standalone weekly glance card was duplicated against the
-          Sunday Digest section in Journal. Per spec, weekly content
-          has one canonical home now: Journal → Sunday Digest at the
-          top of the page. The cover stays focused on today.
-          Original render is wrapped in `false &&` below so the data
-          computations are tree-shaken; restore by removing the gate. */}
-      {false && (() => {
-        const hasPhotoFn = (l) => l && (l.photoPath || (typeof l.photo === 'string' && l.photo.startsWith('data:')));
-        // Build the current week (Mon–Sun) anchored to today.
-        const tdy = new Date(); tdy.setHours(0,0,0,0);
-        const dayIdx = tdy.getDay() === 0 ? 6 : tdy.getDay() - 1; // 0=Mon
-        const weekStart = new Date(tdy); weekStart.setDate(tdy.getDate() - dayIdx);
-        const weekDaysArr = Array.from({ length: 7 }, (_, i) => {
-          const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
-          return {
-            iso: localDateISO(d),
-            name: ['MON','TUE','WED','THU','FRI','SAT','SUN'][i],
-            isToday: d.getTime() === tdy.getTime(),
-            isFuture: d.getTime() > tdy.getTime(),
-          };
-        });
-        const weekStartLabel = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
-        const weekEndLabel = weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        return (
-          <section>
-            <div className="flex items-baseline justify-between mb-3 px-1">
-              <div className="flex items-baseline gap-2">
-                <span className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink)'}}>This Week</span>
-                <span className="font-serif italic text-[12px]" style={{color:'var(--ink-soft)'}}>{weekStartLabel} – {weekEndLabel}</span>
-              </div>
-              <button
-                onClick={() => setActiveTab('journal')}
-                className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1 transition hover:opacity-70"
-                style={{color:'var(--accent)'}}
-              >
-                View full week <Icon name="ArrowRight" size={11} />
-              </button>
-            </div>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1.5" style={{scrollSnapType:'x mandatory'}}>
-              {weekDaysArr.map(d => {
-                const dlog = (logs || []).find(l => l.date === d.iso && hasPhotoFn(l));
-                const dreg = (regimenLogs || []).find(r => r.date === d.iso);
-                const slot = dreg?.amProducts?.length > 0 ? 'am' : (dreg?.pmProducts?.length > 0 ? 'pm' : null);
-                return (
-                  <button
-                    key={d.iso}
-                    onClick={() => { setJournalDayDetail && setJournalDayDetail(d.iso); }}
-                    className="flex-shrink-0 rounded-xl overflow-hidden transition hover:opacity-95 text-left"
-                    style={{width:'82px', scrollSnapAlign:'start', background:'var(--cream)', border: d.isToday ? '1.5px solid var(--accent)' : '1px solid var(--line)'}}
-                  >
-                    <div className="text-[9px] tracking-[0.22em] uppercase pt-2 pb-1 text-center font-medium" style={{color: d.isToday ? 'var(--accent)' : 'var(--ink-soft)'}}>
-                      {d.isToday ? 'TODAY' : d.name}
-                    </div>
-                    <div className="aspect-[3/4] mx-1.5 rounded-md overflow-hidden flex items-center justify-center" style={{background:'var(--cream-deep)'}}>
-                      {dlog ? (
-                        <Photo item={dlog} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="text-center px-1">
-                          <div className="font-serif italic text-[11px] leading-tight" style={{color:'var(--ink-soft)'}}>{d.isFuture ? 'Soon' : 'Rest Day'}</div>
-                          <svg width="14" height="14" viewBox="0 0 24 24" className="mx-auto mt-1" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 21 L12 9" stroke="#9ca888" strokeWidth="1.4" strokeLinecap="round"/>
-                            <path d="M12 13 C8 11, 7 8, 9 6 C12 7, 13 9, 12 13 Z" fill="#9ca888" fillOpacity="0.6"/>
-                          </svg>
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-center pt-1 pb-2">
-                      <Icon name={slot === 'pm' ? 'Moon' : 'Sun'} size={11} style={{color: dreg ? 'var(--accent)' : 'var(--ink-soft)'}} />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+      {/* === THIS WEEK STRIP — REMOVED 2026-05-31 ===
+          Weekly content lives in Journal → Sunday Digest. Previously
+          wrapped in `false &&` so it never rendered; ~115 lines of
+          dead UI + helpers removed. Restore from git history if
+          weekly strip is ever brought back to the cover. */}
 
-            {/* === Weekly summary footer ===
-                 "N check-ins this week" + concern delta chips. Deltas come from
-                 the existing skinIndex helpers, mapped to the mockup's wording
-                 (Hydration improved / Redness calmed / Breakouts unchanged). */}
-            {(() => {
-              const checkInDays = weekDaysArr.filter(d => {
-                const dlog = (logs || []).find(l => l.date === d.iso && hasPhotoFn(l));
-                const dreg = (regimenLogs || []).find(r => r.date === d.iso);
-                return !!(dlog || dreg?.submitted);
-              }).length;
-              // Translate skinIndex direction strings into mockup-style chips.
-              const summarize = (label, dir, kind) => {
-                // kind: 'pos' = up is good (hydration/texture); 'neg' = down is good (redness/breakouts).
-                if (!dir || dir === 'flat') return { label, status: 'unchanged', color: 'var(--ink-soft)' };
-                const improving = (kind === 'pos' && dir === 'up') || (kind === 'neg' && dir === 'down');
-                const verb = kind === 'neg'
-                  ? (improving ? 'calmed' : 'flared')
-                  : (improving ? 'improved' : 'dipped');
-                return { label, status: verb, color: improving ? 'var(--sage)' : 'var(--rose)' };
-              };
-              const chips = [
-                summarize('Hydration', skinIndex?.positives?.barrier, 'pos'),
-                summarize('Redness',   skinIndex?.negatives?.redness, 'neg'),
-                summarize('Breakouts', skinIndex?.negatives?.breakouts, 'neg'),
-              ];
-              return (
-                <div className="mt-4 pt-3 border-t" style={{borderColor:'var(--line)'}}>
-                  <div className="flex items-center gap-1.5 mb-2 text-[11px]" style={{color:'var(--ink)'}}>
-                    <Icon name="Check" size={11} style={{color:'var(--sage)'}} />
-                    <span className="italic">
-                      {checkInDays} check-{checkInDays === 1 ? 'in' : 'ins'} this week
-                    </span>
-                  </div>
-                  <div className="flex gap-3 flex-wrap">
-                    {chips.map(c => (
-                      <div key={c.label} className="flex items-baseline gap-1 text-[10.5px]" style={{color:'var(--ink-soft)'}}>
-                        <span className="font-medium" style={{color:'var(--ink)'}}>{c.label}</span>
-                        <span className="italic" style={{color: c.color}}>{c.status}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-          </section>
-        );
+      {/* === HOME RECS LINK (May 2026) ===
+          Home does NOT show full rec cards — that would crowd the
+          hero. Instead, one quiet line at the bottom that routes to
+          Journal where every state (SWAP / MISSING / CONCERN_GAP) is
+          surfaced as a card. Per Jenni: "one comment with arrow at the
+          bottom underneath regimen and user can go to the hero journal
+          where all the recs can be given." */}
+      {(() => {
+        try {
+          const ritual = resolveTodayRitual({ products, regimenLogs, date: todayStr });
+          const coverage = resolveCoverageStates({
+            routine: { am: ritual.am, pm: ritual.pm },
+            concerns: [],
+            preferences: { routineSize: userProfile?.routineSize || 'standard' },
+          }, deriveProductJobs);
+          const missingCount    = coverage.missing?.length    || 0;
+          const swapCount       = coverage.swap?.length       || 0;
+          const concernGapCount = coverage.concernGap?.length || 0;
+          const total = missingCount + swapCount + concernGapCount;
+          if (total === 0) return null;
+          // One-line hint that names the most significant gap if there
+          // is one; otherwise a quiet "a few worth a look."
+          let hint = '';
+          if (missingCount > 0) {
+            const firstJob = coverage.missing[0]?.job;
+            const label = (typeof JOB_LABELS !== 'undefined' && JOB_LABELS[firstJob]) || firstJob;
+            hint = `We'd add a ${label}`;
+          } else if (swapCount > 0) {
+            hint = 'A few things worth rethinking';
+          } else {
+            hint = 'A few gaps to close';
+          }
+          return (
+            <button
+              type="button"
+              onClick={() => setActiveTab('journal')}
+              className="w-full flex items-center justify-center gap-2 py-3 mt-2 transition hover:opacity-80"
+              style={{color:'var(--ink-soft)', cursor:'pointer'}}
+              aria-label="See recommendations in Journal"
+            >
+              <span className="text-[11px]">{hint}</span>
+              <span style={{color:'var(--line)'}}>·</span>
+              <span className="text-[10px] tracking-[0.22em] uppercase">See in Journal</span>
+              <Icon name="ArrowRight" size={11} />
+            </button>
+          );
+        } catch (e) {
+          return null;
+        }
       })()}
     </div>
   );

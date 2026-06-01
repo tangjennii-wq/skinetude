@@ -29,8 +29,7 @@ const JournalCompactPanel = ({
   storyFilter,
   storySearch,
   toggleSelectId,
-  weeklyInsightLoading,
-}) => {
+  weeklyInsightLoading}) => {
   return (() => {
       const hasPhoto = (l) => l.photoPath || (typeof l.photo === 'string' && l.photo.startsWith('data:'));
       const photoLogs = logs.filter(hasPhoto).sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -192,8 +191,8 @@ Write one paragraph: what defined this week, one likely contributor (cite the ro
               value={storySearch}
               onChange={e => setStorySearch(e.target.value)}
               placeholder="Search notes, tags, products, concerns…"
-              className="w-full pl-9 pr-3 py-2.5 border text-sm font-light italic focus:outline-none"
-              style={{borderColor:'var(--line)', background:'var(--cream)', color:'var(--ink)'}}
+              className="w-full pl-9 pr-3 py-2.5 border text-sm font-light focus:outline-none"
+              style={{borderColor: 'var(--line)', background:'var(--cream)', color:'var(--ink)'}}
             />
           </div>
 
@@ -209,8 +208,7 @@ Write one paragraph: what defined this week, one likely contributor (cite the ro
                   style={{
                     borderColor: active ? 'var(--accent)' : 'var(--line)',
                     background: active ? 'var(--accent)' : 'var(--cream)',
-                    color: active ? 'var(--cream)' : 'var(--ink-soft)',
-                  }}
+                    color: active ? 'var(--cream)' : 'var(--ink-soft)'}}
                 >{f.label}</button>
               );
             })}
@@ -218,19 +216,19 @@ Write one paragraph: what defined this week, one likely contributor (cite the ro
 
           {/* === WEEKLY RECAP CARD ===
               Pinned at top — this week's date range, avg rating, photo
-              count, and an AI Étude Note for the week (lazy generated). */}
+              count, and an AI Frida Note for the week (lazy generated). */}
           {recapWeek && (
             <EditorialCard pad="normal">
               <div className="flex items-baseline justify-between mb-2 gap-3 flex-wrap">
                 <div>
                   <Eyebrow>This week</Eyebrow>
-                  <div className="font-serif italic text-base md:text-lg mt-0.5" style={{color:'var(--ink)'}}>
+                  <div className="font-sans text-base md:text-lg mt-0.5" style={{color:'var(--ink)'}}>
                     {fmtRange(recapWeek.start, recapWeek.end)}
                   </div>
                 </div>
                 {recapWeek.avg != null && (
                   <div className="text-right">
-                    <div className="font-serif italic text-2xl md:text-3xl leading-none" style={{color:'var(--accent)'}}>{recapWeek.avg.toFixed(1)}</div>
+                    <div className="font-sans text-2xl md:text-3xl leading-none" style={{color:'var(--accent)'}}>{recapWeek.avg.toFixed(1)}</div>
                     <div className="text-[9px] tracking-[0.2em] uppercase mt-1" style={{color:'var(--ink-soft)'}}>/10 avg</div>
                   </div>
                 )}
@@ -238,28 +236,28 @@ Write one paragraph: what defined this week, one likely contributor (cite the ro
 
               {/* Stat strip — quick read on the week. */}
               <div className="flex items-center gap-4 text-[11px] flex-wrap" style={{color:'var(--ink-soft)'}}>
-                <span><span className="font-serif italic text-base mr-1" style={{color:'var(--ink)'}}>{recapWeek.photos.length}</span>photos</span>
+                <span><span className="font-sans text-base mr-1" style={{color:'var(--ink)'}}>{recapWeek.photos.length}</span>photos</span>
                 {recapWeek.newProducts.length > 0 && (
-                  <span><span className="font-serif italic text-base mr-1" style={{color:'var(--ink)'}}>{recapWeek.newProducts.length}</span>new product{recapWeek.newProducts.length === 1 ? '' : 's'}</span>
+                  <span><span className="font-sans text-base mr-1" style={{color:'var(--ink)'}}>{recapWeek.newProducts.length}</span>new product{recapWeek.newProducts.length === 1 ? '' : 's'}</span>
                 )}
                 {recapWeek.procedures.length > 0 && (
-                  <span><span className="font-serif italic text-base mr-1" style={{color:'var(--ink)'}}>{recapWeek.procedures.length}</span>procedure{recapWeek.procedures.length === 1 ? '' : 's'}</span>
+                  <span><span className="font-sans text-base mr-1" style={{color:'var(--ink)'}}>{recapWeek.procedures.length}</span>procedure{recapWeek.procedures.length === 1 ? '' : 's'}</span>
                 )}
               </div>
 
-              {/* AI Étude Note for the week. */}
+              {/* AI Frida Note for the week. */}
               {(recapWeek.photos.length > 0 || recapWeek.newProducts.length > 0 || recapWeek.procedures.length > 0) && (
-                <div className="border-l-2 pl-4 py-1 mt-4" style={{borderColor:'var(--accent)'}}>
+                <div className="border-l-2 pl-4 py-1 mt-4" style={{borderColor: 'var(--line)'}}>
                   {recapInsight ? (
                     <>
                       <div className="text-[10px] tracking-[0.25em] uppercase mb-1.5 flex items-center gap-1.5" style={{color:'var(--ink-soft)'}}>
-                        <Icon name="Sparkles" size={11} style={{color:'var(--accent)'}} /> Étude Note · {fmtRel(recapInsight.generatedAt)}
+                        <Icon name="Sparkles" size={11} style={{color:'var(--accent)'}} /> Frida Note · {fmtRel(recapInsight.generatedAt)}
                       </div>
-                      <p className="font-serif italic text-sm md:text-[15px] leading-relaxed" style={{color:'var(--ink)'}}>{withPearls(recapInsight.content, setOpenLesson)}</p>
+                      <p className="font-sans text-sm md:text-[15px] leading-relaxed" style={{color:'var(--ink)'}}>{withPearls(recapInsight.content, setOpenLesson)}</p>
                       <button
                         onClick={() => generateWeekInsight(recapWeek)}
                         disabled={recapLoading}
-                        className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1 mt-2 disabled:opacity-50"
+                        className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1 mt-2 disabled:opacity-50"
                         style={{color:'var(--ink-soft)'}}
                       >{recapLoading ? <><Icon name="Loader2" size={11} className="spin" /> Re-running</> : <>Refresh</>}</button>
                     </>
@@ -267,7 +265,7 @@ Write one paragraph: what defined this week, one likely contributor (cite the ro
                     <button
                       onClick={() => generateWeekInsight(recapWeek)}
                       disabled={recapLoading}
-                      className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1.5 disabled:opacity-50"
+                      className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1.5 disabled:opacity-50"
                       style={{color:'var(--accent)'}}
                     >{recapLoading ? <><Icon name="Loader2" size={11} className="spin" /> Generating…</> : <><Icon name="Sparkles" size={11} /> Generate this week's note</>}</button>
                   )}
@@ -280,7 +278,7 @@ Write one paragraph: what defined this week, one likely contributor (cite the ro
               When tapping a card from select mode, show the prompt and Compare CTA. */}
           {selectMode && (
             <div className="px-4 py-3 border flex justify-between items-center gap-3 flex-wrap" style={{background:'var(--cream-deep)', borderColor:'var(--ink)'}}>
-              <div className="text-xs font-light italic" style={{color:'var(--ink)'}}>
+              <div className="text-xs font-light" style={{color:'var(--ink)'}}>
                 {selectedIds.length === 0 && 'Tap any two photo entries to compare.'}
                 {selectedIds.length === 1 && 'One selected — pick one more.'}
                 {selectedIds.length === 2 && 'Two selected — ready when you are.'}
@@ -309,10 +307,10 @@ Write one paragraph: what defined this week, one likely contributor (cite the ro
 
           {/* === EDITORIAL CARD FEED ===
               Per spec: date headline, photo, short reflection, mini tags,
-              optional Étude Note (AI analysis). Procedure + product-start
+              optional Frida Note (AI analysis). Procedure + product-start
               items render as compact accent-bordered markers. */}
           {items.length === 0 ? (
-            <p className="font-serif italic text-base py-12 text-center" style={{color:'var(--ink-soft)'}}>
+            <p className="font-sans text-base py-12 text-center" style={{color:'var(--ink-soft)'}}>
               {q || storyFilter !== 'all' ? 'Nothing matches. Try less.' : 'Story starts with the first photo.'}
             </p>
           ) : (
@@ -322,13 +320,13 @@ Write one paragraph: what defined this week, one likely contributor (cite the ro
                 if (item.kind === 'procedure') {
                   const p = item.payload;
                   return (
-                    <article key={item.id} className="border-l-2 pl-5 py-3" style={{borderColor:'var(--accent)'}}>
+                    <article key={item.id} className="border-l-2 pl-5 py-3" style={{borderColor: 'var(--line)'}}>
                       <div className="text-[10px] tracking-[0.3em] uppercase flex items-center gap-1.5" style={{color:'var(--accent)'}}>
                         <Icon name="Activity" size={11} /> Procedure
                       </div>
-                      <h3 className="font-serif italic text-lg md:text-xl mt-1" style={{color:'var(--ink)'}}>{p.name}</h3>
+                      <h3 className="font-sans text-lg md:text-xl mt-1" style={{color:'var(--ink)'}}>{p.name}</h3>
                       <div className="text-[11px] font-light mt-0.5" style={{color:'var(--ink-soft)'}}>{fmtDateHeadline(p.date)}{p.type ? ` · ${(p.type || '').replace(/-/g, ' ')}` : ''}</div>
-                      {p.results && <p className="text-sm font-light italic mt-2 leading-relaxed" style={{color:'var(--ink)'}}>{p.results}</p>}
+                      {p.results && <p className="text-sm font-light mt-2 leading-relaxed" style={{color:'var(--ink)'}}>{p.results}</p>}
                     </article>
                   );
                 }
@@ -340,7 +338,7 @@ Write one paragraph: what defined this week, one likely contributor (cite the ro
                       <div className="text-[10px] tracking-[0.3em] uppercase flex items-center gap-1.5" style={{color:'var(--ink-soft)'}}>
                         <Icon name="Plus" size={11} /> Started using
                       </div>
-                      <h3 className="font-serif italic text-base md:text-lg mt-1" style={{color:'var(--ink)'}}>{p.name}</h3>
+                      <h3 className="font-sans text-base md:text-lg mt-1" style={{color:'var(--ink)'}}>{p.name}</h3>
                       <div className="text-[11px] font-light mt-0.5" style={{color:'var(--ink-soft)'}}>{fmtDateHeadline(item.date)}{p.brand ? ` · ${p.brand}` : ''}{p.activeIngredients ? ` · ${p.activeIngredients}` : ''}</div>
                     </article>
                   );
@@ -368,20 +366,19 @@ Write one paragraph: what defined this week, one likely contributor (cite the ro
                     style={{
                       borderColor: isSelected ? 'var(--accent)' : 'var(--line)',
                       background: 'var(--cream)',
-                      boxShadow: isSelected ? '0 0 0 1px var(--accent)' : 'none',
-                    }}
+                      boxShadow: isSelected ? '0 0 0 1px var(--accent)' : 'none'}}
                   >
                     {/* Date headline — eyebrow style, top of card. */}
                     <div className="px-5 pt-4 pb-2 flex items-baseline justify-between gap-3 flex-wrap">
                       <div>
                         <div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>{fmtDateHeadline(l.date)}</div>
                         {l.area && l.area !== 'full-face' && (
-                          <div className="text-[11px] font-light italic mt-0.5" style={{color:'var(--ink-soft)'}}>{l.area}</div>
+                          <div className="text-[11px] font-light mt-0.5" style={{color:'var(--ink-soft)'}}>{l.area}</div>
                         )}
                       </div>
                       {l.rating != null && (
                         <div className="text-right">
-                          <span className="font-serif italic text-xl" style={{color:'var(--accent)'}}>{l.rating}</span>
+                          <span className="font-sans text-xl" style={{color:'var(--accent)'}}>{l.rating}</span>
                           <span className="text-[10px] tracking-[0.2em] uppercase ml-1" style={{color:'var(--ink-soft)'}}>/10</span>
                         </div>
                       )}
@@ -394,7 +391,7 @@ Write one paragraph: what defined this week, one likely contributor (cite the ro
                       </div>
                     )}
 
-                    {/* Body — reflection + tags + Étude Note. */}
+                    {/* Body — reflection + tags + Frida Note. */}
                     <div className="px-5 py-4 space-y-3">
                       {/* Short reflection */}
                       {reflection && (
@@ -408,19 +405,19 @@ Write one paragraph: what defined this week, one likely contributor (cite the ro
                             <span
                               key={t}
                               className="text-[10px] tracking-[0.05em] px-2 py-0.5 rounded-full"
-                              style={{background:'var(--cream-deep)', color:'var(--ink-soft)', border:'1px solid var(--line)'}}
+                              style={{background:'var(--cream-deep)', color:'var(--ink-soft)', border: '1px solid var(--line)'}}
                             >#{t}</span>
                           ))}
                         </div>
                       )}
 
-                      {/* Optional Étude Note — AI analysis as italic prose with accent bar. */}
+                      {/* Optional Frida Note — AI analysis as prose with accent bar. */}
                       {l.aiAnalysis && (
-                        <div className="border-l-2 pl-3 py-1 mt-2" style={{borderColor:'var(--accent)'}}>
+                        <div className="border-l-2 pl-3 py-1 mt-2" style={{borderColor: 'var(--line)'}}>
                           <div className="text-[10px] tracking-[0.25em] uppercase mb-1 flex items-center gap-1.5" style={{color:'var(--ink-soft)'}}>
-                            <Icon name="Sparkles" size={10} style={{color:'var(--accent)'}} /> Étude Note
+                            <Icon name="Sparkles" size={10} style={{color:'var(--accent)'}} /> Frida Note
                           </div>
-                          <p className="font-serif italic text-sm leading-relaxed line-clamp-3" style={{color:'var(--ink)'}}>{withPearls(formatAnalysisText(l.aiAnalysis), setOpenLesson)}</p>
+                          <p className="font-sans text-sm leading-relaxed line-clamp-3" style={{color:'var(--ink)'}}>{withPearls(formatAnalysisText(l.aiAnalysis), setOpenLesson)}</p>
                         </div>
                       )}
                     </div>
@@ -431,10 +428,10 @@ Write one paragraph: what defined this week, one likely contributor (cite the ro
           )}
 
           {/* === CALENDAR === photo calendar — tap a date to open the entry. */}
-          <section className="border-t pt-6 mt-2" style={{borderColor:'var(--line)'}}>
+          <section className="border-t pt-6 mt-2" style={{borderColor: 'var(--line)'}}>
             <div className="text-[10px] tracking-[0.3em] uppercase mb-3 flex items-baseline justify-between" style={{color:'var(--ink-soft)'}}>
               <span>Calendar</span>
-              <span className="text-[9px] italic normal-case tracking-normal">tap a day with a photo</span>
+              <span className="text-[9px] normal-case tracking-normal">tap a day with a photo</span>
             </div>
             <MiniMonthCalendar
               logs={logs}

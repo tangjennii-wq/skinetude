@@ -4,7 +4,7 @@
 // NOT used by: bulk import from camera roll (that's PhotoImportQueue).
 //
 // Steps: front → left cheek → right cheek → T-zone → chin/jaw.
-// Optional detailed areas: eye_area, spot, custom (no auto-advance).
+// Optional detailed areas: R eye, L eye, neck, back, spot (auto-advance and save with Done).
 //
 // Each saved photo carries metadata:
 //   { angle, source: 'guided_capture', capturedAt }
@@ -18,25 +18,29 @@
 // through CameraCaptureModal as another mode flag.
 
 const GUIDED_STEPS = [
-  { angle: 'front',       label: 'Front',        instruction: 'Face the camera directly.' },
-  { angle: 'left_cheek',  label: 'Left cheek',   instruction: 'Turn slightly so your left cheek fills the guide.' },
-  { angle: 'right_cheek', label: 'Right cheek',  instruction: 'Turn slightly so your right cheek fills the guide.' },
-  { angle: 't_zone',      label: 'T-zone',       instruction: 'Center forehead and nose in the guide.' },
-  { angle: 'chin_jaw',    label: 'Chin / jaw',   instruction: 'Lower slightly so chin and jaw fill the guide.' },
+  { angle: 'front',       label: 'Front',        instruction: 'Face forward.' },
+  { angle: 'left_cheek',  label: 'Left cheek',   instruction: 'Left cheek in guide.' },
+  { angle: 'right_cheek', label: 'Right cheek',  instruction: 'Right cheek in guide.' },
+  { angle: 't_zone',      label: 'T-zone',       instruction: 'Forehead + nose.' },
+  { angle: 'chin_jaw',    label: 'Chin / jaw',   instruction: 'Chin + jaw.' },
 ];
 
 const DETAILED_STEPS = [
-  { angle: 'eye_area', label: 'Eye area',      instruction: 'Bring the eye area into the guide.' },
-  { angle: 'spot',     label: 'Spot photo',    instruction: 'Center the spot you want to track.' },
-  { angle: 'custom',   label: 'Custom concern', instruction: 'Frame the area you want to capture.' },
+  { angle: 'right_eye', label: 'R eye', instruction: 'Right eye in guide.' },
+  { angle: 'left_eye',  label: 'L eye',  instruction: 'Left eye in guide.' },
+  { angle: 'neck',      label: 'Neck',   instruction: 'Neck in guide.' },
+  { angle: 'back',      label: 'Back',   instruction: 'Back in guide.' },
+  { angle: 'spot',      label: 'Spot',   instruction: 'Center spot.' },
 ];
 
 // Short label used in dot/strip (mobile width budget is brutal).
 const SHORT_LABEL = {
   front: 'Front', left_cheek: 'Left', right_cheek: 'Right',
   t_zone: 'T-zone', chin_jaw: 'Chin',
-  eye_area: 'Eye', spot: 'Spot', custom: 'Custom',
+  eye_area: 'Eye', right_eye: 'R eye', left_eye: 'L eye',
+  neck: 'Neck', back: 'Back', spot: 'Spot', custom: 'Custom',
 };
+const CORE_SET_LABEL = 'Full face · L cheek · R cheek · T-zone · Chin';
 
 const GuidedPhotoCaptureModal = ({
   // Required: invoked once with the array of captured photos when user taps Done.
@@ -50,6 +54,9 @@ const GuidedPhotoCaptureModal = ({
   // Optional: control whether the "detailed areas" extra sheet is reachable.
   // Onboarding wants the simpler 5-step; daily check-in may want detailed.
   allowDetailedAreas = true,
+  // Daily check-ins can save after one full-face photo; baseline/set capture
+  // can still require every guided angle when the caller asks for it.
+  requireFullGuidedSet = false,
   // Pre-set context label (e.g. "Today's check-in" / "Baseline photos").
   contextLabel = '',
 }) => {
@@ -59,6 +66,7 @@ const GuidedPhotoCaptureModal = ({
   const uploadInputRef = useRef(null);
 
   const [error, setError] = useState('');
+  const [cameraReady, setCameraReady] = useState(false);
   // shots: indexed by step.angle. Stored as { dataUrl, capturedAt, source }.
   const seedFromInitial = () => {
     const map = {};
@@ -81,11 +89,17 @@ const GuidedPhotoCaptureModal = ({
   const activeSequence = showDetailed ? DETAILED_STEPS : GUIDED_STEPS;
   const activeIdx = showDetailed ? detailedIdx : stepIdx;
   const currentStep = activeSequence[activeIdx] || GUIDED_STEPS[0];
-  const capturedCount = Object.keys(shotsByAngle).filter(k =>
+  const guidedCapturedCount = Object.keys(shotsByAngle).filter(k =>
     GUIDED_STEPS.some(s => s.angle === k) && shotsByAngle[k]
   ).length;
+  const totalCapturedCount = Object.keys(shotsByAngle).filter(k => shotsByAngle[k]).length;
   const totalGuided = GUIDED_STEPS.length;
   const currentHasShot = !!shotsByAngle[currentStep.angle];
+  const canFinish = showDetailed
+    ? totalCapturedCount > 0
+    : requireFullGuidedSet
+      ? guidedCapturedCount >= totalGuided
+      : guidedCapturedCount > 0;
 
   // Mirror front cam — same logic as CameraCaptureModal.
   const facingMode = 'user';
@@ -93,6 +107,7 @@ const GuidedPhotoCaptureModal = ({
 
   useEffect(() => {
     let cancelled = false;
+    setCameraReady(false);
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;
@@ -106,8 +121,17 @@ const GuidedPhotoCaptureModal = ({
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
         if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
+          const video = videoRef.current;
+          video.srcObject = stream;
+          const markReady = () => setCameraReady(true);
+          if (video.videoWidth > 0 && video.videoHeight > 0) markReady();
+          else {
+            video.addEventListener('loadedmetadata', markReady, { once: true });
+            video.addEventListener('canplay', markReady, { once: true });
+          }
+          video.play().then(() => {
+            if (video.videoWidth > 0 && video.videoHeight > 0) markReady();
+          }).catch(() => {});
         }
       } catch (e) {
         const name = e && e.name;
@@ -146,7 +170,10 @@ const GuidedPhotoCaptureModal = ({
     if (!video || !canvas) return null;
     const vw = video.videoWidth;
     const vh = video.videoHeight;
-    if (!vw || !vh) return null;
+    if (!vw || !vh) {
+      setCameraReady(false);
+      return null;
+    }
     const MAX_OUT = 800;
     const sourceSize = Math.min(vw, vh);
     const sx = (vw - sourceSize) / 2;
@@ -164,6 +191,7 @@ const GuidedPhotoCaptureModal = ({
   };
 
   const handleShoot = () => {
+    if (!cameraReady) return;
     const dataUrl = snap();
     if (!dataUrl) return;
     const angle = currentStep.angle;
@@ -172,17 +200,16 @@ const GuidedPhotoCaptureModal = ({
       [angle]: { dataUrl, capturedAt: new Date().toISOString(), source: 'guided_capture' },
     }));
     // === AUTO-ADVANCE ===
-    // Only advance when we're inside the 5-step guided sequence and
-    // there's a next step. Detailed sequence does NOT auto-advance —
-    // user explicitly chose to capture extras, so they stay in
-    // control of moving on.
+    // Guided and detailed captures both move to the next requested area so
+    // users can keep tapping through without manually choosing every step.
     if (!showDetailed && stepIdx < GUIDED_STEPS.length - 1) {
-      setTimeout(() => setStepIdx(i => i + 1), 250);
+      setTimeout(() => setStepIdx(i => Math.min(i + 1, GUIDED_STEPS.length - 1)), 250);
+    } else if (showDetailed && detailedIdx < DETAILED_STEPS.length - 1) {
+      setTimeout(() => setDetailedIdx(i => Math.min(i + 1, DETAILED_STEPS.length - 1)), 250);
     }
   };
 
-  const handleRetakeCurrent = () => {
-    const angle = currentStep.angle;
+  const removeShot = (angle) => {
     setShotsByAngle(prev => {
       const next = { ...prev };
       delete next[angle];
@@ -190,8 +217,12 @@ const GuidedPhotoCaptureModal = ({
     });
   };
 
+  const handleRetakeCurrent = () => {
+    removeShot(currentStep.angle);
+  };
+
   const handleSkip = () => {
-    if (!showDetailed && stepIdx < GUIDED_STEPS.length - 1) {
+    if (!showDetailed && currentHasShot && stepIdx < GUIDED_STEPS.length - 1) {
       setStepIdx(i => i + 1);
     } else if (showDetailed && detailedIdx < DETAILED_STEPS.length - 1) {
       setDetailedIdx(i => i + 1);
@@ -199,10 +230,11 @@ const GuidedPhotoCaptureModal = ({
   };
 
   const handleDone = () => {
-    if (capturedCount === 0 && Object.keys(shotsByAngle).length === 0) {
+    if (totalCapturedCount === 0) {
       onClose && onClose();
       return;
     }
+    if (!canFinish) return;
     // Flatten shotsByAngle into the array the parent expects, preserving
     // the canonical step order (guided first, then detailed).
     const ordered = [];
@@ -277,6 +309,10 @@ const GuidedPhotoCaptureModal = ({
   const openUploader = () => { if (uploadInputRef.current) uploadInputRef.current.click(); };
 
   const capturedGuidedSteps = GUIDED_STEPS.filter(s => shotsByAngle[s.angle]);
+  const capturedDetailedSteps = DETAILED_STEPS.filter(s => shotsByAngle[s.angle]);
+  const visibleCapturedSteps = showDetailed
+    ? [...capturedGuidedSteps, ...capturedDetailedSteps]
+    : capturedGuidedSteps;
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center md:p-4" style={{background:'rgba(0,0,0,0.96)'}}>
@@ -318,41 +354,58 @@ const GuidedPhotoCaptureModal = ({
                   ? `${activeIdx + 1} of ${activeSequence.length}`
                   : `${activeIdx + 1} of ${GUIDED_STEPS.length}`}
               </div>
-              <div className="font-serif text-[17px] leading-tight mt-0.5" style={{color:'#fff', fontWeight:700}}>
+              <div className="font-sans text-[17px] leading-tight mt-0.5" style={{color:'#fff', fontWeight:700}}>
                 {currentStep.label}
               </div>
               {contextLabel ? <div className="text-[8px] mt-0.5 tracking-[0.2em] uppercase opacity-55">{contextLabel}</div> : null}
             </div>
             <button
               onClick={handleDone}
-              disabled={capturedCount === 0}
-              className="text-[11px] tracking-[0.18em] uppercase px-3 py-1.5 rounded-full transition disabled:cursor-not-allowed"
+              disabled={!canFinish}
+              className="text-[10.5px] tracking-[0.18em] uppercase px-3.5 py-2 rounded-full transition disabled:cursor-not-allowed"
               style={{
-                color: capturedCount > 0 ? 'var(--accent)' : 'rgba(255,255,255,0.35)',
-                fontWeight: 600,
-                cursor: capturedCount > 0 ? 'pointer' : 'not-allowed',
+                background: canFinish ? 'var(--cream)' : 'rgba(255,255,255,0.08)',
+                color: canFinish ? 'var(--ink)' : 'rgba(255,255,255,0.35)',
+                border: '1px solid ' + (canFinish ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.14)'),
+                boxShadow: canFinish ? '0 6px 18px rgba(0,0,0,0.28)' : 'none',
+                fontWeight: 800,
+                cursor: canFinish ? 'pointer' : 'not-allowed',
               }}
             >Done</button>
           </div>
-          {!showDetailed && (
-            <div className="flex items-center justify-center gap-1.5 mt-2" aria-label={`${capturedCount} of ${GUIDED_STEPS.length} guided photos captured`}>
-              {GUIDED_STEPS.map((s, i) => {
-                const done = !!shotsByAngle[s.angle];
-                const active = i === stepIdx;
-                return (
-                  <span
-                    key={s.angle}
-                    style={{
-                      width: active ? 18 : 6,
-                      height: 6,
-                      borderRadius: 999,
-                      background: done || active ? 'var(--accent)' : 'rgba(255,255,255,0.25)',
-                      opacity: active || done ? 1 : 0.7,
-                      transition:'all 160ms ease',
-                    }}
-                  />
-                );
-              })}
+          <div className="flex items-center justify-center gap-2 mt-2">
+            {!showDetailed && (
+              <div className="flex items-center justify-center gap-1.5" aria-label={`${guidedCapturedCount} of ${GUIDED_STEPS.length} guided photos captured`}>
+                {GUIDED_STEPS.map((s, i) => {
+                  const done = !!shotsByAngle[s.angle];
+                  const active = i === stepIdx;
+                  return (
+                    <span
+                      key={s.angle}
+                      style={{
+                        width: active ? 18 : 6,
+                        height: 6,
+                        borderRadius: 999,
+                        background: done || active ? 'var(--accent)' : 'rgba(255,255,255,0.25)',
+                        opacity: active || done ? 1 : 0.7,
+                        transition:'all 160ms ease',
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            )}
+            </div>
+          <div className="text-center text-[8.5px] mt-2 tracking-[0.14em] uppercase" style={{color:'rgba(255,255,255,0.55)'}}>
+            {showDetailed ? 'Focus area · saved to Journal' : `Core · ${CORE_SET_LABEL}`}
+          </div>
+          {/* === ONE-IS-ENOUGH HINT (May 30 2026 per Jenni) ===
+              Users were assuming all 5 dots had to fill before they
+              could tap Done. Once 1+ photos are captured AND we don't
+              require the full set, surface the optionality explicitly. */}
+          {canFinish && !requireFullGuidedSet && (
+            <div className="text-center text-[10px] mt-1.5" style={{color:'rgba(255,255,255,0.85)', fontWeight:500}}>
+              One’s enough — tap Done. More is bonus.
             </div>
           )}
         </div>
@@ -361,7 +414,7 @@ const GuidedPhotoCaptureModal = ({
         <div className="flex-1 relative overflow-hidden flex items-center justify-center" style={{minHeight:0}}>
         {error ? (
           <div className="text-white text-center px-6 max-w-sm">
-            <p className="font-serif text-base mb-4 leading-relaxed">{error}</p>
+            <p className="font-sans text-base mb-4 leading-relaxed">{error}</p>
             <div className="flex items-center justify-center gap-3 flex-wrap">
               <button
                 onClick={openUploader}
@@ -432,13 +485,25 @@ const GuidedPhotoCaptureModal = ({
               {currentStep.angle === 'eye_area' && (
                 <ellipse cx="50" cy="40" rx="22" ry="8" fill="none" stroke="var(--accent)" strokeWidth="0.5" strokeDasharray="1.2,1" />
               )}
+              {currentStep.angle === 'right_eye' && (
+                <ellipse cx="42" cy="40" rx="13" ry="7" fill="none" stroke="var(--accent)" strokeWidth="0.5" strokeDasharray="1.2,1" />
+              )}
+              {currentStep.angle === 'left_eye' && (
+                <ellipse cx="58" cy="40" rx="13" ry="7" fill="none" stroke="var(--accent)" strokeWidth="0.5" strokeDasharray="1.2,1" />
+              )}
+              {currentStep.angle === 'neck' && (
+                <path d="M 38 74 Q 50 82 62 74 L 66 96 L 34 96 Z" fill="none" stroke="var(--accent)" strokeWidth="0.5" strokeDasharray="1.2,1" />
+              )}
+              {currentStep.angle === 'back' && (
+                <path d="M 34 18 Q 50 10 66 18 L 72 88 Q 50 96 28 88 Z" fill="none" stroke="var(--accent)" strokeWidth="0.5" strokeDasharray="1.2,1" />
+              )}
               {currentStep.angle === 'spot' && (
                 <circle cx="50" cy="50" r="8" fill="none" stroke="var(--accent)" strokeWidth="0.5" strokeDasharray="1.2,1" />
               )}
             </svg>
             {/* Instruction caption */}
             <div className="absolute left-0 right-0 bottom-4 text-center px-8 pointer-events-none">
-              <p className="font-serif text-[15px] leading-snug" style={{color:'#fff', textShadow:'0 1px 8px rgba(0,0,0,0.6)'}}>
+              <p className="font-sans text-[15px] leading-snug" style={{color:'#fff', textShadow:'0 1px 8px rgba(0,0,0,0.6)'}}>
                 {currentStep.instruction}
               </p>
             </div>
@@ -448,43 +513,125 @@ const GuidedPhotoCaptureModal = ({
 
         {/* === Captured thumbnails + capture controls === */}
         <div className="px-4 pt-3 pb-4" style={{background:'rgba(0,0,0,0.4)'}}>
-        {/* Only show thumbnails after captures exist; no empty future placeholders. */}
-        {!showDetailed && capturedGuidedSteps.length > 0 && (
-          <div className="flex items-center gap-3 mb-4 overflow-x-auto pb-1 px-1">
-            {capturedGuidedSteps.map((s) => {
-              const shot = shotsByAngle[s.angle];
-              const i = GUIDED_STEPS.findIndex(step => step.angle === s.angle);
-              const active = i === stepIdx;
-              return (
-                <button
-                  key={s.angle}
-                  onClick={() => setStepIdx(i)}
-                  className="flex flex-col items-center gap-1"
-                  style={{cursor:'pointer'}}
-                  aria-label={`Review step ${i+1}: ${s.label}`}
-                >
-                    <div
-                      className="relative flex items-center justify-center"
-                      style={{
-                      width: 44, height: 44, borderRadius: '50%',
-                      background: shot ? 'transparent' : 'transparent',
-                      border: active ? '2px solid var(--accent)' : '1px solid var(--accent)',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    {shot ? (
-                      <>
-                        <img src={shot.dataUrl} alt={s.label} style={{width:'100%', height:'100%', objectFit:'cover', transform: shouldMirror ? 'scaleX(-1)' : 'none'}} />
-                        <div className="absolute" style={{top:-4, right:-4, background:'var(--accent)', borderRadius:999, width:14, height:14, display:'flex', alignItems:'center', justifyContent:'center'}}>
-                          <Icon name="Check" size={9} style={{color:'#fff'}} />
-                        </div>
-                      </>
-                    ) : null}
-                  </div>
-                  <span className="text-[9px] uppercase tracking-[0.15em]" style={{color: active ? '#fff' : 'rgba(255,255,255,0.55)', fontWeight: active ? 600 : 400}}>{SHORT_LABEL[s.angle]}</span>
-                </button>
-              );
-            })}
+        {/* Only show review/focus controls after the first capture; before that, keep the camera path visually primary. */}
+        {guidedCapturedCount > 0 && (
+          <div className="flex items-end justify-between gap-3 mb-4 px-1 w-full">
+            {visibleCapturedSteps.length > 0 && (
+              <div className="flex-1 min-w-0 overflow-x-auto pb-1">
+                <div className="flex items-center gap-3">
+                  {visibleCapturedSteps.map((s) => {
+                    const shot = shotsByAngle[s.angle];
+                    const guidedIndex = GUIDED_STEPS.findIndex(step => step.angle === s.angle);
+                    const detailedIndex = DETAILED_STEPS.findIndex(step => step.angle === s.angle);
+                    const active = showDetailed
+                      ? (detailedIndex >= 0 && detailedIndex === detailedIdx)
+                      : (guidedIndex >= 0 && guidedIndex === stepIdx);
+                    const reviewLabel = guidedIndex >= 0
+                      ? `Review step ${guidedIndex + 1}: ${s.label}`
+                      : `Review focus-area photo: ${s.label}`;
+                    return (
+                      <div key={s.angle} className="relative flex flex-col items-center gap-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (guidedIndex >= 0) {
+                              setShowDetailed(false);
+                              setStepIdx(guidedIndex);
+                            } else if (detailedIndex >= 0) {
+                              setShowDetailed(true);
+                              setDetailedIdx(detailedIndex);
+                            }
+                          }}
+                          className="flex flex-col items-center gap-1"
+                          style={{cursor:'pointer'}}
+                          aria-label={reviewLabel}
+                        >
+                          <div
+                            className="relative flex items-center justify-center"
+                            style={{
+                              width: active ? 48 : 44,
+                              height: active ? 48 : 44,
+                              borderRadius: '50%',
+                              border: active ? '2px solid var(--accent)' : '1px solid rgba(255,255,255,0.45)',
+                              overflow: 'hidden',
+                              boxShadow: active ? '0 0 0 3px rgba(255,255,255,0.16)' : 'none',
+                              transition:'all 140ms ease',
+                            }}
+                          >
+                            {shot ? (
+                              <img
+                                src={shot.dataUrl}
+                                alt={s.label}
+                                style={{
+                                  width:'100%',
+                                  height:'100%',
+                                  objectFit:'cover',
+                                  transform: shouldMirror ? 'scaleX(-1)' : 'none',
+                                }}
+                              />
+                            ) : null}
+                          </div>
+                          <span
+                            className="text-[9px] uppercase tracking-[0.15em]"
+                            style={{
+                              color: active ? '#fff' : 'rgba(255,255,255,0.55)',
+                              fontWeight: active ? 600 : 400,
+                            }}
+                          >
+                            {SHORT_LABEL[s.angle]}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            removeShot(s.angle);
+                          }}
+                          className="absolute flex items-center justify-center rounded-full"
+                          style={{
+                            top: -5,
+                            right: 0,
+                            width: 18,
+                            height: 18,
+                            background: 'rgba(5,5,5,0.86)',
+                            border: '1px solid rgba(255,255,255,0.55)',
+                            color: '#fff',
+                            cursor: 'pointer',
+                          }}
+                          aria-label={`Remove ${s.label} photo`}
+                        >
+                          <Icon name="X" size={10} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {allowDetailedAreas && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (showDetailed) setShowDetailed(false);
+                  else { setShowDetailed(true); setDetailedIdx(0); }
+                }}
+                className="flex-shrink-0 ml-auto inline-flex flex-col items-center justify-center gap-1 rounded-[14px] px-3 py-2 transition"
+                style={{
+                  alignSelf: 'flex-end',
+                  background: showDetailed ? 'rgba(255,255,255,0.13)' : 'rgba(255,255,255,0.06)',
+                  border: '1px solid ' + (showDetailed ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.16)'),
+                  color: '#fff',
+                  minWidth: 82,
+                  cursor: 'pointer',
+                }}
+                aria-label={showDetailed ? 'Return to core photo set' : 'Capture focus areas'}
+              >
+                <Icon name={showDetailed ? 'ChevronLeft' : 'Target'} size={15} />
+                <span className="text-[8.5px] tracking-[0.14em] uppercase" style={{fontWeight:750}}>
+                  {showDetailed ? 'Core set' : 'Add focus area'}
+                </span>
+              </button>
+            )}
           </div>
         )}
 
@@ -504,16 +651,17 @@ const GuidedPhotoCaptureModal = ({
 
           <button
             onClick={handleShoot}
-            disabled={!!error}
+            disabled={!!error || !cameraReady}
             className="rounded-full flex items-center justify-center transition"
             style={{
               width: 72, height: 72,
               background: '#fff',
               border: '4px solid rgba(255,255,255,0.35)',
-              cursor: error ? 'not-allowed' : 'pointer',
-              opacity: error ? 0.4 : 1,
+              cursor: (error || !cameraReady) ? 'not-allowed' : 'pointer',
+              opacity: (error || !cameraReady) ? 0.45 : 1,
             }}
-            aria-label="Capture photo"
+            aria-label={cameraReady ? 'Capture photo' : 'Camera warming up'}
+            title={cameraReady ? 'Capture photo' : 'Camera warming up'}
           />
 
           <div className="flex items-center gap-2">
@@ -532,50 +680,26 @@ const GuidedPhotoCaptureModal = ({
             )}
             <button
               onClick={handleSkip}
-              disabled={(showDetailed ? detailedIdx : stepIdx) >= activeSequence.length - 1}
+              disabled={showDetailed
+                ? detailedIdx >= activeSequence.length - 1
+                : (!currentHasShot || stepIdx >= activeSequence.length - 1)}
               className="flex flex-col items-center gap-1"
-              style={{cursor: 'pointer'}}
-              aria-label="Skip to next step"
+              style={{
+                cursor: (showDetailed ? detailedIdx < activeSequence.length - 1 : (currentHasShot && stepIdx < activeSequence.length - 1)) ? 'pointer' : 'not-allowed',
+                opacity: (showDetailed ? detailedIdx < activeSequence.length - 1 : (currentHasShot && stepIdx < activeSequence.length - 1)) ? 1 : 0.45,
+              }}
+              aria-label={showDetailed ? "Skip to next extra" : "Next core photo"}
             >
               <div className="rounded-full flex items-center justify-center" style={{width:44, height:44, border:'1px solid rgba(255,255,255,0.35)'}}>
-                <Icon name="SkipForward" size={18} style={{color:'#fff'}} />
+                <Icon name={showDetailed ? "SkipForward" : "ChevronRight"} size={18} style={{color:'#fff'}} />
               </div>
-              <span className="text-[9px] uppercase tracking-[0.15em]" style={{color:'rgba(255,255,255,0.65)'}}>Skip</span>
+              <span className="text-[9px] uppercase tracking-[0.15em]" style={{color:'rgba(255,255,255,0.65)'}}>
+                {showDetailed ? 'Skip' : 'Next'}
+              </span>
             </button>
           </div>
         </div>
 
-        {/* Optional: detailed areas entry / exit. Only when allowed and
-            after the guided sequence has at least one capture (otherwise
-            the user hasn't done the primary work yet). */}
-        {allowDetailedAreas && (
-          <div className="mt-4 pt-3 border-t" style={{borderColor:'rgba(255,255,255,0.12)'}}>
-            {!showDetailed ? (
-              <button
-                onClick={() => { setShowDetailed(true); setDetailedIdx(0); }}
-                className="w-full flex items-center justify-center gap-1.5 py-2"
-                style={{cursor:'pointer'}}
-              >
-                <Icon name="Target" size={11} style={{color:'var(--accent)'}} />
-                <span className="text-[11px]" style={{color:'var(--accent)', fontWeight:600}}>
-                  More areas
-                </span>
-                <Icon name="ChevronRight" size={11} style={{color:'var(--accent)'}} />
-              </button>
-            ) : (
-              <button
-                onClick={() => setShowDetailed(false)}
-                className="w-full flex items-center justify-center gap-2 py-2"
-                style={{cursor:'pointer'}}
-              >
-                <Icon name="ChevronLeft" size={12} style={{color:'rgba(255,255,255,0.7)'}} />
-                <span className="text-[11px] tracking-[0.18em] uppercase" style={{color:'rgba(255,255,255,0.7)', fontWeight:600}}>
-                  Back to guided set
-                </span>
-              </button>
-            )}
-          </div>
-        )}
         </div>
       </div>
     </div>

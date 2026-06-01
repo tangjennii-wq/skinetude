@@ -21,16 +21,16 @@ const Modal = ({ children, onClose, title, eyebrow, action, actionLabel, compact
       className="modal-card rounded-[20px] max-w-xl w-full overflow-y-auto shadow-2xl"
       style={{background:'var(--cream)'}}
     >
-      <div className={`sticky top-0 border-b ${compact ? 'px-3 py-2 md:px-4 md:py-2.5' : 'px-4 py-3 md:px-6 md:py-4'} flex items-center justify-between gap-3 z-10`} style={{background:'var(--cream)', borderColor:'var(--line)'}}>
+      <div className={`sticky top-0 border-b ${compact ? 'px-3 py-2 md:px-4 md:py-2.5' : 'px-4 py-3 md:px-6 md:py-4'} flex items-center justify-between gap-3 z-10`} style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
         <div className="min-w-0">
           {eyebrow && <Eyebrow className="mb-0.5 truncate">{eyebrow}</Eyebrow>}
-          <h2 className={`${compact ? 'text-[16px] md:text-[19px]' : 'text-[19px] md:text-[24px]'} font-serif italic leading-[1.1] tracking-tight truncate`} style={{color:'var(--ink)'}}>{title}</h2>
+          <h2 className={`${compact ? 'text-[16px] md:text-[19px]' : 'text-[19px] md:text-[24px]'} font-sans leading-[1.1] tracking-tight truncate`} style={{color:'var(--ink)'}}>{title}</h2>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           {action && actionLabel && (
             <button
               onClick={action}
-              className="text-[10.5px] tracking-[0.18em] uppercase italic flex items-center gap-1 transition hover:opacity-70"
+              className="text-[10.5px] tracking-[0.18em] uppercase flex items-center gap-1 transition hover:opacity-70"
               style={{color:'var(--accent)'}}
             >
               {actionLabel} <Icon name="Check" size={11} />
@@ -39,7 +39,7 @@ const Modal = ({ children, onClose, title, eyebrow, action, actionLabel, compact
           <button
             onClick={onClose}
             className="w-9 h-9 rounded-full flex items-center justify-center transition hover:opacity-90 cursor-pointer"
-            style={{background:'var(--cream-deep)', border:'1px solid var(--line)', color:'var(--ink)', cursor:'pointer'}}
+            style={{background:'var(--cream-deep)', border: '1px solid var(--line)', color:'var(--ink)', cursor:'pointer'}}
             aria-label="Close"
           >
             <span style={{display:'inline-block', width: 14, height: 14}} dangerouslySetInnerHTML={{__html: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`}} />

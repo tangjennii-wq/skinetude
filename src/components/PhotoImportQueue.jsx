@@ -285,7 +285,7 @@ const PhotoImportQueue = ({
           <Icon name="ArrowLeft" size={18} />
         </button>
         <div className="flex-1 text-center">
-          <h1 className="font-serif text-[22px] leading-tight" style={{color:'var(--ink)', fontWeight:700}}>Import photos</h1>
+          <h1 className="font-sans text-[22px] leading-tight" style={{color:'var(--ink)', fontWeight:700}}>Import photos</h1>
           <div className="text-[11px]" style={{color:'var(--ink-soft)'}}>
             {step === 'done' ? `${savedSummary?.total || 0} added` : `${selectedCount} selected`}
           </div>
@@ -329,7 +329,7 @@ const PhotoImportQueue = ({
         {step === 'select' && (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Icon name="Upload" size={28} style={{color:'var(--ink-soft)', marginBottom:12}} />
-            <h2 className="font-serif text-[18px] mb-1" style={{color:'var(--ink)', fontWeight:700}}>Pick photos to import</h2>
+            <h2 className="font-sans text-[18px] mb-1" style={{color:'var(--ink)', fontWeight:700}}>Pick photos to import</h2>
             <p className="text-[12.5px] mb-5" style={{color:'var(--ink-soft)'}}>
               Choose many at once — we’ll let you label them next.
             </p>
@@ -343,7 +343,7 @@ const PhotoImportQueue = ({
 
         {step === 'label' && (
           <div>
-            <h2 className="font-serif text-[18px] mb-1" style={{color:'var(--ink)', fontWeight:700}}>Review and label photos</h2>
+            <h2 className="font-sans text-[18px] mb-1" style={{color:'var(--ink)', fontWeight:700}}>Review and label photos</h2>
             <p className="text-[12.5px] mb-4" style={{color:'var(--ink-soft)'}}>
               Tap a photo to review or change its label.
             </p>
@@ -427,7 +427,7 @@ const PhotoImportQueue = ({
             >
               <Icon name="Check" size={28} style={{color:'var(--accent)'}} />
             </div>
-            <h2 className="font-serif text-[22px] mb-1" style={{color:'var(--ink)', fontWeight:700}}>Photos added</h2>
+            <h2 className="font-sans text-[22px] mb-1" style={{color:'var(--ink)', fontWeight:700}}>Photos added</h2>
             <p className="text-[13px] mb-5" style={{color:'var(--ink-soft)'}}>
               {savedSummary.total} photos were added to your timeline.
             </p>
@@ -450,7 +450,7 @@ const PhotoImportQueue = ({
               <button
                 onClick={() => { onClose && onClose(); onOpenCompare && onOpenCompare(); }}
                 className="rounded-full py-2.5 px-5"
-                style={{background:'transparent', color:'var(--ink)', border:'1px solid var(--line)', fontWeight:600, fontSize:11, letterSpacing:'0.14em', textTransform:'uppercase', cursor:'pointer'}}
+                style={{background:'transparent', color:'var(--ink)', border: '1px solid var(--line)', fontWeight:600, fontSize:11, letterSpacing:'0.14em', textTransform:'uppercase', cursor:'pointer'}}
               >Compare first and latest</button>
               <button
                 onClick={() => onClose && onClose()}
@@ -484,7 +484,7 @@ const PhotoImportQueue = ({
             <div style={{width:36, height:4, borderRadius:4, background:'var(--line)'}} />
           </button>
           <div className="px-4 pb-4">
-            <h3 className="font-serif text-[15px] mb-0.5" style={{color:'var(--ink)', fontWeight:700}}>Batch labels</h3>
+            <h3 className="font-sans text-[15px] mb-0.5" style={{color:'var(--ink)', fontWeight:700}}>Batch labels</h3>
             <p className="text-[11.5px] mb-3" style={{color:'var(--ink-soft)'}}>
               Update labels for all {selectedCount} selected photos.
             </p>
@@ -499,11 +499,11 @@ const PhotoImportQueue = ({
                     onClick={() => setDrawerTab(t)}
                     className="flex-1 rounded-full py-2 flex items-center justify-center gap-1.5"
                     style={{
-                      background: active ? 'var(--cream)' : 'transparent',
-                      color: active ? 'var(--ink)' : 'var(--ink-soft)',
+                      background: active ? 'var(--accent-soft)' : 'transparent',
+                      color: active ? 'var(--accent)' : 'var(--ink-soft)',
                       fontWeight: 600, fontSize: 11, letterSpacing: '0.02em',
                       cursor:'pointer',
-                      boxShadow: active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                      boxShadow: 'none',
                     }}
                   >
                     <Icon name={icon} size={12} />
@@ -519,7 +519,7 @@ const PhotoImportQueue = ({
                   value={drawerDate}
                   onChange={(e) => setDrawerDate(e.target.value)}
                   className="w-full rounded-[10px] px-3 py-2 text-[12px]"
-                  style={{background:'var(--cream)', border:'1px solid var(--line)', color:'var(--ink)'}}
+                  style={{background:'var(--cream)', border: '1px solid var(--line)', color:'var(--ink)'}}
                 />
                 <button
                   onClick={applyDate}
@@ -583,7 +583,7 @@ const PhotoImportQueue = ({
                   className="w-full rounded-full py-2.5 disabled:opacity-40"
                   style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:11, letterSpacing:'0.14em', textTransform:'uppercase', cursor:'pointer'}}
                 >Apply angle</button>
-                <div className="pt-2 border-t" style={{borderColor:'var(--line)'}}>
+                <div className="pt-2 border-t" style={{borderColor: 'var(--line)'}}>
                   <div className="text-[10px] uppercase tracking-[0.2em] mb-1" style={{color:'var(--ink-soft)', fontWeight:600}}>Angle sequence</div>
                   <p className="text-[11px] mb-2" style={{color:'var(--ink-soft)'}}>
                     This will apply in order from first to last selected.
@@ -602,7 +602,7 @@ const PhotoImportQueue = ({
                       onClick={deleteSelected}
                       disabled={selectedCount === 0}
                       className="rounded-full px-4 py-2.5 disabled:opacity-40 inline-flex items-center gap-1.5"
-                      style={{background:'transparent', color:'var(--ink)', border:'1px solid var(--line)', fontWeight:600, fontSize:11, letterSpacing:'0.12em', textTransform:'uppercase', cursor:'pointer'}}
+                      style={{background:'transparent', color:'var(--ink)', border: '1px solid var(--line)', fontWeight:600, fontSize:11, letterSpacing:'0.12em', textTransform:'uppercase', cursor:'pointer'}}
                     >
                       <Icon name="Trash2" size={12} />
                       Delete
@@ -613,7 +613,7 @@ const PhotoImportQueue = ({
             )}
           </div>
           {/* Sticky save row */}
-          <div className="px-4 pb-4 pt-2 border-t flex items-center gap-3" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
+          <div className="px-4 pb-4 pt-2 border-t flex items-center gap-3" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
             <button
               onClick={handleSave}
               disabled={saving || items.length === 0}
@@ -645,7 +645,7 @@ const PhotoImportQueue = ({
             <div
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-sm rounded-[20px] overflow-hidden"
-              style={{background:'var(--cream)', border:'1px solid var(--line)'}}
+              style={{background:'var(--cream)', border: '1px solid var(--line)'}}
             >
               <img src={it.photo} alt="" style={{width:'100%', aspectRatio:'1 / 1', objectFit:'cover'}} />
               <div className="p-4 space-y-3">
@@ -656,7 +656,7 @@ const PhotoImportQueue = ({
                     value={it.date}
                     onChange={(e) => updateItem(it.id, { date: e.target.value })}
                     className="w-full rounded-[10px] px-3 py-2 text-[12px]"
-                    style={{background:'var(--cream-deep)', border:'1px solid var(--line)', color:'var(--ink)'}}
+                    style={{background:'var(--cream-deep)', border: '1px solid var(--line)', color:'var(--ink)'}}
                   />
                 </div>
                 <div>
@@ -709,14 +709,14 @@ const PhotoImportQueue = ({
                     rows={2}
                     placeholder="Optional"
                     className="w-full rounded-[10px] px-3 py-2 text-[12px]"
-                    style={{background:'var(--cream-deep)', border:'1px solid var(--line)', color:'var(--ink)', fontFamily:'inherit'}}
+                    style={{background:'var(--cream-deep)', border: '1px solid var(--line)', color:'var(--ink)', fontFamily:'inherit'}}
                   />
                 </div>
                 <div className="flex items-center gap-2 pt-1">
                   <button
                     onClick={() => { setItems(prev => prev.filter(x => x.id !== it.id)); setEditingId(null); }}
                     className="rounded-full px-4 py-2 text-[11px]"
-                    style={{background:'transparent', color:'var(--ink-soft)', border:'1px solid var(--line)', fontWeight:600, letterSpacing:'0.12em', textTransform:'uppercase', cursor:'pointer'}}
+                    style={{background:'transparent', color:'var(--ink-soft)', border: '1px solid var(--line)', fontWeight:600, letterSpacing:'0.12em', textTransform:'uppercase', cursor:'pointer'}}
                   >Remove</button>
                   <button
                     onClick={() => setEditingId(null)}

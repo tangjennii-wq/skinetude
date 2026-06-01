@@ -36,9 +36,9 @@ const OnboardingBuildingPhases = ({ phases = [], onDone }) => {
   }, [completed, phases.length]);
   return (
     <div>
-      <div className="text-[10px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--accent)', fontWeight:600}}>9 · Building Your Routine</div>
-      <h2 className="font-serif text-[24px] leading-tight mb-2" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>Building your routine…</h2>
-      <p className="text-[12.5px] leading-snug mb-5" style={{color:'var(--ink-soft)'}}>A routine that respects your skin's pace.</p>
+      <div className="text-[10px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--accent)', fontWeight:600}}>7 · Your First Regimen</div>
+      <h2 className="font-sans text-[24px] leading-tight mb-2" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>Drafting your regimen…</h2>
+      <p className="text-[12.5px] leading-snug mb-5" style={{color:'var(--ink-soft)'}}>Spacing the right things, daily-ing the rest.</p>
       <ul className="space-y-2.5 mb-2">
         {phases.map((label, i) => {
           const isDone = i < completed;

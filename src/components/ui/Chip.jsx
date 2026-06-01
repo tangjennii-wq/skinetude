@@ -19,9 +19,9 @@ const Chip = ({ children, active = false, onClick, size = 'md', ...rest }) => {
       className="rounded-full transition"
       style={{
         ...s,
-        background: active ? 'var(--accent)' : 'var(--cream-deep)',
-        color: active ? 'var(--cream)' : 'var(--ink)',
-        border: `1px solid ${active ? 'var(--accent)' : 'var(--line)'}`,
+        background: active ? 'var(--surface-selected)' : 'var(--surface-card)',
+        color: active ? 'var(--accent)' : 'var(--ink)',
+        border: `1px solid ${active ? 'var(--border-mid)' : 'var(--line)'}`,
         fontWeight: active ? T.weight.semibold : T.weight.medium,
         letterSpacing: '-0.005em',
         cursor: 'pointer',

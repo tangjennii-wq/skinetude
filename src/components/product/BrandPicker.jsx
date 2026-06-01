@@ -57,11 +57,11 @@ const BrandPicker = React.memo(function BrandPicker({ brands, counts, onPick, on
       <button
         onClick={onBack}
         className="rounded-full px-3 py-1.5 text-[10px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-90 border cursor-pointer"
-        style={{borderColor:'var(--line)', color:'var(--ink)', background:'var(--cream-deep)', cursor:'pointer'}}
+        style={{borderColor: 'var(--line)', color:'var(--ink)', background:'var(--cream-deep)', cursor:'pointer'}}
       >
         <Icon name="ArrowLeft" size={11} /> Back
       </button>
-      <div className="flex items-center gap-2 px-3 py-2 rounded-full" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+      <div className="flex items-center gap-2 px-3 py-2 rounded-full" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
         <Icon name="Search" size={12} style={{color:'var(--ink-soft)'}} />
         <input
           type="text"
@@ -71,7 +71,7 @@ const BrandPicker = React.memo(function BrandPicker({ brands, counts, onPick, on
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search for a brand…"
-          className="flex-1 bg-transparent border-0 focus:outline-none text-[12.5px] italic"
+          className="flex-1 bg-transparent border-0 focus:outline-none text-[12.5px]"
           style={{color:'var(--ink)'}}
         />
       </div>
@@ -89,21 +89,21 @@ const BrandPicker = React.memo(function BrandPicker({ brands, counts, onPick, on
               key={b}
               onClick={() => onPick(b)}
               className="w-full flex items-center gap-3 py-2.5 px-1 border-b transition hover:bg-[var(--cream-deep)] cursor-pointer text-left"
-              style={{borderColor:'var(--line)', cursor:'pointer'}}
+              style={{borderColor: 'var(--line)', cursor:'pointer'}}
             >
-              <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 font-serif italic text-[10px]" style={{background:'var(--cream-deep)', color:'var(--ink-soft)', border:'1px solid var(--line)'}}>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 font-sans text-[10px]" style={{background:'var(--cream-deep)', color:'var(--ink-soft)', border: '1px solid var(--line)'}}>
                 {initials}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-serif italic text-[13px] leading-tight truncate" style={{color:'var(--ink)'}}>{b}</div>
-                <div className="text-[9.5px] italic mt-0.5" style={{color:'var(--ink-soft)'}}>{counts[b]} {counts[b] === 1 ? 'product' : 'products'}</div>
+                <div className="font-sans text-[13px] leading-tight truncate" style={{color:'var(--ink)'}}>{b}</div>
+                <div className="text-[9.5px] mt-0.5" style={{color:'var(--ink-soft)'}}>{counts[b]} {counts[b] === 1 ? 'product' : 'products'}</div>
               </div>
               <Icon name="ChevronRight" size={12} style={{color:'var(--ink-soft)'}} />
             </button>
           );
         })}
         {ranked.length === 0 && (
-          <p className="text-[11px] italic py-3 text-center" style={{color:'var(--ink-soft)'}}>Nothing matches. Try less.</p>
+          <p className="text-[11px] py-3 text-center" style={{color:'var(--ink-soft)'}}>Nothing matches. Try less.</p>
         )}
       </div>
     </div>
@@ -114,4 +114,4 @@ const BrandPicker = React.memo(function BrandPicker({ brands, counts, onPick, on
 // Editorial Modal frame — replaces the old Modal. Same API (children/onClose/title/
 // compact) plus optional `eyebrow` and `action`/`actionLabel` for a primary CTA in the
 // sticky header. Body sits on cream; sticky header is cream too with a hairline rule
-// for visual continuity. Title gets the cover's serif italic display treatment.
+// for visual continuity. Title gets the cover's serif display treatment.

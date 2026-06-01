@@ -55,17 +55,17 @@ const CycleTracker = ({ cycleData, setCycleData, saveData, logs, toast }) => {
         <>
           {/* Current Phase Card */}
           {phase && (
-            <div className="border p-8 mb-8" style={{background:'linear-gradient(135deg, var(--cream-deep), #f0e0e8)', borderColor:'var(--line)'}}>
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
-                  <div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Day {dayOfCycle} of {cycleLen}</div>
-                  <h3 className="font-serif text-3xl italic mt-1" style={{color:'var(--ink)'}}>{phase.name} Phase</h3>
-                  <p className="text-sm font-light italic mt-2 max-w-md" style={{color:'var(--ink-soft)'}}>{phase.desc}</p>
+            <div className="border p-5 md:p-8 mb-6 md:mb-8" style={{background:'linear-gradient(135deg, var(--cream-deep), #f0e0e8)', borderColor: 'var(--line)'}}>
+              <div className="flex items-start justify-between gap-3 md:gap-4 flex-wrap">
+                <div className="min-w-0">
+                  <div className="text-[10px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)', whiteSpace:'nowrap'}}>Day {dayOfCycle} of {cycleLen}</div>
+                  <h3 className="font-sans text-2xl md:text-3xl mt-1" style={{color:'var(--ink)'}}>{phase.name} Phase</h3>
+                  <p className="text-sm font-light mt-2 max-w-md" style={{color:'var(--ink-soft)'}}>{phase.desc}</p>
                 </div>
                 {nextPredicted && (
                   <div className="text-right">
-                    <div className="text-[10px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>Next Period</div>
-                    <div className="font-serif text-2xl italic mt-1" style={{color:'var(--ink)'}}>~ {nextPredicted.toLocaleDateString('en-US', { month:'short', day:'numeric' })}</div>
+                    <div className="text-[10px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)', whiteSpace:'nowrap'}}>Next Period</div>
+                    <div className="font-sans text-xl md:text-2xl mt-1" style={{color:'var(--ink)', whiteSpace:'nowrap'}}>~ {nextPredicted.toLocaleDateString('en-US', { month:'short', day:'numeric' })}</div>
                     <div className="text-xs font-light mt-1" style={{color:'var(--ink-soft)'}}>{Math.ceil((nextPredicted - today) / (1000*60*60*24))} days away</div>
                   </div>
                 )}
@@ -75,8 +75,8 @@ const CycleTracker = ({ cycleData, setCycleData, saveData, logs, toast }) => {
 
           {/* Correlation chart */}
           {correlationData.length >= 3 && (
-            <div className="border p-6 mb-8" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
-              <h3 className="font-serif text-xl italic mb-4" style={{color:'var(--ink)'}}>Skin scores this cycle</h3>
+            <div className="border p-4 md:p-6 mb-6 md:mb-8" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
+              <h3 className="font-sans text-xl mb-4" style={{color:'var(--ink)'}}>Skin scores this cycle</h3>
               <div className="relative h-32 flex items-end gap-1">
                 {Array.from({length: cycleLen}, (_, i) => {
                   const day = i + 1;
@@ -87,7 +87,7 @@ const CycleTracker = ({ cycleData, setCycleData, saveData, logs, toast }) => {
                       {dataPoint && (
                         <div className="w-full transition" style={{
                           height: `${height}%`,
-                          background: dataPoint.rating >= 7 ? 'var(--sage)' : dataPoint.rating >= 5 ? '#c9a094' : '#a04555',
+                          background: dataPoint.rating >= 7 ? 'var(--accent-blue)' : dataPoint.rating >= 5 ? '#c9a094' : '#a04555',
                           borderRadius: '2px 2px 0 0'
                         }} title={`Day ${day}: ${dataPoint.rating}/10`}></div>
                       )}
@@ -102,26 +102,26 @@ const CycleTracker = ({ cycleData, setCycleData, saveData, logs, toast }) => {
           )}
 
           {/* Cycle length setting */}
-          <div className="border p-5 mb-8 flex items-center gap-4 flex-wrap" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
+          <div className="border p-5 mb-8 flex items-center gap-4 flex-wrap" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
             <span className="text-[10px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>Cycle Length</span>
             <input type="number" min="20" max="40" value={cycleLen} onChange={async e => {
               const updated = { ...cycleData, cycleLength: +e.target.value };
               setCycleData(updated);
               await saveData('cycle', updated);
             }} className="w-20 px-3 py-1.5 border text-sm font-light" />
-            <span className="text-xs font-light italic" style={{color:'var(--ink-soft)'}}>days (default 28)</span>
+            <span className="text-xs font-light" style={{color:'var(--ink-soft)'}}>days (default 28)</span>
           </div>
 
           {/* Period History */}
-          <h3 className="font-serif text-2xl italic mb-4" style={{color:'var(--ink)'}}>Period History</h3>
+          <h3 className="font-sans text-2xl mb-4" style={{color:'var(--ink)'}}>Period History</h3>
           <div className="space-y-2">
             {periods.map((p, i) => {
               const next = periods[i + 1];
               const cycleLenActual = next ? Math.floor((new Date(p.date) - new Date(next.date)) / (1000*60*60*24)) : null;
               return (
-                <div key={p.id} className="flex justify-between items-center p-4 border" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
+                <div key={p.id} className="flex justify-between items-center p-4 border" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
                   <div>
-                    <div className="font-serif italic text-lg" style={{color:'var(--ink)'}}>{new Date(p.date).toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' })}</div>
+                    <div className="font-sans text-lg" style={{color:'var(--ink)'}}>{new Date(p.date).toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' })}</div>
                     {cycleLenActual && <div className="text-xs font-light mt-0.5" style={{color:'var(--ink-soft)'}}>{cycleLenActual} days from previous</div>}
                   </div>
                   <button onClick={() => removePeriod(p.id)} style={{color:'var(--ink-soft)'}}><Icon name="Trash2" size={14} /></button>
@@ -136,10 +136,10 @@ const CycleTracker = ({ cycleData, setCycleData, saveData, logs, toast }) => {
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(28,25,23,0.5)', backdropFilter:'blur(4px)'}} onClick={() => setShowAdd(false)}>
           <div onClick={e => e.stopPropagation()} className="rounded-lg max-w-sm w-full p-6 shadow-2xl" style={{background:'var(--cream)'}}>
-            <h2 className="font-serif italic text-[18px] md:text-[19px] leading-[1.1] tracking-tight mb-4" style={{color:'var(--ink)'}}>Log Period Start</h2>
+            <h2 className="font-sans text-[18px] md:text-[19px] leading-[1.1] tracking-tight mb-4" style={{color:'var(--ink)'}}>Log Period Start</h2>
             <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full px-3 py-2.5 border rounded-md text-sm font-light mb-4" />
             <div className="flex gap-2">
-              <button onClick={() => setShowAdd(false)} className="flex-1 py-3 tracking-widest text-xs uppercase border" style={{borderColor:'var(--line)', color:'var(--ink-soft)'}}>Cancel</button>
+              <button onClick={() => setShowAdd(false)} className="flex-1 py-3 tracking-widest text-xs uppercase border" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>Cancel</button>
               <button onClick={addPeriod} className="flex-1 py-3 tracking-widest text-xs uppercase" style={{background:'var(--ink)', color:'var(--cream)'}}>Save</button>
             </div>
           </div>

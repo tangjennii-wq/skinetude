@@ -17,8 +17,7 @@ const ComparePresets = ({ logs, products, procedures, regimenLogs = [], callClau
     const candidates = photoLogs.map(l => ({
       log: l,
       diffDays: Math.abs((new Date(l.date) - targetDate) / 86400000),
-      sameArea: l.area === anchorArea,
-    })).filter(c => c.diffDays <= maxDaysWindow);
+      sameArea: l.area === anchorArea})).filter(c => c.diffDays <= maxDaysWindow);
     if (candidates.length === 0) return null;
     candidates.sort((a, b) => {
       if (a.sameArea && !b.sameArea) return -1;
@@ -128,14 +127,13 @@ NEXT STEPS: one or two specific evidence-based suggestions`;
         if (before64 && after64) {
           result = await callClaude(
             prompt,
-            "You are an educational skincare advisor with dermatology training, comparing two photos of the same person's skin (informational observation, not a diagnosis). Be specific and evidence-based.",
+            "You are an obsessed educational skin advisor (informational observation, not a diagnosis), comparing two photos of the same person's skin. Be specific and evidence-based.",
             null,
             {
               images: [
                 { label: 'EARLIER photo:', b64: before64 },
                 { label: 'LATER photo:',   b64: after64 },
-              ],
-            }
+              ]}
           );
         } else {
           result = await callClaude(prompt, '', null, { voice: true });
@@ -164,7 +162,7 @@ NEXT STEPS: one or two specific evidence-based suggestions`;
 
   return (
     <div>
-      <div className="text-sm font-light italic mb-8 max-w-2xl" style={{color:'var(--ink-soft)'}}>
+      <div className="text-sm font-light mb-8 max-w-2xl" style={{color:'var(--ink-soft)'}}>
         Pre-paired comparisons across time. Today's most recent reflection set against itself days, weeks, and months ago. Tap any card for an evidence-based read on what's changed.
       </div>
 
@@ -172,15 +170,15 @@ NEXT STEPS: one or two specific evidence-based suggestions`;
       {byProductRows.length > 0 && (
         <div className="mb-12">
           <div className="text-[10px] tracking-[0.4em] uppercase mb-2" style={{color:'var(--ink-soft)'}}>By product</div>
-          <h3 className="font-serif text-2xl italic mb-5" style={{color:'var(--ink)'}}>Has anything changed since you started?</h3>
-          <div className="border" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
+          <h3 className="font-sans text-2xl mb-5" style={{color:'var(--ink)'}}>Has anything changed since you started?</h3>
+          <div className="border" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
             {byProductRows.map((row, idx) => {
               const { product, anchors } = row;
               const weeks = anchors.daysActive >= 7 ? `${Math.round(anchors.daysActive / 7)}w` : `${anchors.daysActive}d`;
               return (
                 <div key={product.id} className="flex items-center gap-3 px-4 py-3" style={{borderTop: idx === 0 ? 'none' : '1px solid var(--line)'}}>
                   <div className="flex-1 min-w-0">
-                    <div className="font-serif italic text-base leading-tight truncate" style={{color:'var(--ink)'}}>{product.name}</div>
+                    <div className="font-sans text-base leading-tight truncate" style={{color:'var(--ink)'}}>{product.name}</div>
                     <div className="text-[11px] font-light mt-0.5" style={{color:'var(--ink-soft)'}}>
                       {anchors.startSource === 'explicit' ? 'started' : 'first logged'} ~{weeks} ago · {anchors.photoCount} {anchors.photoCount === 1 ? 'photo' : 'photos'}
                     </div>
@@ -188,13 +186,13 @@ NEXT STEPS: one or two specific evidence-based suggestions`;
                   {anchors.hasEnoughData ? (
                     <button
                       onClick={() => onCompareProduct?.(product.id)}
-                      className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1.5 transition hover:opacity-70 flex-shrink-0"
+                      className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1.5 transition hover:opacity-70 flex-shrink-0"
                       style={{color:'var(--accent)'}}
                     >
                       Compare <Icon name="ArrowRight" size={11} />
                     </button>
                   ) : (
-                    <span className="text-[10px] italic flex-shrink-0" style={{color:'var(--ink-soft)'}}>{anchors.reasonShort}</span>
+                    <span className="text-[10px] flex-shrink-0" style={{color:'var(--ink-soft)'}}>{anchors.reasonShort}</span>
                   )}
                 </div>
               );
@@ -205,7 +203,7 @@ NEXT STEPS: one or two specific evidence-based suggestions`;
 
       <div className="space-y-10">
         {presets.length === 0 && (
-          <p className="font-serif text-xl italic" style={{color:'var(--ink-soft)'}}>Not enough history yet for these comparisons. Keep logging — they'll surface as your timeline grows.</p>
+          <p className="font-sans text-xl" style={{color:'var(--ink-soft)'}}>Not enough history yet for these comparisons. Keep logging — they'll surface as your timeline grows.</p>
         )}
         {presets.map(preset => {
           const key = `${preset.earlier.id}-${preset.later.id}`;
@@ -223,15 +221,15 @@ NEXT STEPS: one or two specific evidence-based suggestions`;
             return pe >= new Date(preset.earlier.date) && pe <= new Date(preset.later.date);
           });
           return (
-            <div key={key} className="border-t pt-8" style={{borderColor:'var(--line)'}}>
+            <div key={key} className="border-t pt-8" style={{borderColor: 'var(--line)'}}>
               <div className="flex items-baseline justify-between gap-3 mb-5 flex-wrap">
                 <div>
                   <div className="text-[10px] tracking-[0.4em] uppercase" style={{color:'var(--ink-soft)'}}>{preset.label}</div>
-                  <h3 className="font-serif text-2xl italic mt-1" style={{color:'var(--ink)'}}>{preset.subtitle}</h3>
+                  <h3 className="font-sans text-2xl mt-1" style={{color:'var(--ink)'}}>{preset.subtitle}</h3>
                 </div>
                 <div className="text-right">
                   <div className="text-[10px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{days} days · rating {ratingDelta > 0 ? '+' : ''}{ratingDelta}</div>
-                  <button onClick={() => enterCompare?.(preset.earlier.id, preset.later.id)} className="text-[10px] tracking-[0.2em] uppercase italic mt-2" style={{color:'var(--ink)', borderBottom:'1px dotted var(--ink)'}}>Open side-by-side</button>
+                  <button onClick={() => enterCompare?.(preset.earlier.id, preset.later.id)} className="text-[10px] tracking-[0.2em] uppercase mt-2" style={{color:'var(--ink)', borderBottom:'1px dotted var(--ink)'}}>Open side-by-side</button>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3 md:gap-6 mb-6 max-w-2xl">
@@ -242,14 +240,14 @@ NEXT STEPS: one or two specific evidence-based suggestions`;
                       <Photo item={entry} alt="" className="w-full h-full object-cover"
                         renderFallback={() => (
                           <div className="w-full h-full flex items-center justify-center" style={{background:'var(--cream-deep)'}}>
-                            <span className="font-serif italic text-3xl md:text-5xl" style={{color:'var(--ink-soft)'}}>{entry.rating}</span>
+                            <span className="font-sans text-3xl md:text-5xl" style={{color:'var(--ink-soft)'}}>{entry.rating}</span>
                           </div>
                         )}
                       />
                     </div>
                     <div className="mt-1.5 flex items-baseline gap-2">
-                      <span className="font-serif text-lg md:text-2xl italic" style={{color:'var(--ink)'}}>{entry.rating}<span className="text-xs" style={{color:'var(--ink-soft)'}}>/10</span></span>
-                      {entry.concerns?.length > 0 && <span className="text-xs font-light italic" style={{color:'var(--ink-soft)'}}>{entry.concerns.slice(0, 3).join(' · ')}</span>}
+                      <span className="font-sans text-lg md:text-2xl" style={{color:'var(--ink)'}}>{entry.rating}<span className="text-xs" style={{color:'var(--ink-soft)'}}>/10</span></span>
+                      {entry.concerns?.length > 0 && <span className="text-xs font-light" style={{color:'var(--ink-soft)'}}>{entry.concerns.slice(0, 3).join(' · ')}</span>}
                     </div>
                   </div>
                 ))}
@@ -264,10 +262,17 @@ NEXT STEPS: one or two specific evidence-based suggestions`;
               )}
 
               {analysis ? (
-                <div className="mt-2 p-5 border" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
-                  <div className="text-[10px] tracking-[0.3em] uppercase mb-3" style={{color:'var(--ink-soft)'}}>Analysis</div>
-                  <div className="text-sm leading-relaxed font-light whitespace-pre-wrap" style={{color:'var(--ink)'}}>{withPearls(analysis, onOpenLesson)}</div>
-                  <button onClick={() => runAnalysis(preset)} disabled={loading} className="mt-3 text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1" style={{color:'var(--ink-soft)'}}>
+                <div className="mt-2 p-5 border" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
+                  <div className="text-[10px] tracking-[0.3em] uppercase mb-3 flex items-center gap-2" style={{color:'var(--accent)'}}>
+                    <Icon name="Sparkles" size={11} style={{color:'var(--accent)'}} /> Frida analysis
+                  </div>
+                  <TaggedAnalysisBullets
+                    text={formatAnalysisText(analysis)}
+                    onOpen={onOpenLesson}
+                    IconComponent={Icon}
+                    withPearlsFn={withPearls}
+                  />
+                  <button onClick={() => runAnalysis(preset)} disabled={loading} className="mt-3 text-[10px] tracking-[0.2em] uppercase flex items-center gap-1" style={{color:'var(--ink-soft)'}}>
                     {loading ? <><Icon name="Loader2" size={11} className="spin" /> Re-running</> : <>Refresh analysis</>}
                   </button>
                 </div>

@@ -10,6 +10,7 @@ const RegimenOccasionsView = ({
   setShowProductModal,
   // === MECHANICAL PROP BRIDGE (May 2026 audit) ===
   rotationViewMode, setRotationViewMode,
+  rotationTargetSlot, setRotationTargetSlot,
   setBuildPlanAccepted,
   setBuildStep,
   setWeeklyExpandedDay,
@@ -21,6 +22,13 @@ const RegimenOccasionsView = ({
   setRefineIntent,
   setRefineSheetOpen,
 }) => {
+  const [rotationSlot, setRotationSlot] = useState('am');
+  const [expandedRotationProductId, setExpandedRotationProductId] = useState(null);
+  useEffect(() => {
+    if (rotationTargetSlot !== 'am' && rotationTargetSlot !== 'pm') return;
+    setRotationSlot(rotationTargetSlot);
+    if (typeof setRotationTargetSlot === 'function') setRotationTargetSlot(null);
+  }, [rotationTargetSlot]);
   return (() => {
   // === WEEKLY ROTATION VIEW (May 2026) ===
   // Replaces the old Occasions tab. Renders a 7-day grid derived
@@ -179,12 +187,12 @@ const RegimenOccasionsView = ({
   const ViewModeToggle = () => (
     <div
       className="inline-flex rounded-full p-0.5 mt-3"
-      style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}
+      style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}
       role="tablist"
     >
       {[
-        { id: 'day', label: 'By day' },
-        { id: 'product', label: 'By product' },
+        { id: 'product', label: 'Actives' },
+        { id: 'day', label: 'Regimen' },
       ].map(opt => {
         const on = rotationViewMode === opt.id;
         return (
@@ -208,7 +216,7 @@ const RegimenOccasionsView = ({
   );
   return (
     <div>
-      <SectionHeader title="Your skin routine" subtitle={rotationViewMode === 'day' ? 'Day by day, the cadence you shaped.' : 'Product by product, where each one lands.'} />
+      <SectionHeader title="Rotation" subtitle="Your week first, then the active products underneath." />
       {activeProducts.length === 0 ? (
         <EmptyState icon="Calendar" text="Add products with a cadence to see your rotation." action={() => setShowProductModal(true)} actionText="Add Product" />
       ) : (
@@ -220,7 +228,7 @@ const RegimenOccasionsView = ({
               observational, not alarmist. Only renders when at
               least one condition fires — never displays an empty
               panel. */}
-          {(() => {
+          {false && (() => {
             const STRONG = new Set(['retinoid','aha','bha','bpo']);
             const SOFT = new Set(['ceramide','panthenol','centella','niacinamide','humectant']);
             let retinoidNights = 0, exfoliationNights = 0, recoveryDays = 0;
@@ -274,7 +282,7 @@ const RegimenOccasionsView = ({
                       border: `1px solid ${w.tone === 'rose' ? 'rgba(193,87,103,0.25)' : 'rgba(139,154,108,0.3)'}`,
                     }}
                   >
-                    <Icon name={w.icon} size={12} style={{color: w.tone === 'rose' ? 'var(--rose)' : 'var(--sage)', flexShrink:0, marginTop:1}} />
+                    <Icon name={w.icon} size={12} style={{color: w.tone === 'rose' ? 'var(--rose)' : 'var(--accent-blue)', flexShrink:0, marginTop:1}} />
                     <p className="text-[11px] leading-snug" style={{color:'var(--ink)', fontWeight:500}}>{w.text}</p>
                   </div>
                 ))}
@@ -292,7 +300,7 @@ const RegimenOccasionsView = ({
               Card only renders when at least one synergy is
               present. Pure informational — does not influence
               scheduling. */}
-          {(() => {
+          {false && (() => {
             const weeklyFams = new Set();
             for (let d = 0; d < 7; d++) {
               [...weeklyPattern[d].am, ...weeklyPattern[d].pm].forEach(e => {
@@ -304,7 +312,7 @@ const RegimenOccasionsView = ({
             // Boost-tag color hint
             const boostColor = (boost) => {
               if (boost === 'pigment' || boost === 'collagen') return 'var(--accent)';
-              if (boost === 'barrier' || boost === 'hydration') return 'var(--sage)';
+              if (boost === 'barrier' || boost === 'hydration') return 'var(--accent-blue)';
               return 'var(--ink-soft)';
             };
             const boostLabel = (boost) => {
@@ -329,7 +337,7 @@ const RegimenOccasionsView = ({
               humectant:'Hydration', spf:'SPF', bakuchiol:'Bakuchiol', bpo:'BPO',
             };
             return (
-              <div className="mb-3 rounded-[14px] p-4" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+              <div className="mb-3 rounded-[14px] p-4" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
                 <div className="text-[9px] tracking-[0.28em] uppercase mb-2.5" style={{color:'var(--ink-soft)', fontWeight:600}}>
                   Synergies in your week
                 </div>
@@ -358,54 +366,79 @@ const RegimenOccasionsView = ({
             );
           })()}
 
-          <ViewModeToggle />
-          {rotationViewMode === 'product' && (() => {
-            // === BY-PRODUCT VIEW (May 2026) ===
-            // Renders each active product as a single row with its
-            // cadence + slot summarized as M·W·F  AM·PM (or DAILY
-            // when all 7 days). Mirrors the Build status card so
-            // users have one visual language across surfaces.
+          {false && rotationViewMode === 'product' && (() => {
+            // === ACTIVE-FAMILY VIEW (May 2026 simplification) ===
+            // First answer: "what actives am I working this week?"
+            // Group scheduled products by active family, then show
+            // the cadence in one scannable row per family. Basics
+            // stay quiet unless they are the only thing scheduled.
             const dayShortLabels = ['S','M','T','W','T','F','S'];
+            const familyMap = {};
+            for (let d = 0; d < 7; d++) {
+              [...weeklyPattern[d].am, ...weeklyPattern[d].pm].forEach(entry => {
+                const family = entry.family || 'daily';
+                if (!familyMap[family]) familyMap[family] = { family, days: new Set(), am: false, pm: false, products: new Map() };
+                familyMap[family].days.add(d);
+                if (weeklyPattern[d].am.includes(entry)) familyMap[family].am = true;
+                if (weeklyPattern[d].pm.includes(entry)) familyMap[family].pm = true;
+                familyMap[family].products.set(entry.product.id, entry.product);
+              });
+            }
+            const softFamilies = new Set(['ceramide','panthenol','centella','humectant','spf','daily']);
+            const rows = Object.values(familyMap)
+              .filter(row => !softFamilies.has(row.family) || Object.keys(familyMap).length === 1)
+              .sort((a, b) => {
+                const order = FOCUS_PRIORITY.map(x => x.family);
+                const ia = order.indexOf(a.family);
+                const ib = order.indexOf(b.family);
+                return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+              });
+            const basicsCount = Object.values(familyMap).filter(row => softFamilies.has(row.family)).length;
+            const activeDayCount = new Set(rows.flatMap(row => Array.from(row.days))).size;
             return (
-              <div className="mt-3 space-y-1">
-                {activeProducts.map(p => {
-                  let days = null;
-                  if (p.cadence && Array.isArray(p.cadence.days)) days = p.cadence.days;
-                  else if (Array.isArray(p.cadenceDays)) days = p.cadenceDays;
-                  if (!days || days.length === 0) days = [0,1,2,3,4,5,6];
-                  const useTimes = Array.isArray(p.useTimes) ? p.useTimes.map(s => String(s).toUpperCase()) : [];
-                  const inAM = useTimes.includes('AM') || useTimes.length === 0;
-                  const inPM = useTimes.includes('PM') || useTimes.length === 0;
-                  const slotTag = inAM && inPM ? 'AM · PM' : inAM ? 'AM' : inPM ? 'PM' : '—';
-                  const dayTag = days.length === 7 ? 'Daily' : days.length === 0 ? '—' : [...days].sort().map(d => dayShortLabels[d]).join('·');
-                  const fam = detectActiveFamily(p.activeIngredients || p.actives || '');
-                  const famLabel = fam && FAMILY_NICE[fam] ? FAMILY_NICE[fam] : null;
-                  return (
-                    <div
-                      key={p.id}
-                      className="rounded-[10px] px-3 py-2.5 flex items-center gap-3"
-                      style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}
-                    >
-                      <div className="flex-1 min-w-0">
-                        {p.brand && (
-                          <div className="text-[8.5px] tracking-[0.22em] uppercase truncate" style={{color:'var(--ink-soft)', fontWeight:600}}>{p.brand}</div>
-                        )}
-                        <div className="text-[12.5px] leading-tight truncate" style={{color:'var(--ink)', fontWeight:500}}>{p.name}</div>
-                        {famLabel && (
-                          <div className="text-[10px] mt-0.5 truncate" style={{color:'var(--accent)', fontWeight:500, opacity:0.85}}>{famLabel}</div>
-                        )}
+              <div className="mt-3 rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+                <div className="text-[9px] tracking-[0.32em] uppercase mb-1.5" style={{color:'var(--accent)', fontWeight:600}}>This week</div>
+                <h3 className="text-[20px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.018em'}}>
+                  {rows.length > 0 ? `${rows.length} active ${rows.length === 1 ? 'lane' : 'lanes'}` : 'Daily basics only'}
+                </h3>
+                <p className="text-[11.5px] mb-4" style={{color:'var(--ink-soft)'}}>
+                  {rows.length > 0
+                    ? `Scheduled across ${activeDayCount} day${activeDayCount === 1 ? '' : 's'}. Toggle to Regimen for the full AM/PM list.`
+                    : 'No stronger actives are scheduled yet.'}
+                </p>
+                <div className="space-y-2">
+                  {rows.map(row => {
+                    const days = Array.from(row.days).sort((a,b)=>a-b);
+                    const dayTag = days.length === 7 ? 'Daily' : days.map(d => dayShortLabels[d]).join('·');
+                    const slotTag = row.am && row.pm ? 'AM · PM' : row.pm ? 'PM' : 'AM';
+                    const names = Array.from(row.products.values()).map(p => p.name).slice(0, 3).join(', ');
+                    const extra = row.products.size > 3 ? ` +${row.products.size - 3}` : '';
+                    return (
+                      <div key={row.family} className="rounded-[12px] px-3 py-3" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
+                        <div className="flex items-baseline justify-between gap-3">
+                          <div className="text-[13px]" style={{color:'var(--ink)', fontWeight:650}}>
+                            {FAMILY_NICE[row.family] || 'Active'}
+                          </div>
+                          <div className="text-[9.5px] tracking-[0.18em] uppercase flex-shrink-0" style={{color:'var(--accent)', fontWeight:650}}>
+                            {dayTag} {slotTag}
+                          </div>
+                        </div>
+                        <div className="text-[10.5px] mt-1 truncate" style={{color:'var(--ink-soft)'}}>
+                          {names}{extra}
+                        </div>
                       </div>
-                      <div className="flex-shrink-0 text-right">
-                        <div className="text-[10px] tracking-[0.18em] uppercase" style={{color:'var(--accent)', fontWeight:600}}>{dayTag}</div>
-                        <div className="text-[9px] tracking-[0.18em] uppercase mt-0.5" style={{color:'var(--ink-soft)', fontWeight:600}}>{slotTag}</div>
-                      </div>
+                    );
+                  })}
+                  {basicsCount > 0 && rows.length > 0 && (
+                    <div className="text-[10.5px] pt-1" style={{color:'var(--ink-soft)'}}>
+                      Daily basics are tucked into the Regimen view.
                     </div>
-                  );
-                })}
+                  )}
+                </div>
               </div>
             );
           })()}
-          {rotationViewMode === 'day' && (() => {
+          {(() => {
             // === BY DAY VIEW — REBUILD-STYLE SUMMARY (May 2026) ===
             // Single card matching the Build/Rebuild "Your week,
             // set." card visual:
@@ -417,55 +450,193 @@ const RegimenOccasionsView = ({
             // so the toggle persists across re-renders.
             const dayLetters = ['S','M','T','W','T','F','S'];
             const dayLongLabels = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-            // Cadence-list candidates: products with a partial-
-            // week cadence (not 7-day daily — those are basics
-            // and don't earn a row in the schedule table).
-            const scheduled = activeProducts.filter(p => {
-              const days = (p.cadence && Array.isArray(p.cadence.days)) ? p.cadence.days
-                          : Array.isArray(p.cadenceDays) ? p.cadenceDays : null;
-              return Array.isArray(days) && days.length > 0 && days.length < 7;
-            });
+            // Ingredient-family drives the "active" read, not cadence.
+            // A daily retinoid is still a scheduled active; the earlier
+            // partial-week proxy made it read as "basics only."
+            const compactProductName = (p) => {
+              const brand = (p.brand || '').trim();
+              const rawName = (p.name || '').trim();
+              const withoutBrand = brand
+                ? rawName.replace(new RegExp('^' + brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+', 'i'), '').trim()
+                : rawName;
+              const generic = new Set(['the','a','an','fresh','day','night','advanced','treatment','serum','cream','lotion','solution','essence','ampoule','moisturizing','hydrating','repair','facial']);
+              const tokens = withoutBrand.split(/\s+/).filter(Boolean);
+              const meaningful = tokens.filter(t => !generic.has(t.toLowerCase().replace(/[^\w-]/g, '')));
+              const handle = (meaningful.length ? meaningful : tokens).slice(0, 2).join(' ') || withoutBrand || rawName;
+              return brand ? `${brand} ${handle}` : handle;
+            };
+            const productCardLabel = (p) => {
+              const brand = (p.brand || '').trim();
+              const name = (p.name || '').trim();
+              if (brand && name && name.toLowerCase().startsWith(brand.toLowerCase())) {
+                return { brand, name: name.slice(brand.length).trim() || name };
+              }
+              return { brand: brand || (p.category || 'Product'), name: name || brand || 'Product' };
+            };
+            const parseProductAnalysis = (raw = '') => {
+              const sections = {};
+              const labelRe = /^\s*(MECHANISM|EVIDENCE|REVIEWS|CONFLICTS|ALTERNATIVES|ASSESSMENT)\s*:\s*/gmi;
+              let lastLabel = null;
+              let lastIndex = 0;
+              let m;
+              while ((m = labelRe.exec(raw)) !== null) {
+                if (lastLabel !== null) sections[lastLabel] = raw.slice(lastIndex, m.index).trim();
+                lastLabel = m[1].toUpperCase();
+                lastIndex = m.index + m[0].length;
+              }
+              if (lastLabel !== null) sections[lastLabel] = raw.slice(lastIndex).trim();
+              const scrub = (text) => String(text || '')
+                .split(/\n/)
+                .filter(line => {
+                  const t = line.trim();
+                  return !/^\s*[12]\.\s*(CHEAPER|SIMILAR)/i.test(t)
+                    && !/^\s*(CHEAPER|SIMILAR-OR-HIGHER)\s*\|/i.test(t);
+                })
+                .join(' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+              const splitSentences = (text) => scrub(text)
+                .split(/(?<=[.!?])\s+(?=[A-Z\[])/)
+                .map(s => s.trim())
+                .filter(Boolean);
+              return {
+                mechanism: splitSentences(sections.MECHANISM || sections.ASSESSMENT || '').slice(0, 2),
+                evidence: splitSentences(sections.EVIDENCE || '').slice(0, 1),
+              };
+            };
+            const renderProductCard = (entry, kind) => {
+              const p = entry.product;
+              const label = productCardLabel(p);
+              const familyLabel = FAMILY_NICE[entry.family] || p.category || (kind === 'basic' ? 'Basic' : 'Active');
+              const activeText = String(p.activeIngredients || p.actives || p.main || '').trim();
+              const supportingText = String(p.mainIngredients || '').trim();
+              const rowKey = 'rotation-' + rotationSlot + '-' + (p.id || p.name) + '-' + kind;
+              const isExpanded = expandedRotationProductId === rowKey;
+              const analysis = parseProductAnalysis(p.aiAnalysis || '');
+              const hasTags = Array.isArray(p.tags) && p.tags.length > 0;
+              const hasDetail = activeText || supportingText || hasTags || p.frequency || p.startDate || analysis.mechanism.length > 0 || analysis.evidence.length > 0;
+              return (
+                <div key={rowKey} className="rounded-[14px] border overflow-hidden" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedRotationProductId(isExpanded ? null : rowKey)}
+                    className="w-full p-3 text-left transition hover:opacity-90"
+                    style={{cursor:'pointer'}}
+                    aria-expanded={isExpanded}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[9px] tracking-[0.24em] uppercase mb-0.5" style={{color:'var(--ink-soft)', fontWeight:600}}>{label.brand}</div>
+                        <div className="text-[13px] leading-tight" style={{color:'var(--ink)', fontWeight:650}}>{label.name}</div>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="rounded-full border px-2 py-1 text-[8.5px] tracking-[0.14em] uppercase" style={{borderColor: 'var(--line)', color: kind === 'active' ? 'var(--accent)' : 'var(--ink-soft)', background:'var(--cream)'}}>
+                          {familyLabel}
+                        </span>
+                        {hasDetail && <Icon name={isExpanded ? 'ChevronUp' : 'ChevronDown'} size={13} style={{color:'var(--ink-soft)'}} />}
+                      </div>
+                    </div>
+                    {activeText && (
+                      <div className="mt-2 text-[10.5px] leading-snug" style={{color:'var(--ink-soft)'}}>
+                        {activeText.split(',').slice(0, 3).join(' · ')}
+                      </div>
+                    )}
+                  </button>
+                  {isExpanded && hasDetail && (
+                    <div className="px-3 pb-3 pt-3 border-t" style={{background:'rgba(246,251,252,0.78)', borderColor: 'var(--line)'}}>
+                      {label.brand && <div className="text-[9px] tracking-[0.2em] uppercase mb-2" style={{color:'var(--ink-soft)', fontWeight:600}}>{label.brand}</div>}
+                      {(activeText || supportingText) && (
+                        <div className="text-[10.5px] leading-snug mb-2" style={{color:'var(--ink-soft)'}}>
+                          <span className="tracking-[0.2em] uppercase mr-1.5" style={{fontSize:9, color:'var(--ink-soft)', fontWeight:600}}>Also</span>
+                          {[activeText, supportingText].filter(Boolean).join(', ')}
+                        </div>
+                      )}
+                      {hasTags && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {p.tags.slice(0, 8).map((t, tagIdx) => (
+                            <span key={tagIdx} className="text-[9px] tracking-[0.1em] px-1.5 py-0.5 border rounded-full" style={{borderColor: 'var(--line)', color:'var(--ink-soft)', background:'var(--cream)'}}>{t}</span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="text-[10px] font-light mb-2" style={{color:'var(--ink-soft)'}}>
+                        {p.frequency ? p.frequency.replace(/-/g, ' ') : (kind === 'active' ? 'scheduled active' : 'scheduled support')}
+                        {Array.isArray(p.useTimes) && p.useTimes.length > 0 ? ' · ' + p.useTimes.map(t => String(t).toUpperCase()).join(' + ') : ''}
+                        {p.startDate ? ' · started ' + new Date(p.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                      </div>
+                      {(analysis.mechanism.length > 0 || analysis.evidence.length > 0) && (
+                        <div className="pt-2 mt-2 border-t space-y-2" style={{borderColor: 'var(--line)'}}>
+                          {analysis.mechanism.length > 0 && (
+                            <div>
+                              <div className="text-[8px] tracking-[0.2em] uppercase mb-1" style={{color:'var(--ink-soft)', fontWeight:600}}>Mechanism</div>
+                              <ul className="space-y-0.5">
+                                {analysis.mechanism.map((line, idx) => (
+                                  <li key={idx} className="flex gap-1.5 text-[11px] leading-snug font-light" style={{color:'var(--ink)'}}>
+                                    <span style={{color:'var(--accent)'}}>·</span>
+                                    <span className="flex-1" style={{display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden'}}>{line}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {analysis.evidence.length > 0 && (
+                            <div>
+                              <div className="text-[8px] tracking-[0.2em] uppercase mb-1" style={{color:'var(--ink-soft)', fontWeight:600}}>Evidence</div>
+                              <div className="flex gap-1.5 text-[11px] leading-snug font-light" style={{color:'var(--ink)'}}>
+                                <span style={{color:'var(--accent)'}}>·</span>
+                                <span className="flex-1">{analysis.evidence[0]}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            };
+            const softFamiliesForActives = new Set(['ceramide','panthenol','centella','humectant','spf','daily']);
+            const isActiveEntry = (entry) => entry?.family && !softFamiliesForActives.has(entry.family);
+            const familyMap = {};
+            for (let d = 0; d < 7; d++) {
+              [...weeklyPattern[d].am, ...weeklyPattern[d].pm].forEach(entry => {
+                const family = entry.family || 'daily';
+                if (!familyMap[family]) familyMap[family] = { family, days: new Set(), am: false, pm: false, products: new Map() };
+                familyMap[family].days.add(d);
+                if (weeklyPattern[d].am.includes(entry)) familyMap[family].am = true;
+                if (weeklyPattern[d].pm.includes(entry)) familyMap[family].pm = true;
+                familyMap[family].products.set(entry.product.id, entry.product);
+              });
+            }
+            const activeRows = Object.values(familyMap)
+              .filter(row => !softFamiliesForActives.has(row.family) || Object.keys(familyMap).length === 1)
+              .sort((a, b) => {
+                const order = FOCUS_PRIORITY.map(x => x.family);
+                const ia = order.indexOf(a.family);
+                const ib = order.indexOf(b.family);
+                return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+              });
             // dot under each day = strong active scheduled
             const dayHasActive = Array.from({length: 7}, (_, d) => {
-              return [...weeklyPattern[d].am, ...weeklyPattern[d].pm]
-                .some(e => e.family && !['ceramide','panthenol','humectant','centella'].includes(e.family));
+              return [...weeklyPattern[d].am, ...weeklyPattern[d].pm].some(isActiveEntry);
             });
+            const scheduledProductIds = new Set();
+            activeRows.forEach(row => row.products.forEach((_, id) => scheduledProductIds.add(id)));
+            const scheduledActiveCount = scheduledProductIds.size;
             const expanded = weeklyExpandedDay;
             return (
-              <div className="mt-3 rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+              <div className="mt-3 rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
                 <div className="text-[9px] tracking-[0.32em] uppercase mb-1.5" style={{color:'var(--accent)', fontWeight:600}}>Your routine</div>
                 <h3 className="text-[20px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.018em'}}>This week</h3>
                 <p className="text-[11.5px] mb-3" style={{color:'var(--ink-soft)'}}>
-                  {scheduled.length === 0
+                  {scheduledActiveCount === 0
                     ? 'Daily basics only — no scheduled actives.'
-                    : `${scheduled.length} active${scheduled.length === 1 ? '' : 's'} scheduled across the week.`}
+                    : `${scheduledActiveCount} active product${scheduledActiveCount === 1 ? '' : 's'} scheduled across the week.`}
                 </p>
-                {scheduled.length > 0 && (
-                  <div className="space-y-1 mb-3">
-                    {scheduled.slice(0, 6).map(p => {
-                      const days = (p.cadence && Array.isArray(p.cadence.days)) ? p.cadence.days
-                                  : Array.isArray(p.cadenceDays) ? p.cadenceDays : [];
-                      const ut = Array.isArray(p.useTimes) ? p.useTimes.map(s => String(s).toUpperCase()) : [];
-                      const slot = ut.includes('AM') && ut.includes('PM') ? 'AM·PM' : (ut.includes('PM') ? 'PM' : 'AM');
-                      return (
-                        <div key={p.id} className="flex items-baseline justify-between gap-3 text-[11.5px]">
-                          <span className="truncate" style={{color:'var(--ink)', fontWeight:500}}>{p.name}</span>
-                          <span className="text-[9.5px] tracking-[0.18em] uppercase flex-shrink-0" style={{color:'var(--accent)', fontWeight:600}}>
-                            {[...days].sort((a,b)=>a-b).map(d => dayLetters[d]).join('·')} {slot}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    {scheduled.length > 6 && (
-                      <div className="text-[10.5px]" style={{color:'var(--ink-soft)'}}>+{scheduled.length - 6} more</div>
-                    )}
-                  </div>
-                )}
                 {/* Horizontal week strip + inline expand. Theme
                     labels under each day per Jenni (May 2026 UX
                     pass) — uses getDayFocus so the label matches
                     what the inline expand panel shows above. */}
-                <div className="pt-3 border-t" style={{borderColor:'var(--line)'}}>
+                <div>
                   <div className="text-[9px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--ink-soft)', fontWeight:600}}>Week at a glance</div>
                   <div className="grid grid-cols-7 gap-1">
                     {dayLetters.map((letter, d) => {
@@ -519,7 +690,7 @@ const RegimenOccasionsView = ({
                       ? null
                       : getDayExplanation(focus.label, focus.families, expanded);
                     return (
-                      <div className="mt-2 rounded-[12px] px-3 py-2.5" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
+                      <div className="mt-2 rounded-[12px] px-3 py-2.5" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
                         <div className="flex items-baseline justify-between mb-1.5">
                           <div>
                             <span className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>{dayLongLabels[expanded]}{isTodaySelected ? ' · today' : ''}</span>
@@ -532,29 +703,69 @@ const RegimenOccasionsView = ({
                             type="button"
                           >Close</button>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <div className="text-[8.5px] tracking-[0.22em] uppercase mb-1 flex items-center gap-1" style={{color:'var(--ink-soft)', fontWeight:600}}>
-                              <Icon name="Sun" size={9} /> AM
+                        {/* === ACTIVE vs SUPPORT SPLIT (May 2026 per Jenni) ===
+                            The split must be ingredient-family based, not
+                            cadence based. A daily retinoid is still a daily
+                            active; cleanser/SPF/barrier support stay quieter
+                            even when scheduled every day. Signal over noise. */}
+                        {(() => {
+                          const amActives = am.filter(isActiveEntry);
+                          const pmActives = pm.filter(isActiveEntry);
+                          const amBasics = am.filter(e => !isActiveEntry(e));
+                          const pmBasics = pm.filter(e => !isActiveEntry(e));
+                          const selectedActives = rotationSlot === 'am' ? amActives : pmActives;
+                          const selectedBasics = rotationSlot === 'am' ? amBasics : pmBasics;
+                          const selectedItems = [...selectedActives.map(e => ({ ...e, kind: 'active' })), ...selectedBasics.map(e => ({ ...e, kind: 'basic' }))];
+                          return (
+                            <div>
+                              <div className="rounded-full p-1 grid grid-cols-2 gap-1 mb-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+                                {[
+                                  { id: 'am', label: 'AM routine', icon: 'Sun', count: am.length },
+                                  { id: 'pm', label: 'PM routine', icon: 'Moon', count: pm.length },
+                                ].map(slot => {
+                                  const active = rotationSlot === slot.id;
+                                  return (
+                                    <button
+                                      key={slot.id}
+                                      type="button"
+                                      onClick={() => setRotationSlot(slot.id)}
+                                      className="rounded-full px-3 py-2 text-[9px] tracking-[0.18em] uppercase flex items-center justify-center gap-1.5 transition"
+                                      style={{
+                                        background: active ? 'var(--accent-soft)' : 'transparent',
+                                        color: active ? 'var(--accent)' : 'var(--ink-soft)',
+                                        boxShadow: 'none',
+                                        fontWeight: 650,
+                                      }}
+                                    >
+                                      <Icon name={slot.icon} size={11} style={{color: active ? 'var(--accent)' : 'var(--ink-soft)'}} />
+                                      {slot.label}
+                                      <span style={{color:'var(--ink-soft)', fontWeight:500}}>{slot.count}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {selectedItems.length === 0 ? (
+                                <div className="rounded-[14px] border p-4 text-center" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
+                                  <div className="text-[13px] leading-snug" style={{color:'var(--ink)', fontWeight:650}}>No {rotationSlot.toUpperCase()} products planned.</div>
+                                  <div className="text-[11px] leading-snug mt-1" style={{color:'var(--ink-soft)'}}>This slot is bare unless you add a product in Shelf or Refine.</div>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {selectedActives.length === 0 && selectedBasics.length > 0 && (
+                                    <div className="rounded-[14px] border px-3 py-2 text-[11px] leading-snug" style={{background:'var(--cream-deep)', borderColor: 'var(--line)', color:'var(--ink-soft)'}}>
+                                      Basics only in this slot. No stronger active scheduled.
+                                    </div>
+                                  )}
+                                  {selectedItems.map(e => renderProductCard(e, e.kind))}
+                                </div>
+                              )}
                             </div>
-                            {am.length === 0 ? (
-                              <div className="text-[10.5px] italic" style={{color:'var(--ink-soft)', opacity:0.6}}>—</div>
-                            ) : am.map((e, i) => (
-                              <div key={i} className="text-[11px] leading-tight mb-0.5 truncate" style={{color:'var(--ink)', fontWeight:500}}>{e.product.name}</div>
-                            ))}
-                          </div>
-                          <div>
-                            <div className="text-[8.5px] tracking-[0.22em] uppercase mb-1 flex items-center gap-1" style={{color:'var(--ink-soft)', fontWeight:600}}>
-                              <Icon name="Moon" size={9} /> PM
-                            </div>
-                            {pm.length === 0 ? (
-                              <div className="text-[10.5px] italic" style={{color:'var(--ink-soft)', opacity:0.6}}>—</div>
-                            ) : pm.map((e, i) => (
-                              <div key={i} className="text-[11px] leading-tight mb-0.5 truncate" style={{color:'var(--ink)', fontWeight:500}}>{e.product.name}</div>
-                            ))}
-                          </div>
-                        </div>
+                          );
+                        })()}
                         {hasConflict && (() => {
+                          const slotConflicts = rotationSlot === 'am' ? amConflicts : pmConflicts;
+                          if (slotConflicts.length === 0) return null;
                           // === DEDUPE BY FAMILY PAIR (May 2026 bug fix per Jenni) ===
                           // Previously [...amConflicts, ...pmConflicts] rendered one
                           // row per product-pair, so a slot with 3 retinoid-family
@@ -563,18 +774,18 @@ const RegimenOccasionsView = ({
                           // ONE row per unique active collision, listing every
                           // conflicting product on a single line.
                           const grouped = {};
-                          [...amConflicts, ...pmConflicts].forEach(c => {
+                          slotConflicts.forEach(c => {
                             const aFam = c.a.family || c.a.product.id;
                             const bFam = c.b.family || c.b.product.id;
                             const key = [aFam, bFam].sort().join('|');
                             if (!grouped[key]) {
                               grouped[key] = { products: new Set(), note: c.note };
                             }
-                            grouped[key].products.add(c.a.product.name);
-                            grouped[key].products.add(c.b.product.name);
+                            grouped[key].products.add(compactProductName(c.a.product));
+                            grouped[key].products.add(compactProductName(c.b.product));
                           });
                           return (
-                            <div className="mt-2.5 pt-2.5 border-t space-y-1" style={{borderColor:'var(--line)'}}>
+                            <div className="mt-2.5 pt-2.5 border-t space-y-1" style={{borderColor: 'var(--line)'}}>
                               {Object.values(grouped).map((g, i) => (
                                 <p key={i} className="text-[10px] leading-snug" style={{color:'var(--rose)'}}>
                                   <span style={{fontWeight:500}}>{Array.from(g.products).join(' + ')}:</span> {g.note}
@@ -584,7 +795,7 @@ const RegimenOccasionsView = ({
                           );
                         })()}
                         {explanation && (
-                          <div className="mt-2.5 pt-2.5 border-t flex gap-2" style={{borderColor:'var(--line)'}}>
+                          <div className="mt-2.5 pt-2.5 border-t flex gap-2" style={{borderColor: 'var(--line)'}}>
                             <Icon name="Sparkles" size={11} style={{color:'var(--accent)', flexShrink:0, marginTop:1, opacity:0.85}} />
                             <div className="min-w-0">
                               <div className="text-[8.5px] tracking-[0.26em] uppercase mb-0.5" style={{color:'var(--ink-soft)', fontWeight:600}}>Why this routine</div>
@@ -596,6 +807,33 @@ const RegimenOccasionsView = ({
                     );
                   })()}
                 </div>
+                <div className="mt-4 pt-3 border-t" style={{borderColor: 'var(--line)'}}>
+                  <div className="text-[9px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--ink-soft)', fontWeight:600}}>Actives this week</div>
+                  {activeRows.length === 0 ? (
+                    <div className="text-[11px]" style={{color:'var(--ink-soft)'}}>No stronger actives scheduled.</div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {activeRows.map(row => {
+                        const days = Array.from(row.days).sort((a,b)=>a-b);
+                        const dayTag = days.length === 7 ? 'Daily' : days.map(d => dayLetters[d]).join('·');
+                        const slotTag = row.am && row.pm ? 'AM·PM' : row.pm ? 'PM' : 'AM';
+                        const names = Array.from(row.products.values()).map(compactProductName).slice(0, 2).join(', ');
+                        const extra = row.products.size > 2 ? ` +${row.products.size - 2}` : '';
+                        return (
+                          <div key={row.family} className="grid items-start gap-3 text-[11.5px]" style={{gridTemplateColumns:'minmax(0, 1fr) auto'}}>
+                            <div className="min-w-0 leading-snug">
+                              <span style={{color:'var(--ink)', fontWeight:600}}>{FAMILY_NICE[row.family] || 'Active'}</span>
+                              <span className="ml-2" style={{color:'var(--ink-soft)', fontWeight:400}}>{names}{extra}</span>
+                            </div>
+                            <span className="text-[9.5px] tracking-[0.18em] uppercase flex-shrink-0" style={{color:'var(--accent)', fontWeight:600}}>
+                              {dayTag} {slotTag}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })()}
@@ -605,7 +843,7 @@ const RegimenOccasionsView = ({
               category and shows a one-line spacing verdict.
               Days can overlap categories (a Brighten + Recovery
               day counts in both). Verdict is heuristic, not AI. */}
-          {(() => {
+          {false && (() => {
             const STRONG = new Set(['retinoid','aha','bha','bpo']);
             const BRIGHT = new Set(['vitc','azelaic','arbutin','tranexamic','kojic']);
             const SOFT   = new Set(['ceramide','panthenol','centella','niacinamide','humectant']);
@@ -656,7 +894,7 @@ const RegimenOccasionsView = ({
               verdictTone = 'var(--ink-soft)';
             }
             return (
-              <section className="mt-5 rounded-[14px] px-4 py-4" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+              <section className="mt-5 rounded-[14px] px-4 py-4" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
                 <div className="text-[9px] tracking-[0.28em] uppercase mb-2" style={{color:'var(--ink-soft)', fontWeight:600}}>Weekly summary</div>
                 {tallyItems.length > 0 ? (
                   <div className="text-[12.5px] leading-snug" style={{color:'var(--ink)', fontWeight:500}}>
@@ -677,7 +915,7 @@ const RegimenOccasionsView = ({
             );
           })()}
 
-          {/* === ÉTUDE NOTICED — insight-driven refine prompt (May 2026 per Jenni) ===
+          {/* === FRIDA NOTICED — insight-driven refine prompt (May 2026 per Jenni) ===
               Single observation pulled from recent check-ins + current
               routine. Fires only when a real pattern is detected —
               silent restraint when the week reads steady. Tap opens
@@ -688,7 +926,7 @@ const RegimenOccasionsView = ({
               priority: barrier first, then irritation, then
               hydration, then concern-specific (glow / brighten).
               First match wins — one observation, not five. */}
-          {(() => {
+          {false && (() => {
             const recentLogs = (logs || [])
               .filter(l => l && l.metricSnapshot)
               .sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -762,16 +1000,16 @@ const RegimenOccasionsView = ({
               <section
                 className="mt-5 rounded-[16px] px-5 py-5"
                 style={{
-                  background: 'linear-gradient(135deg, rgba(184, 201, 165, 0.14) 0%, rgba(184, 201, 165, 0.04) 100%)',
-                  border: '1px solid rgba(88, 117, 79, 0.25)',
+                  background: 'linear-gradient(135deg, rgba(199, 231, 245, 0.24) 0%, rgba(255, 246, 201, 0.18) 100%)',
+                  border: '1px solid rgba(134, 202, 231, 0.34)',
                 }}
               >
                 <div className="flex items-start gap-3">
-                  <span className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center mt-0.5" style={{background:'rgba(88, 117, 79, 0.18)'}}>
-                    <Icon name="Sparkles" size={13} style={{color:'var(--sage)'}} />
+                  <span className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center mt-0.5" style={{background:'rgba(255, 246, 201, 0.58)'}}>
+                    <Icon name="Sparkles" size={13} style={{color:'var(--accent-gold)'}} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[9px] tracking-[0.32em] uppercase mb-1.5" style={{color:'var(--sage)', fontWeight:600}}>Étude noticed</div>
+                    <div className="text-[9px] tracking-[0.32em] uppercase mb-1.5" style={{color:'var(--accent-gold)', fontWeight:600}}>Frida noticed</div>
                     <p className="text-[12.5px] leading-snug" style={{color:'var(--ink)', fontWeight:500}}>{insight.observation}</p>
                     <button
                       type="button"
@@ -780,7 +1018,7 @@ const RegimenOccasionsView = ({
                         if (typeof setRefineSheetOpen === 'function') setRefineSheetOpen(true);
                       }}
                       className="mt-3 inline-flex items-center gap-1.5 text-[10px] tracking-[0.18em] uppercase px-3 py-1.5 rounded-full transition hover:opacity-90"
-                      style={{background:'var(--sage)', color:'var(--cream)', fontWeight:600, cursor:'pointer'}}
+                      style={{background:'var(--accent-blue)', color:'var(--ink)', fontWeight:600, cursor:'pointer'}}
                     >
                       <span>Refine for this</span>
                       <Icon name="ArrowRight" size={10} />
@@ -797,7 +1035,7 @@ const RegimenOccasionsView = ({
               selections (state isn't cleared), so they can adjust
               one piece without re-doing everything. Shown in both
               view modes — it's a global action, not view-specific. */}
-          <section className="mt-5 rounded-[14px] px-4 py-4 flex items-center justify-between gap-3" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
+          <section className="mt-5 rounded-[14px] px-4 py-4 flex items-center justify-between gap-3" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
             <div className="min-w-0 flex-1">
               <div className="text-[12.5px]" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.012em'}}>Want to change your week?</div>
               <div className="text-[11px] mt-0.5" style={{color:'var(--ink-soft)'}}>Refine from the wizard — your inputs are saved.</div>

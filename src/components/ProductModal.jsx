@@ -65,7 +65,8 @@ const ProductModal = ({
   setExpandedShelfProductId,
   setUseTodayPrompt,
   setPromoteToRoutinePrompt,
-}) => {
+  addMenuReturnContext,
+  onReturnToAddMenu}) => {
   const editingProduct = editingProductId ? products.find(p => p.id === editingProductId) : null;
   const isEditing = !!editingProduct;
   // === HOISTED FORM STATE ===
@@ -92,8 +93,7 @@ const ProductModal = ({
     notes: editingProduct.notes || '',
     photo: editingProduct.photo || null,
     photoPath: editingProduct.photoPath || null,
-    status: editingProduct.status || 'active',
-  } : {
+    status: editingProduct.status || 'active'} : {
     name: '', brand: '', category: 'serum', startDate: '',
     endDate: '', activeIngredients: '', mainIngredients: '', tags: [], concerns: [],
     // useTimes starts EMPTY so the user must explicitly tap Morning or
@@ -148,6 +148,13 @@ const ProductModal = ({
   // file-input with capture="environment" still triggers iOS Safari's
   // native camera; on desktop we open CameraCaptureModal in product mode.
   const [scanShowCamera, setScanShowCamera] = useState(false);
+  // T3 (May 31 2026): "Just added" chip strip. After a successful single-add
+  // we land back on the entry-mode picker — without this chip the user has
+  // no acknowledgement of what they just saved (no row, no name, no edit
+  // affordance). Clearing happens when the user chooses a new entry mode
+  // or explicitly taps the chip to edit. Stores {id, brand, name} so the
+  // chip can render and route into edit mode without an extra products lookup.
+  const [lastAddedProduct, setLastAddedProduct] = useState(null);
   const isTouchDevice = typeof window !== 'undefined' && (('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
   const openProductScanCamera = () => {
     setScanError('');
@@ -179,7 +186,7 @@ const ProductModal = ({
 
 Return EXACTLY this format using your knowledge of this real-world skincare product.
 
-CRITICAL — CONCENTRATION HONESTY (May 2026 — Étude rule):
+CRITICAL — CONCENTRATION HONESTY (May 2026 — Frida rule):
 • If the brand LABELS or PUBLISHES the concentration, return the number as-is: "Niacinamide 10%"
 • If the concentration is INDUSTRY-STANDARD or WIDELY-CITED but not on the label, prefix with a tilde + add "(est.)": "Niacinamide ~10% (est.)"
 • If you don't know the concentration with reasonable confidence, return the ingredient WITHOUT a number: "Niacinamide"
@@ -210,8 +217,7 @@ CONCERNS: [comma-separated concerns this product targets, ONLY from this list: h
       activeIngredients: grab('ACTIVES'),
       mainIngredients: grab('MAIN_INGREDIENTS'),
       tags: parseList(grab('TAGS')),
-      concerns: parseList(grab('CONCERNS'), VALID_CONCERNS),
-    };
+      concerns: parseList(grab('CONCERNS'), VALID_CONCERNS)};
   };
 
   // Debounced name lookup. Hits Claude with the partial name and asks for 5 likely matches.
@@ -248,7 +254,7 @@ FIRST, classify what the user typed:
 
 Prioritize well-known brands (CeraVe, La Roche-Posay, The Ordinary, Drunk Elephant, SkinCeuticals, Paula's Choice, Anua, Beauty of Joseon, COSRX, Glow Recipe, Sunday Riley, AESTURA, REJURAN, SK-II, Dr. Jart, Innisfree, Laneige, Tower 28, Versed, Youth To The People, etc.).
 
-CRITICAL — CONCENTRATION HONESTY (May 2026 — Étude rule):
+CRITICAL — CONCENTRATION HONESTY (May 2026 — Frida rule):
 • If the brand LABELS or PUBLISHES the concentration, return the number as-is: "Niacinamide 10%"
 • If it's INDUSTRY-STANDARD or WIDELY-CITED but not on the label, prefix with a tilde + "(est.)": "Vitamin C ~15% (est.), Vitamin E ~1% (est.), Ferulic Acid ~0.5% (est.)"
 • If you don't know the concentration with reasonable confidence, return the ingredient WITHOUT a number: "Snail Secretion Filtrate"
@@ -437,8 +443,7 @@ CONCERNS: [comma-separated concerns this product targets, ONLY from this list: h
         activeIngredients: prev.activeIngredients || newActives,
         mainIngredients: prev.mainIngredients || newMain,
         tags: (prev.tags && prev.tags.length) ? prev.tags : newTags,
-        concerns: (prev.concerns && prev.concerns.length) ? prev.concerns : newConcerns,
-      }));
+        concerns: (prev.concerns && prev.concerns.length) ? prev.concerns : newConcerns}));
       if (newActives || newMain) setNeedsLabelHelp(false);
       // Per Jenni: silent on Gemini work — the form fields auto-fill,
       // which is visible feedback. No toast needed for success.
@@ -501,7 +506,7 @@ Each entry must have these exact keys:
 
 Up to 10 products. If you genuinely cannot identify any product, return [].`;
     // === PROVIDER FALLBACK CHAIN ===
-    // 1. Gemini proxy (no user key needed — Étude pays via Supabase function).
+    // 1. Gemini proxy (no user key needed — Frida pays via Supabase function).
     // 2. Claude with user's Anthropic key (only if they brought one).
     // 3. Return [] gracefully so the batch loop continues; caller decides
     //    how to surface the dead end (manual entry route).
@@ -539,8 +544,7 @@ Up to 10 products. If you genuinely cannot identify any product, return [].`;
         checked: true,
         amSel: false,
         pmSel: false,
-        savingState: 'idle',
-      };
+        savingState: 'idle'};
     }).filter(p => p.name || p.brand);
   };
 
@@ -654,8 +658,7 @@ Example response (just this, nothing else):
           // neither set keeps the product on the shelf only.
           amSel: false,
           pmSel: false,
-          savingState: 'idle',
-        };
+          savingState: 'idle'};
       }).filter(p => p.name || p.brand);
 
       setDetectedProducts(safe);
@@ -721,7 +724,7 @@ Example response (just this, nothing else):
       if (!appendScanPhotosToBatch(list)) return;
     } catch (err) {
       console.error('[scan] camera capture append failed', err);
-      setScanError('Photo captured, but Étude could not prepare it. Try again or use Library.');
+      setScanError('Photo captured, but Frida could not prepare it. Try again or use Library.');
     }
   };
 
@@ -738,7 +741,7 @@ Example response (just this, nothing else):
     // === GEMINI-FIRST (May 2026 v2 — Codex flagged) ===
     // Was: pre-flight NO_KEY gate that blocked the whole batch when
     // no Anthropic key was set. Removed — Gemini works for everyone
-    // via the shared Étude proxy. If both Gemini AND Claude fail for
+    // via the shared Frida proxy. If both Gemini AND Claude fail for
     // every photo, the loop ends with combined=[] and the generic
     // "couldn't read" error fires, which now offers manual routes.
     setDetectedProducts([]);
@@ -812,8 +815,7 @@ Example response (just this, nothing else):
         photoPath: null,
         status: 'active',
         aiAnalysis: null,
-        analyzing: getApiKey() ? true : false,
-      });
+        analyzing: getApiKey() ? true : false});
     });
     const updated = [...newProducts, ...products];
     setProducts(updated);
@@ -848,8 +850,7 @@ Example response (just this, nothing else):
               mainIngredients: filled.mainIngredients,
               tags: filled.tags.length ? filled.tags : pp.tags,
               concerns: filled.concerns.length ? filled.concerns : pp.concerns,
-              analyzing: false,
-            } : pp);
+              analyzing: false} : pp);
             saveData('products', next);
             return next;
           });
@@ -885,6 +886,14 @@ Example response (just this, nothing else):
     bumpSearchReset();
     try {
       const filled = await deepFillProduct({ name: s.name, brand: s.brand, category: s.category });
+      // === SMART SCHEDULE ON AUTOFILL (June 2026 per Jenni) ===
+      // After deep-fill resolves the category + actives, auto-apply the
+      // suggested cadence so masks don't default to daily, retinol drops to
+      // 3×/week, etc. User can still override via the Schedule chips.
+      const sug = suggestedCadence(
+        filled.category || s.category,
+        filled.activeIngredients || s.actives || ''
+      );
       setForm(prev => ({
         ...prev,
         name: filled.name || prev.name,
@@ -893,7 +902,9 @@ Example response (just this, nothing else):
         activeIngredients: filled.activeIngredients || prev.activeIngredients,
         mainIngredients: filled.mainIngredients || prev.mainIngredients,
         tags: filled.tags.length ? filled.tags : (prev.tags || []),
-        concerns: filled.concerns.length ? filled.concerns : (prev.concerns || [])
+        concerns: filled.concerns.length ? filled.concerns : (prev.concerns || []),
+        useDays: sug.days,
+        useTimes: sug.times,
       }));
       // If the deep call couldn't recover real ingredients, prompt for a label photo
       if (!filled.activeIngredients && !filled.mainIngredients) {
@@ -918,6 +929,8 @@ Example response (just this, nothing else):
       if (!filled.name && !filled.brand && !filled.activeIngredients) {
         setUrlFetchError("Couldn't identify this product from the URL. Try the name instead.");
       } else {
+        // June 2026: auto-apply smart schedule on URL autofill too.
+        const sug = suggestedCadence(filled.category, filled.activeIngredients);
         setForm(prev => ({
           ...prev,
           name: filled.name,
@@ -927,7 +940,8 @@ Example response (just this, nothing else):
           mainIngredients: filled.mainIngredients,
           tags: filled.tags.length ? filled.tags : (prev.tags || []),
           concerns: filled.concerns.length ? filled.concerns : (prev.concerns || []),
-        }));
+          useDays: sug.days,
+          useTimes: sug.times}));
         if (!filled.activeIngredients && !filled.mainIngredients) setNeedsLabelHelp(true);
         toast(`Found ${filled.name || filled.brand} ✨`);
       }
@@ -1078,8 +1092,7 @@ Example response (just this, nothing else):
               amExtras: [],
               pmExtras: [],
               notes: '',
-              submitted: false,
-            },
+              submitted: false},
             ...(regimenLogs || []),
           ];
         }
@@ -1099,18 +1112,22 @@ Example response (just this, nothing else):
         toast(`Added to ${ctxSlot.toUpperCase()} routine ✨`, 'success');
         // === PROMOTE-TO-ROUTINE BANNER (May 2026 per Jenni) ===
         // Today-only adds default to one-off. Surface a quiet banner that
-        // offers to make it a standing weekly routine entry, since the
-        // product currently has no cadence and will vanish from tomorrow's
-        // planned view. Past-day adds don't get this prompt — those are
-        // historical retroactive logs and shouldn't bleed into the future.
-        // Banner shape uses productIds/productNames arrays so a single
-        // banner mechanism covers both single-save and bulk brand-add.
-        if (typeof setPromoteToRoutinePrompt === 'function') {
+        // offers to make it a standing weekly routine entry.
+        // June 2026 refinement: when the user explicitly chose the
+        // "Today only" schedule chip (useDays + useTimes both empty),
+        // skip the banner — they already declared intent. Banner only
+        // fires when the user picked Suggested / Pick days / Daily,
+        // meaning they DO want a weekly schedule and we're nudging them
+        // to refine it. Past-day adds don't get the prompt either —
+        // those are historical retroactive logs, not forward routine.
+        const userPickedTodayOnly =
+          (Array.isArray(tempProduct.useDays) && tempProduct.useDays.length === 0) &&
+          (Array.isArray(tempProduct.useTimes) && tempProduct.useTimes.length === 0);
+        if (!userPickedTodayOnly && typeof setPromoteToRoutinePrompt === 'function') {
           setPromoteToRoutinePrompt({
             productIds: [id],
             productNames: [tempProduct.name || 'New product'],
-            slot: ctxSlot,
-          });
+            slot: ctxSlot});
         }
       } else {
         const dLabel = new Date(ctxDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -1122,6 +1139,13 @@ Example response (just this, nothing else):
       // User typically adds several products at once, so reset and show the
       // entry-mode picker again. Closes via X.
       resetHoistedProductState();
+      // T3 (May 31 2026): stash a "Just added" chip for the next render so
+      // the entry-mode picker shows what was just saved + a quick edit link.
+      setLastAddedProduct({
+        id,
+        brand: tempProduct.brand || '',
+        name: tempProduct.name || 'New product',
+      });
       // Pill flash — see productSaveFlash state declaration above. Auto-clear
       // after 1.4s so the next add starts with a fresh SAVE TO SHELF label.
       setProductSaveFlash(true);
@@ -1138,9 +1162,7 @@ Example response (just this, nothing else):
         product: {
           id: tempProduct.id,
           name: tempProduct.name || 'New product',
-          category: tempProduct.category,
-        },
-      });
+          category: tempProduct.category}});
     }
 
     // Background photo upload to Storage (cloud users only). Same pattern as SkinLogModal.
@@ -1195,16 +1217,19 @@ DETECTED_MAIN_INGREDIENTS: [3-6 key supporting ingredients beyond actives — hu
 DETECTED_TAGS: [4-7 short benefit-and-category tags lowercase-hyphenated. Use canonical short tags so the same actives across products produce the same tags. Examples: "brightening, vitamin-c, antioxidant, anti-aging, evens-tone, hydrating, niacinamide, retinoid, exfoliating, soothing, ceramides, peptides, sunscreen, mineral-spf"]
 DETECTED_CONCERNS: [comma-separated concerns this product targets, ONLY from this list: hyperpigmentation, redness, enlarged-pores, dark-circles, wrinkles, sun-damage, dryness, dullness, oiliness, sensitivity, texture, blemishes, fine-lines]
 
-CRITICAL OUTPUT RULES — read carefully:
+CRITICAL OUTPUT RULES — read carefully and enforce strictly:
 • Use "MECHANISM:" "EVIDENCE:" "ALTERNATIVES:" as line-start labels — exactly these three sections, nothing else.
+• HARD WORD CAP: MECHANISM ≤ 30 words. EVIDENCE ≤ 30 words. Count your words. If you exceed, rewrite shorter — do not output more than 30 words per section under any circumstance. Brevity matters more than completeness; the user can ask for detail later.
+• ONE SENTENCE MAX per section. No multi-paragraph essays. No bullet points inside MECHANISM or EVIDENCE.
 • Do NOT mention alternatives, cheaper options, or other product names in MECHANISM or EVIDENCE — those two sections are about THIS product only.
+• Do NOT use markdown bold (**text**), italics, or section sub-headers. Plain prose only inside each section.
 • Do not add headings, dashes, or extra commentary outside the format.
 
 Format response EXACTLY as:
 
-MECHANISM: [≤30 words. Pathway-level: what the actives DO biochemically (e.g. "tyrosinase inhibition", "MMP suppression"). Cite evidence quality in plain language ("well-studied for…", "limited data, mechanism-based…").]
+MECHANISM: [ONE sentence, max 30 words. Pathway-level: what the actives DO biochemically (e.g. "tyrosinase inhibition", "MMP suppression"). Cite evidence quality in plain language ("well-studied for…", "mechanism-based, limited clinical…"). Reject any output longer than 30 words.]
 
-EVIDENCE: [≤30 words. Best clinical trial for this active at this %: design + effect size. Honest if evidence is thin or in-vitro only.]
+EVIDENCE: [ONE sentence, max 30 words. Best clinical trial for this active at this %: design + effect size. Honest if evidence is thin or in-vitro only. Reject any output longer than 30 words.]
 
 ALTERNATIVES:
 1. CHEAPER | [Brand + product name] | ~$[USD] | [matching active(s)] | [≤12 words why it's a defensible swap]
@@ -1336,6 +1361,22 @@ ALTERNATIVES:
         : "Add a product to your shelf"
     }>
       <span ref={scrollSentinelRef} aria-hidden="true" style={{display:'none'}} />
+      {/* === BACK TO ADD MENU LINK (June 2026 per Jenni) ===
+          Shows only when the user opened ProductModal from the
+          "Used something else?" sheet. Tap returns them to the root
+          add menu (instead of just one screen back). Universal pattern —
+          appears wherever they entered the add flow from. */}
+      {addMenuReturnContext && typeof onReturnToAddMenu === 'function' && (
+        <button
+          type="button"
+          onClick={onReturnToAddMenu}
+          className="mb-3 inline-flex items-center gap-1.5 text-[10.5px] tracking-[0.18em] uppercase transition hover:opacity-70"
+          style={{color:'var(--ink-soft)', fontWeight:600, background:'transparent', border:'none', padding:0, cursor:'pointer'}}
+        >
+          <Icon name="ArrowLeft" size={11} />
+          <span>Back to add menu</span>
+        </button>
+      )}
       {/* === DEDUPE WARNING BANNER ===
           Surfaces when the user tries to save a product whose name+brand
           already matches something on the shelf. Three actions: open the
@@ -1365,7 +1406,7 @@ ALTERNATIVES:
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] tracking-[0.22em] uppercase mb-1" style={{color:'var(--accent)', fontWeight:600}}>{eyebrowText}</div>
-                <div className="font-serif italic text-[14px] leading-tight" style={{color:'var(--ink)'}}>
+                <div className="font-sans text-[14px] leading-tight" style={{color:'var(--ink)'}}>
                   {existing.brand ? `${existing.brand} · ` : ''}{existing.name}
                 </div>
                 <p className="text-[11px] mt-1 leading-snug" style={{color:'var(--ink-soft)'}}>
@@ -1384,7 +1425,7 @@ ALTERNATIVES:
                       setExpandedShelfProductId(existing.id);
                       toast(`Opened ${existing.name}`, 'info');
                     }}
-                    className="text-[10px] tracking-[0.18em] uppercase italic px-3 py-1.5 rounded-full transition hover:opacity-90"
+                    className="text-[10px] tracking-[0.18em] uppercase px-3 py-1.5 rounded-full transition hover:opacity-90"
                     style={{background:'var(--accent)', color:'var(--cream)', cursor:'pointer'}}
                   >
                     View existing
@@ -1396,15 +1437,15 @@ ALTERNATIVES:
                       setProductDupeWarning(null);
                       handleSubmit();
                     }}
-                    className="text-[10px] tracking-[0.18em] uppercase italic px-3 py-1.5 rounded-full transition hover:opacity-70"
-                    style={{background:'transparent', color:'var(--ink)', border:'1px solid var(--line)', cursor:'pointer'}}
+                    className="text-[10px] tracking-[0.18em] uppercase px-3 py-1.5 rounded-full transition hover:opacity-70"
+                    style={{background:'transparent', color:'var(--ink)', border: '1px solid var(--line)', cursor:'pointer'}}
                   >
                     Save anyway
                   </button>
                   <button
                     type="button"
                     onClick={() => setProductDupeWarning(null)}
-                    className="text-[10px] tracking-[0.18em] uppercase italic px-3 py-1.5 transition hover:opacity-70"
+                    className="text-[10px] tracking-[0.18em] uppercase px-3 py-1.5 transition hover:opacity-70"
                     style={{color:'var(--ink-soft)', cursor:'pointer'}}
                   >
                     Cancel
@@ -1421,40 +1462,70 @@ ALTERNATIVES:
            line icons + names. */}
       {entryMode === 'choose' && !isEditing && (
         <div className="space-y-2.5">
+          {/* T3 (May 31 2026): Just-added chip strip.
+              Surfaces after a successful single-add so the user sees the
+              brand/name of what they just saved and can jump straight back
+              into edit. Powder-blue surface-info chip matches the rest of
+              the system's "you did a thing" affordance. */}
+          {lastAddedProduct && (
+            <div className="flex justify-center">
+              <div className="rounded-full bg-[var(--surface-info)] px-3 py-1.5 text-[11px] inline-flex items-center gap-2" style={{ color: 'var(--ink)' }}>
+                <Icon name="Check" size={11} style={{ color: 'var(--ink-soft)' }} />
+                <span>
+                  Just added: <span style={{ fontWeight: 600 }}>{lastAddedProduct.brand ? `${lastAddedProduct.brand} · ${lastAddedProduct.name}` : lastAddedProduct.name}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const saved = lastAddedProduct;
+                    setLastAddedProduct(null);
+                    if (saved?.id) {
+                      setEditingProductId(saved.id);
+                      setProductForm(null);
+                    }
+                  }}
+                  className="text-[10px] tracking-[0.15em] uppercase transition hover:opacity-80"
+                  style={{ color: 'var(--accent)', fontWeight: 600, cursor: 'pointer', borderBottom: '1px dotted var(--accent)' }}
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+          )}
           {inRegimenAddContext && (
             <p className="text-[10.5px] tracking-[0.05em] text-center -mt-1" style={{color:'var(--ink-soft)'}}>
               Also added to your shelf.
             </p>
           )}
-          <p className="text-[11px] italic font-light leading-snug text-center" style={{color:'var(--ink-soft)'}}>
+          <p className="text-[11px] font-light leading-snug text-center" style={{color:'var(--ink-soft)'}}>
             Search by barcode, brand, or name.
           </p>
-          <button onClick={() => { setEntryMode('scan'); }} className="w-full p-3.5 rounded-[14px] border transition flex items-center gap-3 hover:bg-[var(--cream-deep)] cursor-pointer" style={{borderColor:'var(--line)', background:'var(--cream)', cursor:'pointer'}}>
+          <button onClick={() => { setEntryMode('scan'); }} className="w-full p-3.5 rounded-[14px] border transition flex items-center gap-3 hover:bg-[var(--cream-deep)] cursor-pointer" style={{borderColor: 'var(--line)', background:'var(--cream)', cursor:'pointer'}}>
             <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{background:'var(--cream-deep)', color:'var(--ink)'}}>
               <Icon name="ScanLine" size={16} />
             </div>
             <div className="text-left flex-1 min-w-0">
-              <div className="font-serif italic text-[15px] leading-tight" style={{color:'var(--ink)'}}>Scan product</div>
+              <div className="font-sans text-[15px] leading-tight" style={{color:'var(--ink)'}}>Scan product</div>
               <div className="text-[10px] tracking-[0.05em] mt-0.5 truncate" style={{color:'var(--ink-soft)'}}>Position the bottle within the frame</div>
             </div>
             <Icon name="ChevronRight" size={14} style={{color:'var(--ink-soft)'}} />
           </button>
-          <button onClick={() => setEntryMode('manual')} className="w-full p-3.5 rounded-[14px] border transition flex items-center gap-3 hover:bg-[var(--cream-deep)] cursor-pointer" style={{borderColor:'var(--line)', background:'var(--cream)', cursor:'pointer'}}>
+          <button onClick={() => setEntryMode('manual')} className="w-full p-3.5 rounded-[14px] border transition flex items-center gap-3 hover:bg-[var(--cream-deep)] cursor-pointer" style={{borderColor: 'var(--line)', background:'var(--cream)', cursor:'pointer'}}>
             <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{background:'var(--cream-deep)', color:'var(--ink)'}}>
               <Icon name="Search" size={16} />
             </div>
             <div className="text-left flex-1 min-w-0">
-              <div className="font-serif italic text-[15px] leading-tight" style={{color:'var(--ink)'}}>Search product</div>
+              <div className="font-sans text-[15px] leading-tight" style={{color:'var(--ink)'}}>Search product</div>
               <div className="text-[10px] tracking-[0.05em] mt-0.5 truncate" style={{color:'var(--ink-soft)'}}>By name or paste a link</div>
             </div>
             <Icon name="ChevronRight" size={14} style={{color:'var(--ink-soft)'}} />
           </button>
-          <button onClick={() => { setProductBrandSelected(null); setProductBrandSearch(''); setProductBrandCatFilter('all'); setEntryMode('brand'); }} className="w-full p-3.5 rounded-[14px] border transition flex items-center gap-3 hover:bg-[var(--cream-deep)] cursor-pointer" style={{borderColor:'var(--accent)', background:'var(--cream)', cursor:'pointer'}}>
+          <button onClick={() => { setProductBrandSelected(null); setProductBrandSearch(''); setProductBrandCatFilter('all'); setEntryMode('brand'); }} className="w-full p-3.5 rounded-[14px] border transition flex items-center gap-3 hover:bg-[var(--cream-deep)] cursor-pointer" style={{borderColor: 'var(--line)', background:'var(--cream)', cursor:'pointer'}}>
             <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{background:'var(--accent)', color:'var(--cream)'}}>
               <Icon name="Tag" size={16} />
             </div>
             <div className="text-left flex-1 min-w-0">
-              <div className="font-serif italic text-[15px] leading-tight" style={{color:'var(--ink)'}}>Search by brand</div>
+              <div className="font-sans text-[15px] leading-tight" style={{color:'var(--ink)'}}>Search by brand</div>
               <div className="text-[10px] tracking-[0.05em] mt-0.5 truncate" style={{color:'var(--ink-soft)'}}>Browse and discover by brand</div>
             </div>
             <Icon name="ChevronRight" size={14} style={{color:'var(--accent)'}} />
@@ -1557,8 +1628,7 @@ ALTERNATIVES:
             notes: '',
             photo: null,
             photoPath: null,
-            status: 'active',
-          });
+            status: 'active'});
           // Drop straight into manual stage so user can review + save.
           setEntryMode('manual');
           toast(`${p.name} pre-filled — review and save`, 'info');
@@ -1603,8 +1673,7 @@ ALTERNATIVES:
             photo: null,
             photoPath: null,
             status: 'active',
-            aiAnalysis: null,
-          }));
+            aiAnalysis: null}));
           const updated = [...newProducts, ...products];
           setProducts(updated);
           saveData('products', updated);
@@ -1648,8 +1717,7 @@ ALTERNATIVES:
                     amExtras: [],
                     pmExtras: [],
                     notes: '',
-                    submitted: false,
-                  },
+                    submitted: false},
                   ...(regimenLogs || []),
                 ];
               }
@@ -1666,8 +1734,7 @@ ALTERNATIVES:
                 setPromoteToRoutinePrompt({
                   productIds: newIds,
                   productNames: newProducts.map(p => p.name),
-                  slot: ctxSlot,
-                });
+                  slot: ctxSlot});
               }
             } else {
               const dLabel = new Date(ctxDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -1695,19 +1762,19 @@ ALTERNATIVES:
               <button
                 onClick={() => setProductBrandSelected(null)}
                 className="rounded-full px-3 py-1.5 text-[10px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-90 border cursor-pointer"
-                style={{borderColor:'var(--line)', color:'var(--ink)', background:'var(--cream-deep)', cursor:'pointer'}}
+                style={{borderColor: 'var(--line)', color:'var(--ink)', background:'var(--cream-deep)', cursor:'pointer'}}
               >
                 <Icon name="ArrowLeft" size={11} /> Brands
               </button>
               <span className="text-[9px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{brandProducts.length} products</span>
             </div>
             {/* Brand header — initials + name + count */}
-            <div className="flex items-center gap-3 pb-2 border-b" style={{borderColor:'var(--line)'}}>
-              <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-serif italic text-[11px]" style={{background:'var(--cream-deep)', color:'var(--ink-soft)', border:'1px solid var(--line)'}}>
+            <div className="flex items-center gap-3 pb-2 border-b" style={{borderColor: 'var(--line)'}}>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-sans text-[11px]" style={{background:'var(--cream-deep)', color:'var(--ink-soft)', border: '1px solid var(--line)'}}>
                 {initials}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-serif italic text-[15px] leading-tight" style={{color:'var(--ink)'}}>{productBrandSelected}</div>
+                <div className="font-sans text-[15px] leading-tight" style={{color:'var(--ink)'}}>{productBrandSelected}</div>
               </div>
             </div>
             {/* Category filter chips */}
@@ -1725,8 +1792,7 @@ ALTERNATIVES:
                           background: active ? 'var(--ink)' : 'transparent',
                           color: active ? 'var(--cream)' : 'var(--ink-soft)',
                           borderColor: active ? 'var(--ink)' : 'var(--line)',
-                          cursor: 'pointer',
-                        }}
+                          cursor: 'pointer'}}
                       >{c === 'all' ? 'All' : c.replace(/-/g, ' ')}</button>
                     );
                   })}
@@ -1748,7 +1814,7 @@ ALTERNATIVES:
                     key={i}
                     onClick={() => toggleCheck(p)}
                     className="w-full flex items-start gap-2.5 py-2.5 px-1 border-b transition hover:bg-[var(--cream-deep)] cursor-pointer text-left"
-                    style={{borderColor:'var(--line)', cursor:'pointer', background: checked ? 'var(--cream)' : 'transparent'}}
+                    style={{borderColor: 'var(--line)', cursor:'pointer', background: checked ? 'var(--cream)' : 'transparent'}}
                     aria-pressed={checked}
                   >
                     {/* Checkbox circle — fills on select */}
@@ -1756,28 +1822,27 @@ ALTERNATIVES:
                       className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-1 transition"
                       style={{
                         background: checked ? 'var(--accent)' : 'transparent',
-                        border: '1.5px solid ' + (checked ? 'var(--accent)' : 'var(--line)'),
-                      }}
+                        border: '1.5px solid ' + (checked ? 'var(--accent)' : 'var(--line)')}}
                     >
                       {checked && <Icon name="Check" size={11} style={{color:'var(--cream)'}} />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-serif italic text-[13px] leading-tight" style={{color:'var(--ink)'}}>{p.brand || p.name}</div>
+                      <div className="font-sans text-[13px] leading-tight" style={{color:'var(--ink)'}}>{p.brand || p.name}</div>
                       {p.brand && p.name && p.brand !== p.name && (
                         <div className="text-[10.5px] mt-0.5 truncate" style={{color:'var(--ink-soft)'}}>{p.name}</div>
                       )}
                       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span className="text-[9px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)'}}>{p.category}</span>
-                        {benefits && <span className="text-[9.5px] italic" style={{color:'var(--ink-soft)'}}>· {benefits}</span>}
+                        {benefits && <span className="text-[9.5px]" style={{color:'var(--ink-soft)'}}>· {benefits}</span>}
                       </div>
                       {p.actives && <div className="text-[10px] mt-0.5 truncate" style={{color:'var(--ink)'}}>{p.actives}</div>}
                     </div>
-                    <span className="flex-shrink-0 text-[8.5px] tracking-[0.18em] uppercase rounded-full px-2 py-0.5 mt-0.5" style={{background: useTag === 'AM' ? 'var(--accent-soft)' : 'var(--cream-deep)', color: useTag === 'AM' ? 'var(--accent)' : 'var(--ink-soft)', border:'1px solid var(--line)'}}>{useTag}</span>
+                    <span className="flex-shrink-0 text-[8.5px] tracking-[0.18em] uppercase rounded-full px-2 py-0.5 mt-0.5" style={{background: useTag === 'AM' ? 'var(--accent-soft)' : 'var(--cream-deep)', color: useTag === 'AM' ? 'var(--accent)' : 'var(--ink-soft)', border: '1px solid var(--line)'}}>{useTag}</span>
                   </button>
                 );
               })}
               {filteredByCat.length === 0 && (
-                <p className="text-[11px] italic py-3 text-center" style={{color:'var(--ink-soft)'}}>No {productBrandCatFilter} products in this brand.</p>
+                <p className="text-[11px] py-3 text-center" style={{color:'var(--ink-soft)'}}>No {productBrandCatFilter} products in this brand.</p>
               )}
             </div>
 
@@ -1828,7 +1893,7 @@ ALTERNATIVES:
             type="button"
             onClick={() => { setEntryMode('choose'); setScanPhoto(null); setDetectedProducts([]); setScanError(''); setProductScanBatch([]); setProductScanBatchProgress(null); }}
             className="rounded-full px-3 py-1.5 text-[10px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-90 border cursor-pointer"
-            style={{borderColor:'var(--line)', color:'var(--ink)', background:'var(--cream-deep)', cursor:'pointer'}}
+            style={{borderColor: 'var(--line)', color:'var(--ink)', background:'var(--cream-deep)', cursor:'pointer'}}
           >
             <Icon name="ArrowLeft" size={11} /> Back
           </button>
@@ -1836,7 +1901,7 @@ ALTERNATIVES:
           {/* Photo slot — empty state. Once user has photos in the batch,
               this hides and the batch thumbnail strip takes over. */}
           {(productScanBatch || []).length === 0 && (
-            <div className="border-2 border-dashed rounded-md p-6 text-center" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
+            <div className="border-2 border-dashed rounded-md p-6 text-center" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
               <Icon name="Camera" size={28} className="mx-auto mb-2" style={{color:'var(--ink-soft)'}} />
               {/* Copy aligned with actual behavior (May 2026): the
                   capture is sequential — tap Take photo, snap a product,
@@ -1846,7 +1911,7 @@ ALTERNATIVES:
                   suggested a single layout shot — misled users into
                   laying products out instead of using the more reliable
                   one-product-per-photo flow. */}
-              <p className="text-xs italic mb-3" style={{color:'var(--ink-soft)'}}>Take one photo per product. We'll read the labels together. <br/><span style={{color:'var(--accent)'}}>Library lets you pick multiple at once.</span></p>
+              <p className="text-xs mb-3" style={{color:'var(--ink-soft)'}}>Take one photo per product. We'll read the labels together. <br/><span style={{color:'var(--accent)'}}>Library lets you pick multiple at once.</span></p>
               <div className="flex gap-2 justify-center">
                 {/* Product scan uses native capture on phones and the in-app
                     camera on desktop. Library remains the explicit file path. */}
@@ -1862,7 +1927,7 @@ ALTERNATIVES:
                   type="button"
                   onClick={() => scanGalleryRef.current?.click()}
                   className="px-4 py-2 rounded-full tracking-[0.15em] text-[10px] uppercase border transition flex items-center gap-1.5 cursor-pointer"
-                  style={{borderColor:'var(--line)', color:'var(--ink)', cursor:'pointer'}}
+                  style={{borderColor: 'var(--line)', color:'var(--ink)', cursor:'pointer'}}
                 >
                   <Icon name="Image" size={11} /> Library
                 </button>
@@ -1896,19 +1961,19 @@ ALTERNATIVES:
                     <button
                       type="button"
                       onClick={() => { setProductScanBatch([]); setScanPhoto(null); setScanError(''); }}
-                      className="text-[9px] normal-case tracking-normal italic underline cursor-pointer"
+                      className="text-[9px] normal-case tracking-normal underline cursor-pointer"
                       style={{color:'var(--ink-soft)', cursor:'pointer'}}
                     >Clear all</button>
                   )}
                 </div>
                 {!scanning && (
-                  <p className="text-[10.5px] italic mt-1" style={{color:'var(--ink-soft)'}}>Add more, or analyze when you're done.</p>
+                  <p className="text-[10.5px] mt-1" style={{color:'var(--ink-soft)'}}>Add more, or analyze when you're done.</p>
                 )}
               </div>
               <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                 {(productScanBatch || []).map((photo, i) => (
                   <div key={i} className="relative flex-shrink-0">
-                    <img src={photo} alt={`Photo ${i + 1}`} className="w-20 h-24 object-cover rounded-md" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}} />
+                    <img src={photo} alt={`Photo ${i + 1}`} className="w-20 h-24 object-cover rounded-md" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}} />
                     {!scanning && (
                       <button
                         type="button"
@@ -1922,7 +1987,7 @@ ALTERNATIVES:
                           });
                         }}
                         className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center transition hover:opacity-90 cursor-pointer"
-                        style={{background:'var(--cream)', border:'1px solid var(--line)', color:'var(--ink-soft)', boxShadow:'0 1px 3px rgba(28,25,23,0.10)', cursor:'pointer'}}
+                        style={{background:'var(--cream)', border: '1px solid var(--line)', color:'var(--ink-soft)', boxShadow:'0 1px 3px rgba(28,25,23,0.10)', cursor:'pointer'}}
                         aria-label={`Remove photo ${i + 1}`}
                       >
                         <Icon name="X" size={9} />
@@ -1942,7 +2007,7 @@ ALTERNATIVES:
                     type="button"
                     onClick={openProductScanCamera}
                     className="flex-shrink-0 px-3 py-2 rounded-full text-[10px] tracking-[0.15em] uppercase border transition hover:bg-[var(--cream-deep)] cursor-pointer flex items-center gap-1.5"
-                    style={{borderColor:'var(--line)', color:'var(--ink)', background:'var(--cream)', cursor:'pointer'}}
+                    style={{borderColor: 'var(--line)', color:'var(--ink)', background:'var(--cream)', cursor:'pointer'}}
                   >
                     <Icon name="Plus" size={11} /> Take another
                   </button>
@@ -1950,7 +2015,7 @@ ALTERNATIVES:
                     type="button"
                     onClick={() => scanGalleryRef.current?.click()}
                     className="flex-shrink-0 px-3 py-2 rounded-full text-[10px] tracking-[0.15em] uppercase border transition hover:bg-[var(--cream-deep)] cursor-pointer flex items-center gap-1.5"
-                    style={{borderColor:'var(--line)', color:'var(--ink)', background:'var(--cream)', cursor:'pointer'}}
+                    style={{borderColor: 'var(--line)', color:'var(--ink)', background:'var(--cream)', cursor:'pointer'}}
                   >
                     <Icon name="Image" size={11} /> From library
                   </button>
@@ -1982,7 +2047,7 @@ ALTERNATIVES:
           )}
 
           {scanError && scanError !== 'NO_RESULTS' && (
-            <div className="text-[11px] italic flex items-start gap-2 p-2 rounded-sm" style={{background:'#fef0ef', color:'#a04555'}}>
+            <div className="text-[11px] flex items-start gap-2 p-2 rounded-sm" style={{background:'#fef0ef', color:'#a04555'}}>
               <Icon name="AlertCircle" size={11} className="flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <div>{scanError}</div>
@@ -1997,12 +2062,12 @@ ALTERNATIVES:
           {/* === NO_RESULTS ERROR (May 2026 v2) ===
               Fires when Gemini AND Claude (if available) failed for
               every photo in the batch. Most often image-quality —
-              blur, glare, or distance from the label. Sage tone
+              blur, glare, or distance from the label. Blue tone
               (setup-gap UX, not a hard error). Inline routes to the
               two manual entry paths so the user has a clear exit. */}
           {scanError === 'NO_RESULTS' && (
-            <div className="text-[12px] flex items-start gap-2 p-3 rounded-md" style={{background:'rgba(138, 155, 126, 0.10)', border:'1px solid rgba(138, 155, 126, 0.32)', color:'var(--ink)'}}>
-              <Icon name="Info" size={13} className="flex-shrink-0 mt-0.5" style={{color:'var(--sage)'}} />
+            <div className="text-[12px] flex items-start gap-2 p-3 rounded-md" style={{background:'rgba(199, 231, 245, 0.42)', border:'1px solid rgba(134, 202, 231, 0.46)', color:'var(--ink)'}}>
+              <Icon name="Info" size={13} className="flex-shrink-0 mt-0.5" style={{color:'var(--accent-blue)'}} />
               <div className="flex-1">
                 <div style={{fontWeight:600, marginBottom:2}}>Couldn’t read any labels.</div>
                 <div className="leading-snug" style={{color:'var(--ink-soft)', fontSize:11}}>
@@ -2019,13 +2084,13 @@ ALTERNATIVES:
                     type="button"
                     onClick={() => { setScanError(''); setEntryMode('manual'); }}
                     className="text-[10px] tracking-[0.15em] uppercase px-3 py-1.5 rounded-full transition cursor-pointer border"
-                    style={{borderColor:'var(--line)', color:'var(--ink)', background:'var(--cream)', cursor:'pointer'}}
+                    style={{borderColor: 'var(--line)', color:'var(--ink)', background:'var(--cream)', cursor:'pointer'}}
                   >Search by name</button>
                   <button
                     type="button"
                     onClick={() => { setScanError(''); setEntryMode('brand'); }}
                     className="text-[10px] tracking-[0.15em] uppercase px-3 py-1.5 rounded-full transition cursor-pointer border"
-                    style={{borderColor:'var(--line)', color:'var(--ink)', background:'var(--cream)', cursor:'pointer'}}
+                    style={{borderColor: 'var(--line)', color:'var(--ink)', background:'var(--cream)', cursor:'pointer'}}
                   >Search by brand</button>
                 </div>
               </div>
@@ -2041,11 +2106,11 @@ ALTERNATIVES:
                 <div className="text-[9px] tracking-[0.25em] uppercase mb-1 flex items-center gap-1.5" style={{color:'var(--accent)'}}>
                   <Icon name="Sparkles" size={10} /> Review detected products
                 </div>
-                <p className="text-[10.5px] italic leading-snug" style={{color:'var(--ink-soft)'}}>Confirm what we found before saving to your shelf.</p>
+                <p className="text-[10.5px] leading-snug" style={{color:'var(--ink-soft)'}}>Confirm what we found before saving to your shelf.</p>
               </div>
 
               <div className="flex items-center justify-between gap-2 mb-2.5">
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
                   <Icon name="Check" size={10} style={{color:'var(--accent)'}} />
                   <span className="text-[10px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)'}}>
                     {detectedProducts.filter(p => p.checked).length} selected
@@ -2070,7 +2135,7 @@ ALTERNATIVES:
                     const allChecked = detectedProducts.every(p => p.checked);
                     setDetectedProducts(prev => prev.map(x => ({ ...x, checked: !allChecked })));
                   }}
-                  className="text-[9px] normal-case tracking-normal italic underline cursor-pointer"
+                  className="text-[9px] normal-case tracking-normal underline cursor-pointer"
                   style={{color:'var(--ink-soft)', cursor:'pointer'}}
                 >
                   {detectedProducts.every(p => p.checked) ? 'Deselect all' : 'Select all'}
@@ -2104,8 +2169,8 @@ ALTERNATIVES:
                             value={p.name || ''}
                             onChange={(v) => updateDetected({ name: v })}
                             placeholder="Product name"
-                            className="w-full font-serif text-[13px] leading-tight bg-transparent border-0 border-b focus:outline-none px-0 py-0.5"
-                            style={{color:'var(--ink)', borderColor:'var(--line)', fontWeight:600}}
+                            className="w-full font-sans text-[13px] leading-tight bg-transparent border-0 border-b focus:outline-none px-0 py-0.5"
+                            style={{color:'var(--ink)', borderColor: 'var(--line)', fontWeight:600}}
                           />
                           <StableInput
                             resetKey={`scan-brand-${i}-${p.brand || ''}`}
@@ -2113,7 +2178,7 @@ ALTERNATIVES:
                             onChange={(v) => updateDetected({ brand: v })}
                             placeholder="Brand"
                             className="w-full text-[10.5px] tracking-[0.05em] bg-transparent border-0 border-b focus:outline-none px-0 py-0.5"
-                            style={{color:'var(--ink-soft)', borderColor:'var(--line)'}}
+                            style={{color:'var(--ink-soft)', borderColor: 'var(--line)'}}
                           />
 
                           <div className="grid grid-cols-2 gap-1.5">
@@ -2121,7 +2186,7 @@ ALTERNATIVES:
                               value={validCats.includes(p.category) ? p.category : 'other'}
                               onChange={(e) => updateDetected({ category: e.target.value })}
                               className="w-full px-2 py-1.5 text-[10.5px] rounded-md border bg-transparent focus:outline-none"
-                              style={{borderColor:'var(--line)', color:'var(--ink)'}}
+                              style={{borderColor: 'var(--line)', color:'var(--ink)'}}
                             >
                               {validCats.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                             </select>
@@ -2144,8 +2209,8 @@ ALTERNATIVES:
 
                           {(p.actives || p.confidence) && (
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              {p.actives && <span className="text-[9px] italic truncate max-w-full" style={{color:'var(--ink-soft)'}}>{p.actives}</span>}
-                              {p.confidence && <span className="text-[8.5px] tracking-[0.12em] uppercase px-1.5 py-0.5 rounded-full" style={{border:'1px solid var(--line)', color:p.confidence === 'low' ? 'var(--rose)' : 'var(--ink-soft)'}}>{p.confidence}</span>}
+                              {p.actives && <span className="text-[9px] truncate max-w-full" style={{color:'var(--ink-soft)'}}>{p.actives}</span>}
+                              {p.confidence && <span className="text-[8.5px] tracking-[0.12em] uppercase px-1.5 py-0.5 rounded-full" style={{border: '1px solid var(--line)', color:p.confidence === 'low' ? 'var(--rose)' : 'var(--ink-soft)'}}>{p.confidence}</span>}
                             </div>
                           )}
                         </div>
@@ -2154,7 +2219,7 @@ ALTERNATIVES:
                   );
                 })}
               </div>
-              <p className="text-[10px] italic mt-2 leading-snug text-center" style={{color:'var(--ink-soft)'}}>
+              <p className="text-[10px] mt-2 leading-snug text-center" style={{color:'var(--ink-soft)'}}>
                 AM / PM is optional. Leave both off to save to shelf only.
               </p>
             </div>
@@ -2165,7 +2230,7 @@ ALTERNATIVES:
             <div className="flex justify-center pt-1">
               <button
                 onClick={() => { setScanPhoto(null); setDetectedProducts([]); setScanError(''); setProductScanBatch([]); setProductScanBatchProgress(null); }}
-                className="text-[10px] tracking-[0.18em] uppercase italic flex items-center gap-1 transition hover:opacity-70 cursor-pointer"
+                className="text-[10px] tracking-[0.18em] uppercase flex items-center gap-1 transition hover:opacity-70 cursor-pointer"
                 style={{color:'var(--ink-soft)', cursor:'pointer'}}
               >
                 <Icon name="Camera" size={10} /> Retake photo
@@ -2185,14 +2250,14 @@ ALTERNATIVES:
           <button
             onClick={() => { setEntryMode('choose'); }}
             className="rounded-full px-3 py-1.5 text-[10px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-90 border cursor-pointer"
-            style={{borderColor:'var(--line)', color:'var(--ink)', background:'var(--cream-deep)', cursor:'pointer', marginTop: '-12px', marginBottom: '4px'}}
+            style={{borderColor: 'var(--line)', color:'var(--ink)', background:'var(--cream-deep)', cursor:'pointer', marginTop: '-12px', marginBottom: '4px'}}
           >
             <Icon name="ArrowLeft" size={11} /> Back
           </button>
         )}
         {/* === AI AUTOFILL REASSURANCE — persistent, every manual add === */}
         {!isEditing && (
-          <div className="flex items-start gap-1.5 text-[10px] italic leading-snug" style={{color:'var(--accent)'}}>
+          <div className="flex items-start gap-1.5 text-[10px] leading-snug" style={{color:'var(--accent)'}}>
             <Icon name="Sparkles" size={10} className="flex-shrink-0 mt-0.5" />
             <span>Type the name or paste a link — AI fills brand, ingredients, actives, and targeted concerns.</span>
           </div>
@@ -2219,28 +2284,29 @@ ALTERNATIVES:
                 initial={searchInput}
                 resetKey={searchInputResetKey}
                 placeholder="Type a brand, product, or paste a link…"
-                className={inputCls + ' w-full !py-1.5 !text-[11px]' + (nameSearching ? ' pr-7' : '')}
+                className={'w-full px-4 py-2 rounded-full border text-[12px] font-light focus:outline-none transition' + (nameSearching ? ' pr-8' : '')}
+                style={{borderColor:'var(--line)', background:'var(--cream-deep)', color:'var(--ink)'}}
                 debounceMs={140}
                 onCommit={(v) => { setSearchInput(v); setUrlFetchError(''); setSearchError(''); }}
                 onSubmit={(v, reset) => { setSearchInput(v); setTimeout(() => runNameSearch(), 0); }}
               />
               {/* Inline searching indicator — sits in the input, doesn't reflow layout. */}
               {nameSearching && (
-                <Icon name="Loader2" size={11} className="spin absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{color:'var(--accent)'}} />
+                <Icon name="Loader2" size={11} className="spin absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{color:'var(--accent)'}} />
               )}
             </div>
             <button
               type="button"
               onClick={runNameSearch}
               disabled={!searchInput.trim() || nameSearching || urlFetching}
-              className="px-3 tracking-[0.15em] text-[9px] uppercase whitespace-nowrap transition flex items-center gap-1 disabled:opacity-40"
-              style={{background:'var(--accent)', color:'var(--cream)'}}
+              className="px-3.5 py-2 rounded-full tracking-[0.18em] text-[9px] uppercase whitespace-nowrap transition flex items-center gap-1 disabled:opacity-40"
+              style={{background:'var(--accent)', color:'var(--cream)', fontWeight:700}}
             >
               {urlFetching ? <><Icon name="Loader2" size={10} className="spin" /></> : <><Icon name="Sparkles" size={10} /> Search</>}
             </button>
           </div>
           {(urlFetchError || searchError) && (
-            <div className="text-[10px] italic mt-1" style={{color:'var(--rose)'}}>{urlFetchError || searchError}</div>
+            <div className="text-[10px] mt-1" style={{color:'var(--rose)'}}>{urlFetchError || searchError}</div>
           )}
           {/* === FLOATING SUGGESTIONS DROPDOWN ===
               Absolute-positioned so it overlays the form below rather than
@@ -2248,7 +2314,7 @@ ALTERNATIVES:
           {hasSearched && !isUrl(searchInput) && nameSuggestions.length > 0 && (
             <div
               className="absolute left-0 right-0 top-full mt-1 border max-h-44 overflow-y-auto shadow-lg z-20"
-              style={{background:'var(--cream)', borderColor:'var(--line)', boxShadow:'0 8px 24px rgba(58,51,40,0.12)'}}
+              style={{background:'var(--cream)', borderColor: 'var(--line)', boxShadow:'0 8px 24px rgba(58,51,40,0.12)'}}
             >
               {(() => {
                 // === SIMPLE LIST ===
@@ -2285,7 +2351,7 @@ ALTERNATIVES:
                         style={{borderTop: i === 0 ? 'none' : '1px solid var(--line)'}}
                       >
                         <div className="text-[9px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)'}}>{s.brand} · {s.category}</div>
-                        <div className="font-serif italic text-sm leading-tight mt-0.5 truncate" style={{color:'var(--ink)'}}>{s.name}</div>
+                        <div className="font-sans text-sm leading-tight mt-0.5 truncate" style={{color:'var(--ink)'}}>{s.name}</div>
                         {s.actives && <div className="text-[10px] mt-0.5 leading-snug truncate" style={{color:'var(--ink)'}}>{s.actives}</div>}
                       </button>
                     ))}
@@ -2295,7 +2361,7 @@ ALTERNATIVES:
             </div>
           )}
           {deepFilling && (
-            <div className="text-[10px] italic flex items-center gap-1 pulse-soft mt-1" style={{color:'var(--accent)'}}>
+            <div className="text-[10px] flex items-center gap-1 pulse-soft mt-1" style={{color:'var(--accent)'}}>
               <Icon name="Sparkles" size={10} /> Filling actives, ingredients, concerns…
             </div>
           )}
@@ -2303,13 +2369,14 @@ ALTERNATIVES:
         )}
 
         {/* === EDITABLE HEADER CARD ===
-            Compacted May 2026 (per Jenni): the previous tile took ~half the
-            modal viewport and crowded out the form fields below. Reduced
-            padding, smaller bottle icon, tighter type, and the chip row only
-            shows the category (tags moved out — they were redundant with the
-            actives field below). Italic on the product-name input also
-            dropped per the global no-italics rule. */}
-        <div className="rounded-[12px] px-2.5 py-2 flex items-center gap-2" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+            New products: hidden — the search input above does the same
+            job (and the AI suggestion dropdown auto-fills name/brand on
+            pick). Edit mode: shown — this is the canonical "what
+            product is this" header for an existing item. (May 31 2026
+            per Jenni — remove the redundant ghost preview on the
+            Search Product modal.) */}
+        {isEditing && (
+        <div className="rounded-[12px] px-2.5 py-2 flex items-center gap-2" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
           <div className="flex-shrink-0 w-7 h-9 flex items-end justify-center" style={{color:'var(--ink-soft)'}}>
             <DashedBottleOutline />
           </div>
@@ -2319,7 +2386,7 @@ ALTERNATIVES:
               value={form.name}
               onChange={(v) => setForm({...form, name: v})}
               placeholder="Product name"
-              className="w-full font-serif text-[14px] leading-tight bg-transparent border-0 focus:outline-none px-0 py-0"
+              className="w-full font-sans text-[14px] leading-tight bg-transparent border-0 focus:outline-none px-0 py-0"
               style={{color:'var(--ink)', fontWeight:600}}
             />
             <StableInput
@@ -2332,11 +2399,12 @@ ALTERNATIVES:
             />
           </div>
           {form.category && (
-            <span className="flex-shrink-0 text-[8.5px] tracking-[0.08em] uppercase px-2 py-0.5 rounded-full" style={{border:'1px solid var(--line)', color:'var(--ink-soft)', background:'var(--cream)'}}>
+            <span className="flex-shrink-0 text-[8.5px] tracking-[0.08em] uppercase px-2 py-0.5 rounded-full" style={{border: '1px solid var(--line)', color:'var(--ink-soft)', background:'var(--cream)'}}>
               {form.category}
             </span>
           )}
         </div>
+        )}
 
         {/* === TIME OF DAY ===
             Compact AM/PM pill toggle. Same data flow as before — writes
@@ -2364,8 +2432,7 @@ ALTERNATIVES:
                     borderColor: active ? 'var(--accent)' : 'var(--line)',
                     background: active ? 'var(--accent)' : 'var(--cream)',
                     color: active ? 'var(--cream)' : 'var(--ink-soft)',
-                    cursor: 'pointer',
-                  }}
+                    cursor: 'pointer'}}
                 >
                   <Icon name={slot.icon} size={10} /> {slot.label}
                 </button>
@@ -2414,7 +2481,7 @@ ALTERNATIVES:
               onChange={(v) => setForm({...form, activeIngredients: v})}
               placeholder={aiBusy ? '…' : 'Niacinamide 10%'}
               className={inputCls + ' !py-1.5 !text-[11px]'}
-              style={form.activeIngredients ? {borderColor:'var(--accent)'} : {}}
+              style={form.activeIngredients ? {borderColor: 'var(--line)'} : {}}
             />
           </div>
           <div>
@@ -2459,8 +2526,7 @@ ALTERNATIVES:
                         borderColor: active ? 'var(--accent)' : 'var(--line)',
                         background: active ? 'var(--accent)' : 'var(--cream)',
                         color: active ? 'var(--cream)' : 'var(--ink-soft)',
-                        cursor: 'pointer',
-                      }}
+                        cursor: 'pointer'}}
                     >
                       {c.replace(/-/g, ' ')}
                     </button>
@@ -2474,21 +2540,37 @@ ALTERNATIVES:
           </div>
         </div>
 
-        {/* === CADENCE ===
-            Two chips above the day-of-week row:
-              Suggested ✦ — applies the heuristic-based pattern based on
-                            category + actives. Active state = current
-                            useDays/useTimes match the heuristic.
-              Daily — fills all 7 days + AM+PM. Active state = all 7 days.
-            Days S M T W T F S below. Tap any day to override the suggestion. */}
+        {/* === SCHEDULE (June 2026 per Jenni — three-chip redesign) ===
+            THREE chips, mutually exclusive intent:
+              Today only — useDays=[] useTimes=[]. Product saves to shelf
+                           but doesn't enter the weekly routine. Skips the
+                           promoteToRoutinePrompt banner after save.
+              Suggested ✦ — heuristic pattern based on category + actives.
+                            For masks this is 1-2×/week, not daily.
+              Pick days — user manually toggles weekday pills below.
+            Day-picker row shows only for Suggested + Pick days. Hidden
+            for Today only since there's nothing to pick. */}
         <div className="space-y-1.5">
-          <div className="text-[9px] uppercase tracking-[0.22em]" style={{color:'var(--ink-soft)'}}>Cadence</div>
+          <div className="text-[9px] uppercase tracking-[0.22em]" style={{color:'var(--ink-soft)'}}>Save to</div>
           <div className="flex items-center gap-1.5 flex-wrap">
             {(() => {
               const sugActive = cadenceMatchesSuggested(form.useDays, form.useTimes, form.category, form.activeIngredients);
+              const todayOnlyActive = (form.useDays || []).length === 0 && (form.useTimes || []).length === 0;
               const allDaysSelected = ((form.useDays || []).length === 7) && (form.useTimes || []).length === 2;
+              const customActive = !sugActive && !todayOnlyActive && !allDaysSelected;
               return (
                 <>
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, useDays: [], useTimes: [] }))}
+                    className="text-[10px] tracking-[0.15em] uppercase px-3 py-1.5 rounded-full transition cursor-pointer border"
+                    style={{
+                      borderColor: todayOnlyActive ? 'var(--accent)' : 'var(--line)',
+                      background: todayOnlyActive ? 'var(--accent)' : 'var(--cream)',
+                      color: todayOnlyActive ? 'var(--cream)' : 'var(--ink-soft)',
+                      cursor: 'pointer'}}
+                    title="Save to shelf but don't add to weekly routine"
+                  >Today only</button>
                   <button
                     type="button"
                     onClick={() => {
@@ -2500,55 +2582,68 @@ ALTERNATIVES:
                       borderColor: sugActive ? 'var(--accent)' : 'var(--line)',
                       background: sugActive ? 'var(--accent)' : 'var(--cream)',
                       color: sugActive ? 'var(--cream)' : 'var(--ink-soft)',
-                      cursor: 'pointer',
-                    }}
-                    title="Apply Étude's suggested pattern based on this product's actives"
+                      cursor: 'pointer'}}
+                    title="Apply Frida's suggested pattern based on this product's category + actives"
                   >
                     Suggested <Icon name="Sparkles" size={9} />
                   </button>
                   <button
                     type="button"
-                    onClick={() => setForm(prev => ({ ...prev, useDays: [0,1,2,3,4,5,6], useTimes: ['am','pm'] }))}
+                    onClick={() => {
+                      // Default Pick-days to current weekday + AM if nothing set,
+                      // so the picker has a starting state to nudge.
+                      if ((form.useDays || []).length === 0) {
+                        const today = new Date().getDay();
+                        setForm(prev => ({ ...prev, useDays: [today], useTimes: ['am'] }));
+                      } else if (!customActive) {
+                        // Switching from Daily/Suggested → leave the days, let user adjust.
+                      }
+                    }}
                     className="text-[10px] tracking-[0.15em] uppercase px-3 py-1.5 rounded-full transition cursor-pointer border"
                     style={{
-                      borderColor: allDaysSelected ? 'var(--accent)' : 'var(--line)',
-                      background: allDaysSelected ? 'var(--accent)' : 'var(--cream)',
-                      color: allDaysSelected ? 'var(--cream)' : 'var(--ink-soft)',
-                      cursor: 'pointer',
-                    }}
-                    title="Use every day, AM and PM"
-                  >Daily</button>
+                      borderColor: customActive ? 'var(--accent)' : 'var(--line)',
+                      background: customActive ? 'var(--accent)' : 'var(--cream)',
+                      color: customActive ? 'var(--cream)' : 'var(--ink-soft)',
+                      cursor: 'pointer'}}
+                    title="Choose specific days yourself"
+                  >Pick days</button>
                 </>
               );
             })()}
           </div>
-          {/* Day-of-week pills — tap any day to override */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {['S','M','T','W','T','F','S'].map((label, idx) => {
-              const active = (form.useDays || []).includes(idx);
-              return (
-                <button key={idx} type="button" onClick={() => setForm(prev => {
-                  const d = new Set(prev.useDays || []);
-                  if (d.has(idx)) d.delete(idx); else d.add(idx);
-                  return { ...prev, useDays: Array.from(d).sort() };
-                })} className="w-8 h-8 text-[11px] font-medium rounded-full transition flex items-center justify-center cursor-pointer" style={{
-                  borderWidth: '1px', borderStyle: 'solid',
-                  borderColor: active ? 'var(--accent)' : 'var(--line)',
-                  background: active ? 'var(--accent)' : 'var(--cream)',
-                  color: active ? 'var(--cream)' : 'var(--ink-soft)',
-                  cursor: 'pointer',
-                }} title={['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][idx]}>{label}</button>
-              );
-            })}
-          </div>
-          <p className="text-[10px] italic" style={{color:'var(--ink-soft)'}}>Tap days to customize.</p>
+          {/* Day-of-week pills — hidden when Today only is selected. */}
+          {((form.useDays || []).length > 0 || (form.useTimes || []).length > 0) && (
+            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+              {['S','M','T','W','T','F','S'].map((label, idx) => {
+                const active = (form.useDays || []).includes(idx);
+                return (
+                  <button key={idx} type="button" onClick={() => setForm(prev => {
+                    const d = new Set(prev.useDays || []);
+                    if (d.has(idx)) d.delete(idx); else d.add(idx);
+                    return { ...prev, useDays: Array.from(d).sort() };
+                  })} className="w-8 h-8 text-[11px] font-medium rounded-full transition flex items-center justify-center cursor-pointer" style={{
+                    borderWidth: '1px', borderStyle: 'solid',
+                    borderColor: active ? 'var(--accent)' : 'var(--line)',
+                    background: active ? 'var(--accent)' : 'var(--cream)',
+                    color: active ? 'var(--cream)' : 'var(--ink-soft)',
+                    cursor: 'pointer'}} title={['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][idx]}>{label}</button>
+                );
+              })}
+            </div>
+          )}
+          {/* Today-only hint copy — replaces day picker so user knows what'll happen on save. */}
+          {(form.useDays || []).length === 0 && (form.useTimes || []).length === 0 && (
+            <p className="text-[10px] pt-1" style={{color:'var(--ink-soft)'}}>
+              Saves to your shelf. Won't auto-schedule. You can refine your routine after.
+            </p>
+          )}
         </div>
         {/* Hidden file input — kept so the "AI label scan" path elsewhere
             still works. The visible Take Photo button + photo thumbnail
             were removed in favor of the bottle-outline header card. */}
         <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
         {needsLabelHelp && !form.photo && (
-          <div className="text-[10px] italic flex items-center gap-1.5 px-2 py-1 rounded-sm" style={{background:'var(--accent-soft)', color:'var(--ink)'}}>
+          <div className="text-[10px] flex items-center gap-1.5 px-2 py-1 rounded-sm" style={{background:'var(--accent-soft)', color:'var(--ink)'}}>
             <Icon name="AlertCircle" size={10} style={{color:'var(--accent)'}} />
             <span>Can't pull ingredients — <button onClick={() => fileRef.current?.click()} className="underline font-medium" style={{color:'var(--accent)'}}>upload bottle photo</button>.</span>
           </div>
@@ -2556,58 +2651,47 @@ ALTERNATIVES:
         {/* (Big Morning/Evening section removed — TIME OF DAY pills near
             the header card now handle the same useTimes data.) */}
 
-        {/* === STARTED / STOPPED ===
-         * Default: no startDate (we assume the user has been using this product for a while).
-         * Two affordances always shown side-by-side:
-         *   1. "Today" pill — one-tap stamp of today's date
-         *   2. Date input — pick any prior date directly
-         * Once a date is stamped, a Clear link lets the user revert to "always been using."
-         */}
-        <div className="space-y-1.5">
-          <div className="text-[10px] uppercase tracking-[0.25em]" style={{color:'var(--ink-soft)'}}>Started</div>
-          <div className={isEditing ? 'grid grid-cols-2 gap-2' : ''}>
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* "Today" pill — terracotta when set to today, outline otherwise. */}
+        {/* === STARTED / STOPPED (one-line layout — May 31 2026 per Jenni) ===
+         * Default: no startDate (we assume the user has been using this for a while).
+         * Single inline row: label + Today pill + date input + optional Clear.
+         * Hint demoted to placeholder rather than its own paragraph. */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="text-[9px] uppercase tracking-[0.22em] flex-shrink-0" style={{color:'var(--ink-soft)'}}>Started</div>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, startDate: localDateISO() })}
+              className="px-3 py-1.5 rounded-full tracking-[0.18em] text-[10px] uppercase border transition flex-shrink-0"
+              style={{
+                borderColor: form.startDate === localDateISO() ? 'var(--accent)' : 'var(--line)',
+                background: form.startDate === localDateISO() ? 'var(--accent)' : 'transparent',
+                color: form.startDate === localDateISO() ? 'var(--cream)' : 'var(--accent)'}}
+            >Today</button>
+            <input
+              type="date"
+              value={form.startDate || ''}
+              max={localDateISO()}
+              onChange={e => setForm({...form, startDate: e.target.value || null})}
+              className={inputCls + ' !text-xs flex-1 min-w-[112px] !py-1.5'}
+            />
+            {form.startDate && (
               <button
                 type="button"
-                onClick={() => setForm({ ...form, startDate: localDateISO() })}
-                className="px-3 py-1.5 rounded-full tracking-[0.2em] text-[10px] uppercase border transition flex-shrink-0"
-                style={{
-                  borderColor: 'var(--accent)',
-                  background: form.startDate === localDateISO() ? 'var(--accent)' : 'transparent',
-                  color: form.startDate === localDateISO() ? 'var(--cream)' : 'var(--accent)',
-                }}
-              >Today</button>
-              {/* Always-visible date input — pick any prior date directly without going through Today first. */}
-              <input
-                type="date"
-                value={form.startDate || ''}
-                max={localDateISO()}
-                onChange={e => setForm({...form, startDate: e.target.value || null})}
-                className={inputCls + ' !text-xs flex-1 min-w-[120px]'}
-                placeholder="or pick a date"
-              />
-              {form.startDate && (
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, startDate: null })}
-                  className="text-[10px] tracking-[0.15em] uppercase italic flex-shrink-0"
-                  style={{color:'var(--ink-soft)'}}
-                  title="Clear — assume always used"
-                >Clear</button>
-              )}
-            </div>
-            {isEditing && (
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.25em] mb-1" style={{color:'var(--ink-soft)'}}>Stopped</div>
-                <input type="date" value={form.endDate || ''} onChange={e => setForm({...form, endDate: e.target.value})} className={inputCls + ' !text-xs'} />
-              </div>
+                onClick={() => setForm({ ...form, startDate: null })}
+                className="text-[9px] tracking-[0.18em] uppercase flex-shrink-0"
+                style={{color:'var(--ink-soft)'}}
+                title="Clear — assume always used"
+              >Clear</button>
             )}
           </div>
           {!form.startDate && (
-            <p className="text-[11px] italic font-light" style={{color:'var(--ink-soft)'}}>
-              If left blank, we assume you've been using it
-            </p>
+            <p className="text-[10px] font-light" style={{color:'var(--ink-soft)'}}>Blank = assumed long-time use</p>
+          )}
+          {isEditing && (
+            <div className="flex items-center gap-2 flex-wrap pt-1">
+              <div className="text-[9px] uppercase tracking-[0.22em] flex-shrink-0" style={{color:'var(--ink-soft)'}}>Stopped</div>
+              <input type="date" value={form.endDate || ''} onChange={e => setForm({...form, endDate: e.target.value})} className={inputCls + ' !text-xs flex-1 min-w-[112px] !py-1.5'} />
+            </div>
           )}
         </div>
         {isEditing && (
@@ -2625,7 +2709,7 @@ ALTERNATIVES:
             shelf inventory. The label tells the user exactly what's about
             to happen so the action never feels ambiguous.
             Save-flash (May 2026): on a successful create-mode add the modal
-            stays open and this pill morphs to a sage "Saved ✓" for ~1.4s
+            stays open and this pill morphs to a powder-blue "Saved ✓" for ~1.4s
             before resetting. Confirms the scan/search-by-name/search-by-brand
             path actually committed the product without forcing the user to
             read a toast. */}
@@ -2634,11 +2718,10 @@ ALTERNATIVES:
           disabled={(!form.name && !form.photo) || productSaveFlash}
           className="w-full py-3 rounded-full tracking-[0.2em] text-[10.5px] uppercase transition mt-1 cursor-pointer flex items-center justify-center gap-1.5"
           style={{
-            background: productSaveFlash ? 'var(--sage)' : 'var(--accent)',
-            color: 'var(--cream)',
+            background: productSaveFlash ? 'var(--accent-blue)' : 'var(--accent)',
+            color: productSaveFlash ? 'var(--ink)' : 'var(--cream)',
             opacity: (!form.name && !form.photo) ? 0.5 : 1,
-            cursor: productSaveFlash ? 'default' : 'pointer',
-          }}
+            cursor: productSaveFlash ? 'default' : 'pointer'}}
         >
           {productSaveFlash ? (
             <><Icon name="Check" size={12} /> Saved</>

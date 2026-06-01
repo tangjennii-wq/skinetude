@@ -26,8 +26,7 @@ const RegimenShelfView = ({
   setOpenLesson,
   setProductCompareId,
   setShelfTagFilter,
-  setShowInactiveProducts, showInactiveProducts,
-}) => {
+  setShowInactiveProducts, showInactiveProducts}) => {
   return (() => {
   // Categorize: a product flagged as a retinoid (active or tag) gets its own group regardless of stored category.
   // Otherwise we use the stored category.
@@ -56,8 +55,7 @@ const RegimenShelfView = ({
     exfoliant: 'Exfoliants',
     mask: 'Masks',
     oil: 'Oils',
-    other: 'Other',
-  };
+    other: 'Other'};
   // Active = currently in routine (no endDate). Inactive = retired (endDate set).
   // We render active first, grouped by category. Inactive sits in a collapsed
   // section at the bottom so big shelves don't drown in retired clutter.
@@ -124,9 +122,9 @@ const RegimenShelfView = ({
               <div key={groupKey}>
                 <div className="text-[9px] tracking-[0.3em] uppercase mb-1.5 flex items-baseline justify-between" style={{color:'var(--ink-soft)'}}>
                   <span>{LABEL[groupKey] || groupKey}</span>
-                  <span className="font-serif italic text-[10px] normal-case tracking-normal" style={{color:'var(--ink-soft)'}}>{items.length}</span>
+                  <span className="font-sans text-[10px] normal-case tracking-normal" style={{color:'var(--ink-soft)'}}>{items.length}</span>
                 </div>
-                <div className="border" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
+                <div className="border" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
                   {items.map((product, idx) => {
             const expanded = expandedShelfProductId === product.id;
             // First active = main active for the compact row preview
@@ -198,12 +196,11 @@ const RegimenShelfView = ({
                           <div className="flex items-baseline gap-1.5 mt-0.5">
                             {status && (
                               <span
-                                className="text-[8.5px] tracking-[0.05em] italic px-1.5 py-0.5 rounded-full"
+                                className="text-[8.5px] tracking-[0.05em] px-1.5 py-0.5 rounded-full"
                                 style={{
                                   color: status.kind === 'wasted' ? 'var(--rose)' : 'var(--ink-soft)',
                                   background: status.kind === 'wasted' ? 'rgba(192,138,138,0.08)' : 'var(--cream-deep)',
-                                  border: `1px solid ${status.kind === 'wasted' ? 'var(--rose)' : 'var(--line)'}`,
-                                }}
+                                  border: `1px solid ${status.kind === 'wasted' ? 'var(--rose)' : 'var(--line)'}`}}
                                 title={status.kind === 'wasted' ? 'Not earning its place — consider retiring or restarting' : 'Hasn\'t been used in your recent regimen'}
                               >
                                 {status.label}
@@ -225,8 +222,7 @@ const RegimenShelfView = ({
                     style={{
                       borderColor: inAM ? 'var(--accent)' : 'var(--line)',
                       background: inAM ? 'var(--accent)' : 'transparent',
-                      color: inAM ? 'var(--cream)' : 'var(--ink-soft)',
-                    }}
+                      color: inAM ? 'var(--cream)' : 'var(--ink-soft)'}}
                     title={inAM ? 'Used in morning routine — tap to remove' : 'Tap to add to morning routine'}
                   >
                     <Icon name="Sun" size={8} /> AM
@@ -238,20 +234,19 @@ const RegimenShelfView = ({
                     style={{
                       borderColor: inPM ? 'var(--accent)' : 'var(--line)',
                       background: inPM ? 'var(--accent)' : 'transparent',
-                      color: inPM ? 'var(--cream)' : 'var(--ink-soft)',
-                    }}
+                      color: inPM ? 'var(--cream)' : 'var(--ink-soft)'}}
                     title={inPM ? 'Used in evening routine — tap to remove' : 'Tap to add to evening routine'}
                   >
                     <Icon name="Moon" size={8} /> PM
                   </button>
                   {/* === ACTIVE STATE AFFORDANCE ===
-                      Per Jenni (May 2026): the green "ON" pill was
+                      Per Jenni (May 2026): the old "ON" pill was
                       visual clutter when AM and PM weren't selected
                       — a product with no usage time is effectively
                       not in rotation, so a CTA-to-retire reads more
-                      honestly than a green active badge.
-                      • If AM or PM is selected → keep the green ON
-                        pill (genuinely active in routine).
+                      honestly than a redundant active badge.
+                      • If AM or PM is selected → the AM/PM pills
+                        already show the product is in routine.
                       • If neither → show italicized small grey
                         "Make inactive" link as the CTA to retire.
                       • If product is already inactive → small grey
@@ -268,7 +263,7 @@ const RegimenShelfView = ({
                       toast(isActive ? `${product.name} marked inactive` : `${product.name} reactivated`, 'info');
                     };
                     // === SHELF ROW ACTIVE-STATE AFFORDANCE ===
-                    // Per Jenni (May 2026): the green "ON" pill was
+                    // Per Jenni (May 2026): the old "ON" pill was
                     // visual clutter — when AM or PM is selected the
                     // pill itself indicates the product is in rotation,
                     // so a redundant ON badge added nothing. Only show
@@ -283,7 +278,7 @@ const RegimenShelfView = ({
                         <button
                           type="button"
                           onClick={toggleActive}
-                          className="text-[9.5px] italic flex-shrink-0 hover:underline transition"
+                          className="text-[9.5px] flex-shrink-0 hover:underline transition"
                           style={{color:'var(--ink-soft)'}}
                           title="Tap to reactivate"
                         >Inactive · undo</button>
@@ -299,7 +294,7 @@ const RegimenShelfView = ({
                       <button
                         type="button"
                         onClick={toggleActive}
-                        className="text-[9.5px] italic flex-shrink-0 hover:underline transition"
+                        className="text-[9.5px] flex-shrink-0 hover:underline transition"
                         style={{color:'var(--ink-soft)'}}
                         title="No AM/PM slot. Tap to retire."
                       >Make inactive</button>
@@ -318,7 +313,7 @@ const RegimenShelfView = ({
 
                 {/* Expanded detail panel */}
                 {expanded && (
-                  <div className="px-3 pb-3 pt-1 border-t" style={{borderColor:'var(--line)', background:'var(--cream-deep)'}}>
+                  <div className="px-3 pb-3 pt-1 border-t" style={{borderColor: 'var(--line)', background:'var(--cream-deep)'}}>
                     {/* === NO BOTTLE IMAGERY ===
                         Per Jenni's "no bottle images" rule (May 2026):
                         the Photo + Package-fallback block that used to
@@ -341,7 +336,7 @@ const RegimenShelfView = ({
                               return (
                                 <span key={i} className="inline-flex items-baseline gap-1 text-[10px] px-1.5 py-0.5 border rounded-sm flex-shrink-0 whitespace-nowrap" style={{borderColor:'var(--ink)', color:'var(--ink)', background:'var(--cream)'}}>
                                   <span className="font-medium">{label || a}</span>
-                                  {pct && <span className="font-serif italic text-[10px]" style={{color:'var(--accent)'}}>{pct[1]}%</span>}
+                                  {pct && <span className="font-sans text-[10px]" style={{color:'var(--accent)'}}>{pct[1]}%</span>}
                                 </span>
                               );
                             })}
@@ -358,7 +353,7 @@ const RegimenShelfView = ({
                         {product.tags && product.tags.length > 0 && (
                           <div className="flex flex-wrap gap-1">
                             {product.tags.map((t, i) => (
-                              <button key={i} type="button" onClick={(e) => { e.stopPropagation(); setShelfTagFilter(t); }} className="text-[9px] tracking-[0.1em] px-1.5 py-0.5 border rounded-full transition" style={{borderColor:'var(--accent)', color:'var(--accent)', background:'var(--cream)'}}>{t}</button>
+                              <button key={i} type="button" onClick={(e) => { e.stopPropagation(); setShelfTagFilter(t); }} className="text-[9px] tracking-[0.1em] px-1.5 py-0.5 border rounded-full transition" style={{borderColor: 'var(--line)', color:'var(--accent)', background:'var(--cream)'}}>{t}</button>
                             ))}
                           </div>
                         )}
@@ -369,7 +364,7 @@ const RegimenShelfView = ({
                             : ' · not started yet'}
                           {product.endDate && ` · stopped ${new Date(product.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
                         </div>
-                        {product.notes && <p className="text-[11px] italic font-light" style={{color:'var(--ink-soft)'}}>"{product.notes}"</p>}
+                        {product.notes && <p className="text-[11px] font-light" style={{color:'var(--ink-soft)'}}>"{product.notes}"</p>}
 
                         {/* === AI Assessment block — sectioned render ===
                              Parses the structured output from assessProduct() into
@@ -381,7 +376,7 @@ const RegimenShelfView = ({
                              (legacy format, malformed AI output), render NOTHING here
                              — better to hide than to leak raw text into the UI. */}
                         {assessingProduct === product.id ? (
-                          <div className="pt-2 mt-2 border-t flex items-center gap-1.5 pulse-soft" style={{borderColor:'var(--line)', color:'var(--ink-soft)'}}>
+                          <div className="pt-2 mt-2 border-t flex items-center gap-1.5 pulse-soft" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>
                             <Icon name="Loader2" size={10} className="spin" />
                             <span className="text-[9px] tracking-[0.2em] uppercase">Analyzing…</span>
                           </div>
@@ -438,8 +433,7 @@ const RegimenShelfView = ({
                               name: parts[1] || '',
                               price: parts[2] || '',
                               active: parts[3] || '',
-                              rationale: parts.slice(4).join(' | ') || '',
-                            };
+                              rationale: parts.slice(4).join(' | ') || ''};
                           });
                           const isRegenAlts = assessingProduct === product.id;
                           // Split mechanism + evidence into bullets.
@@ -456,7 +450,7 @@ const RegimenShelfView = ({
                           const mechanismBullets = splitSentences(mechanism).slice(0, 2);
                           const evidenceBullets = splitSentences(evidence).slice(0, 1);
                           return (
-                            <div className="pt-2 mt-2 border-t space-y-2" style={{borderColor:'var(--line)'}}>
+                            <div className="pt-2 mt-2 border-t space-y-2" style={{borderColor: 'var(--line)'}}>
                               {/* Sectioned render — Mechanism (max 2 bullets) +
                                   Evidence (1 bullet) inline, Alternatives in a
                                   compact stacked list below. The "Pharmacist +
@@ -477,8 +471,7 @@ const RegimenShelfView = ({
                                                 display: '-webkit-box',
                                                 WebkitLineClamp: 2,
                                                 WebkitBoxOrient: 'vertical',
-                                                overflow: 'hidden',
-                                              }}
+                                                overflow: 'hidden'}}
                                             >{withPearls(b, setOpenLesson)}</span>
                                           </li>
                                         ))}
@@ -498,7 +491,7 @@ const RegimenShelfView = ({
                                     <div className="mt-2.5">
                                       {/* Alternatives — compact stacked list, NOT a
                                           bordered grid. Each row: tier label + price
-                                          on left, italic name + active + rationale
+                                          on left, name + active + rationale
                                           flowing right. Hairline divider between rows
                                           only — no surrounding heavy border. */}
                                       <div className="flex items-baseline justify-between mb-1.5">
@@ -506,7 +499,7 @@ const RegimenShelfView = ({
                                         <button
                                           onClick={(e) => { e.stopPropagation(); regenerateProductAlternatives(product); }}
                                           disabled={isRegenAlts}
-                                          className="text-[9px] tracking-[0.18em] uppercase italic flex items-center gap-1 transition hover:opacity-70 disabled:opacity-50"
+                                          className="text-[9px] tracking-[0.18em] uppercase flex items-center gap-1 transition hover:opacity-70 disabled:opacity-50"
                                           style={{color:'var(--accent)'}}
                                           title="Get a different pair of alternatives"
                                         >
@@ -525,15 +518,15 @@ const RegimenShelfView = ({
                                             <div
                                               key={i}
                                               className="rounded-[10px] px-2.5 py-2 min-w-0"
-                                              style={{background:'var(--cream)', border:'1px solid var(--line)'}}
+                                              style={{background:'var(--cream)', border: '1px solid var(--line)'}}
                                             >
                                               <div className="flex items-baseline justify-between gap-1.5 mb-1">
                                                 <span className="text-[8px] tracking-[0.15em] uppercase" style={{color:'var(--ink-soft)'}}>
                                                   {isCheap ? '↓ Cheap' : '↑ Premium'}
                                                 </span>
-                                                {a.price && <span className="font-serif italic text-[10.5px] leading-none" style={{color:'var(--accent)'}}>{a.price}</span>}
+                                                {a.price && <span className="font-sans text-[10.5px] leading-none" style={{color:'var(--accent)'}}>{a.price}</span>}
                                               </div>
-                                              <div className="font-serif italic text-[11.5px] leading-tight mb-1" style={{color:'var(--ink)'}}>{a.name}</div>
+                                              <div className="font-sans text-[11.5px] leading-tight mb-1" style={{color:'var(--ink)'}}>{a.name}</div>
                                               {a.active && (
                                                 <div className="text-[9.5px] leading-tight" style={{color:'var(--ink-soft)'}}>{a.active}</div>
                                               )}
@@ -557,7 +550,7 @@ const RegimenShelfView = ({
                           );
                         })()}
                         {product.analyzing && !product.aiAnalysis && (
-                          <div className="pt-2 mt-2 border-t flex items-center gap-1.5 pulse-soft" style={{borderColor:'var(--line)', color:'var(--ink-soft)'}}>
+                          <div className="pt-2 mt-2 border-t flex items-center gap-1.5 pulse-soft" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>
                             <Icon name="Loader2" size={10} className="spin" />
                             <span className="text-[9px] tracking-[0.2em] uppercase">{product.photo ? 'Reading label…' : 'Looking up…'}</span>
                           </div>
@@ -572,21 +565,21 @@ const RegimenShelfView = ({
                           const weeks = a.daysActive >= 7 ? `${Math.round(a.daysActive / 7)}w` : `${a.daysActive}d`;
                           const sourceLabel = a.startSource === 'explicit' ? 'started' : 'first logged';
                           return (
-                            <div className="pt-2 mt-2 border-t flex items-center justify-between gap-2 flex-wrap" style={{borderColor:'var(--line)'}}>
+                            <div className="pt-2 mt-2 border-t flex items-center justify-between gap-2 flex-wrap" style={{borderColor: 'var(--line)'}}>
                               <div className="text-[10px] font-light" style={{color:'var(--ink-soft)'}}>
-                                <span className="font-serif italic" style={{color:'var(--ink)'}}>{sourceLabel} ~{weeks} ago</span>
+                                <span className="font-sans" style={{color:'var(--ink)'}}>{sourceLabel} ~{weeks} ago</span>
                                 <span> · {a.photoCount} {a.photoCount === 1 ? 'photo' : 'photos'} since</span>
                               </div>
                               {a.hasEnoughData ? (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setProductCompareId(product.id); }}
-                                  className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1.5 transition hover:opacity-70"
+                                  className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1.5 transition hover:opacity-70"
                                   style={{color:'var(--accent)'}}
                                 >
                                   Compare <Icon name="ArrowRight" size={11} />
                                 </button>
                               ) : (
-                                <span className="text-[10px] italic" style={{color:'var(--ink-soft)'}}>{a.reasonShort}</span>
+                                <span className="text-[10px]" style={{color:'var(--ink-soft)'}}>{a.reasonShort}</span>
                               )}
                             </div>
                           );
@@ -609,11 +602,11 @@ const RegimenShelfView = ({
                                 'What should I avoid combining?',
                                 'Worth keeping?'
                               ]
-                            }); }} className="text-[9px] tracking-[0.18em] uppercase italic flex items-center gap-1 px-2 py-1" style={{color:'var(--ink)'}}>
+                            }); }} className="text-[9px] tracking-[0.18em] uppercase flex items-center gap-1 px-2 py-1" style={{color:'var(--ink)'}}>
                               <Icon name="MessageCircle" size={9} /> Ask
                             </button>
                           )}
-                          <button onClick={(e) => { e.stopPropagation(); setEditingProductId(product.id); setShowProductModal(true); }} className="text-[9px] tracking-[0.18em] uppercase italic flex items-center gap-1 px-2 py-1" style={{color:'var(--ink-soft)'}}><Icon name="Edit2" size={9} /> Edit</button>
+                          <button onClick={(e) => { e.stopPropagation(); setEditingProductId(product.id); setShowProductModal(true); }} className="text-[9px] tracking-[0.18em] uppercase flex items-center gap-1 px-2 py-1" style={{color:'var(--ink-soft)'}}><Icon name="Edit2" size={9} /> Edit</button>
                           {/* Active/inactive toggle — sets endDate to today to mark as retired
                               (uses existing endDate field, no schema change). Inactive products
                               live in their own group on the shelf to reduce active-list clutter. */}
@@ -626,7 +619,7 @@ const RegimenShelfView = ({
                                 saveData('products', updated);
                                 toast(`${product.name} reactivated`);
                               }}
-                              className="text-[9px] tracking-[0.18em] uppercase italic flex items-center gap-1 px-2 py-1"
+                              className="text-[9px] tracking-[0.18em] uppercase flex items-center gap-1 px-2 py-1"
                               style={{color:'var(--accent)'}}
                             ><Icon name="RotateCcw" size={9} /> Reactivate</button>
                           ) : (
@@ -639,12 +632,12 @@ const RegimenShelfView = ({
                                 saveData('products', updated);
                                 toast(`${product.name} marked inactive`);
                               }}
-                              className="text-[9px] tracking-[0.18em] uppercase italic flex items-center gap-1 px-2 py-1"
+                              className="text-[9px] tracking-[0.18em] uppercase flex items-center gap-1 px-2 py-1"
                               style={{color:'var(--ink-soft)'}}
                               title="Move to inactive — hides from daily routine but keeps in journal history"
                             ><Icon name="Archive" size={9} /> Make inactive</button>
                           )}
-                          <button onClick={(e) => { e.stopPropagation(); deleteProduct(product.id); }} className="text-[9px] tracking-[0.18em] uppercase italic flex items-center gap-1 px-2 py-1" style={{color:'var(--ink-soft)'}}><Icon name="Trash2" size={9} /> Delete</button>
+                          <button onClick={(e) => { e.stopPropagation(); deleteProduct(product.id); }} className="text-[9px] tracking-[0.18em] uppercase flex items-center gap-1 px-2 py-1" style={{color:'var(--ink-soft)'}}><Icon name="Trash2" size={9} /> Delete</button>
                         </div>
                       </div>
                     </div>
@@ -662,20 +655,20 @@ const RegimenShelfView = ({
               Retired products kept here so they don't pollute the active routine
               but stay accessible for compare/journal history. */}
           {inactiveProductsList.length > 0 && (
-            <div className="border-t pt-4 mt-2" style={{borderColor:'var(--line)'}}>
+            <div className="border-t pt-4 mt-2" style={{borderColor: 'var(--line)'}}>
               <button
                 onClick={() => setShowInactiveProducts(v => !v)}
                 className="w-full flex items-baseline justify-between text-left"
               >
-                <span className="text-[10px] tracking-[0.3em] uppercase italic" style={{color:'var(--ink-soft)'}}>
+                <span className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>
                   Inactive · {inactiveProductsList.length}
                 </span>
-                <span className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1" style={{color:'var(--ink-soft)'}}>
+                <span className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1" style={{color:'var(--ink-soft)'}}>
                   {showInactiveProducts ? <>Hide <Icon name="ChevronUp" size={11} /></> : <>Show <Icon name="ChevronDown" size={11} /></>}
                 </span>
               </button>
               {showInactiveProducts && (
-                <div className="border mt-2" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
+                <div className="border mt-2" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
                   {inactiveProductsList.map((product, idx) => (
                     <div
                       key={product.id}
@@ -683,7 +676,7 @@ const RegimenShelfView = ({
                       style={{borderTop: idx === 0 ? 'none' : '1px solid var(--line)', opacity: 0.7}}
                     >
                       <div className="flex-1 min-w-0">
-                        <div className="font-serif italic text-[13px] truncate" style={{color:'var(--ink)'}}>{product.name}</div>
+                        <div className="font-sans text-[13px] truncate" style={{color:'var(--ink)'}}>{product.name}</div>
                         <div className="text-[10px] font-light" style={{color:'var(--ink-soft)'}}>
                           Retired {new Date(product.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                         </div>
@@ -695,12 +688,12 @@ const RegimenShelfView = ({
                           saveData('products', updated);
                           toast(`${product.name} reactivated`);
                         }}
-                        className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1 px-2 py-1 flex-shrink-0"
+                        className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1 px-2 py-1 flex-shrink-0"
                         style={{color:'var(--accent)'}}
                       ><Icon name="RotateCcw" size={10} /> Reactivate</button>
                       <button
                         onClick={() => deleteProduct(product.id)}
-                        className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1 px-2 py-1 flex-shrink-0"
+                        className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1 px-2 py-1 flex-shrink-0"
                         style={{color:'var(--ink-soft)'}}
                       ><Icon name="Trash2" size={10} /> Delete</button>
                     </div>
@@ -725,13 +718,12 @@ const RegimenShelfView = ({
           { id: 'exfoliate', label: 'Exfoliate', icon: 'Zap',    blurb: 'AHA, BHA' },
         ];
         const openCategory = (catId) => {
-          const filterId = catId === 'exfoliate' ? 'brighten' : catId;
-          setMatchesDrawerFilter(filterId);
+          setMatchesDrawerFilter(catId);
           setMatchesDrawerOpen(true);
         };
         return (
-          <section className="mt-12 mb-4 rounded-[20px] px-5 py-6 md:px-6 md:py-7" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
-            <div className="flex items-start justify-between gap-3 mb-5 flex-wrap">
+          <section className="mt-8 mb-4 rounded-[18px] px-4 py-5 md:px-5 md:py-6" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+            <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
               <div>
                 <div className="text-[9.5px] tracking-[0.32em] uppercase mb-2" style={{color:'var(--ink-soft)', fontWeight:600}}>What we'd try</div>
                 <div className="text-[22px] leading-tight" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.018em'}}>Add to your shelf.</div>
@@ -746,17 +738,17 @@ const RegimenShelfView = ({
                 See all <Icon name="ArrowRight" size={11} />
               </button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1" style={{WebkitOverflowScrolling:'touch'}}>
               {categories.map(c => (
                 <button
                   key={c.id}
                   onClick={() => openCategory(c.id)}
-                  className="relative rounded-[14px] px-3 pt-3 pb-7 text-left transition hover:bg-[var(--cream)] hover:border-[var(--accent)] group"
-                  style={{background:'var(--cream)', border:'1px solid var(--line)', cursor:'pointer'}}
+                  className="relative rounded-[14px] px-3 pt-3 pb-6 text-left transition hover:bg-[var(--cream)] hover:border-[var(--accent)] group flex-shrink-0"
+                  style={{background:'var(--cream)', border: '1px solid var(--line)', cursor:'pointer', width:'min(40vw, 150px)', minWidth:132}}
                   type="button"
                   title={`See ${c.label.toLowerCase()} matches`}
                 >
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center mb-2" style={{background:'var(--cream-deep)', color:'var(--accent)', border:'1px solid var(--line)'}}>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center mb-2" style={{background:'var(--cream-deep)', color:'var(--accent)', border: '1px solid var(--line)'}}>
                     <Icon name={c.icon} size={14} />
                   </div>
                   <div className="text-[14px] leading-tight" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.01em'}}>{c.label}</div>
@@ -769,8 +761,7 @@ const RegimenShelfView = ({
                       display:'flex',
                       alignItems:'center',
                       justifyContent:'center',
-                      textAlign:'center',
-                    }}
+                      textAlign:'center'}}
                   >{c.blurb}</div>
                   <span
                     aria-hidden

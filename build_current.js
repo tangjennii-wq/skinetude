@@ -24,9 +24,10 @@ const END = '<!--RUNTIME-END-->';
 // the helpers + App component defined downstream. Order matters: brands
 // → products → lessons → main source.
 const DATA_FILES = [
-  'brands.js',     // BRAND_RECOMMENDATION_INFO (used by productTier helpers in main)
-  'products.js',   // POPULAR_PRODUCTS (catalog used by ProductModal + recommender)
-  'lessons.js',    // LESSONS (used by Pearls Q&A + journal-aware prompts)
+  'brands.js',                 // BRAND_RECOMMENDATION_INFO (used by productTier helpers in main)
+  'products.js',               // POPULAR_PRODUCTS (catalog used by ProductModal + recommender)
+  'lessons.js',                // LESSONS (used by Pearls Q&A + journal-aware prompts)
+  'recommendationCatalog.js',  // May 2026 — curated rec catalog: RECOMMENDATION_CATALOG, pickFromCatalog, JOB_LABELS, MECHANISM_LABELS
 ];
 
 const dataParts = DATA_FILES.map(f => {
@@ -53,11 +54,38 @@ const SRC_FILES = [
   'src/constants/observationChips.js',          // OBSERVATION_CHIPS_BASE, CONTEXT_FACTORS, RATING_5_WORDS
   'src/resolvers/parseSkinMetrics.js',          // SKIN_METRIC_KEYS, SKIN_REGION_VALUES, parseSkinMetrics, parseSkinRegion, stripAnalysisStructuredLines
   'src/resolvers/normalizeRatingTo5.js',
+  'src/resolvers/compositeIndex.js',            // Frida Composite Index v1 (June 2026): computeDomainScore, computeCompositeScore, computeBaseline, computeBaselineDelta, pickMostBenignPattern
   'src/resolvers/resolveContextSummary.js',     // PR 4: resolveContextSummary (uses CONTEXT_FACTORS above)
   'src/resolvers/sampleRoutines.js',            // PR 4: SAMPLE_ROUTINES + FOUNDATIONAL_SAMPLE_ROUTINE
   'src/resolvers/routineResolvers.js',          // PR 4b: MAX_FACE_ROUTINE_SLOT_PRODUCTS, isBodyProduct, resolveTodayRitual, getProductsForTodayFromPattern
   'src/resolvers/brandRanking.js',              // Phase 1 (May 2026): BRAND_PRIORITY_OVERRIDES + normalize/score/sort helpers for brand + product pickers
   'src/resolvers/extractPhotoDate.js',          // Wave 1.2 (May 2026): EXIF DateTimeOriginal extractor; consumed by BulkPhotoUploadModal
+  // === Recommendation engine (May 2026) ===
+  // Order: derive → coverage → copy. coverage references deriveProductJobs
+  // at call time via the sidecar's module-scope lookup; recCopy references
+  // JOB_LABELS / MECHANISM_LABELS / pickFromCatalog from data/recommendationCatalog.js.
+  'src/resolvers/deriveProductJobs.js',         // deriveProductJobs(product) → { jobs, mechanismTags }
+  'src/resolvers/coverageEngine.js',            // resolveCoverageStates, SWAP_RULES, evaluateSwapRules
+  'src/resolvers/recCopy.js',                   // buildRecCards(coverage, { surface }) → card props
+  // === Insights helpers (May 2026) ===
+  // Pure stats helpers consumed by the new Insights sub-components
+  // (MetricSparkline, MetricTrendsGrid, AdherencePanel, PatternsPanel).
+  // Module-scope; no React, no App-state coupling.
+  'src/insights/computeInsights.js',
+  // signalGenerator — deeper Signal cards for the Insights page (May 2026).
+  // Pure helper consumed by <SignalsPanel />; depends on no other src/
+  // module (it has its own inlined score map + mechanism heuristics so
+  // load order vs deriveProductJobs doesn't matter).
+  'src/insights/signalGenerator.js',
+  // === Sunday Digest (May 2026 — roadmap item 2) ===
+  // Pure data layer + .ics builder for the weekly digest. Both are
+  // module-scope `const` declarations so they become globals
+  // available to <SundayDigestModal /> at runtime. Order:
+  //   buildDigest    → assembles structured digest from app state
+  //   buildDigestIcs → wraps the digest plaintext into an .ics
+  // Neither depends on the other at module load.
+  'src/digest/buildDigest.js',
+  'src/digest/buildDigestIcs.js',
 ];
 
 const srcParts = SRC_FILES.map(f => {
@@ -99,6 +127,12 @@ const COMPONENT_FILES = [
   'src/components/ui/ModalHeader.jsx',
   'src/components/ui/StickyModalFooter.jsx',
   'src/components/ui/Modal.jsx',
+  // Wave 11 (May 2026) — PlanCommitStrip primitive: unified commit
+  // grammar for AI plans (Build, Procedure, Event, SkinLog). Module-
+  // scope; no App-state coupling. Listed after Modal so all consumers
+  // can reference it. Build adopts it now; Procedure/Event/SkinLog are
+  // follow-up adoptions.
+  'src/components/ui/PlanCommitStrip.jsx',
   // Wave 1.1 (May 2026) — CameraCaptureModal extracted from sidecar.
   // Self-contained; no App-state coupling. Listed first so any downstream
   // component that opens the camera in the future can reference it.
@@ -124,6 +158,11 @@ const COMPONENT_FILES = [
   // something else" flow. ~720 lines lifted out so App's render is
   // shorter and the modal can be edited in isolation.
   'src/components/TodayRitualModal.jsx',
+  // June 2026 — Score explainer drawer ("How your score works"). One source
+  // of truth for the cover's composite-index explanation, surfaced from
+  // cover delta line, cover kebab, ProfileModal, and first-time auto-show.
+  // Lives at module scope alongside Modal so it can be rendered from App.
+  'src/components/ScoreExplainerModal.jsx',
   // Wave 5.2 (May 2026) — SkinLogModal extracted (~1027 lines lifted).
   // Photo capture + AI rating + concerns + notes + "also today" inline
   // procedure/product start. Multi-photo session fan-out to N entries.
@@ -133,6 +172,11 @@ const COMPONENT_FILES = [
   // captured fresh closures each render (workaround for in-App identity
   // churn). At module scope the wrapper is unnecessary — plain props.
   'src/components/ProductModal.jsx',
+  // === Rec card UI (May 2026) ===
+  // RecCardSection is the shared visual model for engine-driven recs
+  // across Home / Journal / Regimen / Insights. Must be listed BEFORE
+  // any of those views since they reference it.
+  'src/components/recommendations/RecCardSection.jsx',
   // Wave 6.1 (May 2026) — OnboardingOverlay extracted from App-render IIFE.
   // ~1217 lines lifted. Render-gated by onboardingState.stage !== 'done'.
   'src/components/OnboardingOverlay.jsx',
@@ -141,6 +185,16 @@ const COMPONENT_FILES = [
   // Wave 8.3 was reverted: the Home photo, ritual, and pearl panels are
   // intentionally inline again because they share too much dashboard state.
   'src/components/HomeDashboard.jsx',
+  // === Insights sub-components (May 2026) ===
+  // MUST come before InsightsView since InsightsView renders them.
+  // MetricSparkline is a leaf used by MetricTrendsGrid → list it first.
+  'src/components/insights/MetricSparkline.jsx',
+  'src/components/insights/MetricTrendsGrid.jsx',
+  'src/components/insights/AdherencePanel.jsx',
+  'src/components/insights/PatternsPanel.jsx',
+  // SignalsPanel — deeper "Étude is noticing" cards (May 2026). Depends
+  // on computeSignals from src/insights/signalGenerator.js (above).
+  'src/components/insights/SignalsPanel.jsx',
   // Wave 7.4 (May 2026) — InsightsView extracted (~249 lines lifted).
   'src/components/InsightsView.jsx',
   // Wave 7.3 (May 2026) — CompareView extracted (~1300 lines lifted).
@@ -148,7 +202,7 @@ const COMPONENT_FILES = [
   // Wave 7.2 (May 2026) — JournalView extracted.
   // Wave 8.2 (May 2026) — sub-extracted per-mode panels.
   'src/components/journal/JournalTodayPanel.jsx',
-  'src/components/journal/JournalCompactPanel.jsx',
+  // JournalCompactPanel deleted 2026-05-31 (dual-render bug; Today panel absorbs legacy 'compact' state)
   'src/components/JournalView.jsx',
   // Wave 7.1 (May 2026) — RegimenView extracted (~4720 lines lifted).
   // Wave 8.1 (May 2026) — RegimenView sub-extracted into per-subview files.
@@ -170,9 +224,7 @@ const COMPONENT_FILES = [
   'src/components/onboarding/OnboardingBuildingPhases.jsx',
   // Wave 3.1 (May 2026) — Home command-center cards.
   'src/components/home/TodayReminder.jsx',
-  'src/components/home/StatCard.jsx',
-  'src/components/home/RecurringConcerns.jsx',
-  'src/components/home/CycleAwareCard.jsx',
+  // StatCard, RecurringConcerns, CycleAwareCard deleted 2026-05-31 (dead — zero refs)
   // Wave 3.2 (May 2026) — Regimen child components.
   'src/components/regimen/RegimenTechnique.jsx',
   'src/components/regimen/RoutineBuilder.jsx',
@@ -189,8 +241,6 @@ const COMPONENT_FILES = [
   // Phase 3A — check-in pieces (consumed by CheckInDetailsModal)
   'src/components/checkin/CheckInPhotoStrip.jsx',
   'src/components/checkin/CheckInObservationChips.jsx',
-  'src/components/checkin/CheckInContextSheet.jsx',
-  'src/components/checkin/CheckInAlsoTodayActions.jsx',
   // Phase 3C — routine display pieces. Order matters within routine/:
   //   RoutineProductRow + EmptyRoutineState are leaf components,
   //   RoutineSlotList composes both. Listing leaves first.
@@ -209,6 +259,12 @@ const COMPONENT_FILES = [
   'src/components/SupabaseModal.jsx',
   'src/components/EventModal.jsx',
   'src/components/ProcedureModal.jsx',
+  // Sunday Digest modal (May 2026 — roadmap item 2). Standalone
+  // preview surface opened from the hamburger menu. Renders the
+  // structured object from buildDigest() and triggers the .ics
+  // download from buildDigestIcs.js. Self-contained; receives
+  // {open, onClose, logs, regimenLogs, products, toast} from App.
+  'src/components/digest/SundayDigestModal.jsx',
 ];
 
 const componentParts = COMPONENT_FILES.map(f => {

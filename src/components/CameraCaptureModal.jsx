@@ -33,8 +33,7 @@ const CameraCaptureModal = ({ onCapture, onClose, angles = ['front'], multi = fa
     left: 'Turn left — show your right cheek',
     right: 'Turn right — show your left cheek',
     up: 'Tilt up — show your jawline',
-    down: 'Tilt down — show your forehead',
-  };
+    down: 'Tilt down — show your forehead'};
   const currentAngle = angles[angleIdx] || 'front';
   // Mirror only when using front-facing camera (user expects selfie view to
   // mirror; rear-facing should NOT mirror so text stays readable).
@@ -55,8 +54,7 @@ const CameraCaptureModal = ({ onCapture, onClose, angles = ['front'], multi = fa
           video: isProductMode || facingMode === 'environment'
             ? { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1920 } }
             : { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1080 } },
-          audio: false,
-        };
+          audio: false};
         // Honor explicit override when user flips manually.
         if (facingMode) constraints.video.facingMode = facingMode === 'environment' ? { ideal: 'environment' } : 'user';
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -279,8 +277,7 @@ const CameraCaptureModal = ({ onCapture, onClose, angles = ['front'], multi = fa
             style={{
               color: capturedShots.length > 0 ? 'var(--accent)' : 'rgba(255,255,255,0.35)',
               fontWeight: 600,
-              cursor: capturedShots.length > 0 ? 'pointer' : 'not-allowed',
-            }}
+              cursor: capturedShots.length > 0 ? 'pointer' : 'not-allowed'}}
             aria-label="Review captured photos"
           >Done</button>
         ) : allowUpload ? (
@@ -303,7 +300,7 @@ const CameraCaptureModal = ({ onCapture, onClose, angles = ['front'], multi = fa
       <div className="flex-1 relative overflow-hidden flex items-center justify-center">
         {error ? (
           <div className="text-white text-center px-6 max-w-sm">
-            <p className="font-serif italic text-base mb-4 leading-relaxed">{error}</p>
+            <p className="font-sans text-base mb-4 leading-relaxed">{error}</p>
             {/* Show Upload as the primary affordance when allowUpload —
                 the error message tells the user to tap Upload, so surface
                 it as a visible button right here instead of making them
@@ -384,14 +381,14 @@ const CameraCaptureModal = ({ onCapture, onClose, angles = ['front'], multi = fa
                 clean. */}
             {isProductMode && (
               <div className="absolute top-4 left-0 right-0 text-center pointer-events-none">
-                <div className="font-serif italic text-white text-lg md:text-xl drop-shadow-md">
+                <div className="font-sans text-white text-lg md:text-xl drop-shadow-md">
                   {multi && capturedShots.length > 0 ? 'Tap for another · or Done' : 'Frame the label'}
                 </div>
               </div>
             )}
             {!isProductMode && !multi && angles.length > 1 && (
               <div className="absolute top-4 left-0 right-0 text-center pointer-events-none">
-                <div className="font-serif italic text-white text-lg md:text-xl drop-shadow-md">
+                <div className="font-sans text-white text-lg md:text-xl drop-shadow-md">
                   {angleLabels[currentAngle] || 'Look forward'}
                 </div>
               </div>
@@ -417,11 +414,9 @@ const CameraCaptureModal = ({ onCapture, onClose, angles = ['front'], multi = fa
             <div className="text-center mb-2">
               <span
                 style={{
-                  fontStyle: 'italic',
                   fontSize: 10,
                   letterSpacing: '0.08em',
-                  color: 'rgba(255,255,255,0.5)',
-                }}
+                  color: 'rgba(255,255,255,0.5)'}}
               >
                 Try front · right · left · forehead
               </span>
@@ -457,8 +452,7 @@ const CameraCaptureModal = ({ onCapture, onClose, angles = ['front'], multi = fa
                         border: `2px ${shot ? 'solid' : 'dashed'} ${ring}`,
                         background: shot ? 'transparent' : 'rgba(255,255,255,0.04)',
                         overflow: 'hidden',
-                        transition: 'border-color 0.15s',
-                      }}
+                        transition: 'border-color 0.15s'}}
                     >
                       {shot ? (
                         <img src={shot.dataUrl} alt="" style={{width:'100%', height:'100%', objectFit:'cover'}} />
@@ -482,8 +476,7 @@ const CameraCaptureModal = ({ onCapture, onClose, angles = ['front'], multi = fa
                         color: '#fff',
                         border: '1px solid rgba(255,255,255,0.72)',
                         boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
-                        cursor: 'pointer',
-                      }}
+                        cursor: 'pointer'}}
                       aria-label={`Remove photo ${i + 1}`}
                       title="Remove this photo"
                     >
@@ -519,8 +512,7 @@ const CameraCaptureModal = ({ onCapture, onClose, angles = ['front'], multi = fa
             style={{
               border: '4px solid #fff',
               background: 'rgba(255,255,255,0.08)',
-              cursor: 'pointer',
-            }}
+              cursor: 'pointer'}}
             aria-label="Capture photo"
           >
             <span style={{display:'block', width: 50, height: 50, borderRadius: '50%', background:'#fff'}} />
@@ -553,10 +545,10 @@ const CameraCaptureModal = ({ onCapture, onClose, angles = ['front'], multi = fa
         >
           <div
             className="w-full max-w-sm rounded-[20px] overflow-hidden"
-            style={{background:'var(--cream)', border:'1px solid var(--line)'}}
+            style={{background:'var(--cream)', border: '1px solid var(--line)'}}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-5 pt-5 pb-3 border-b" style={{borderColor:'var(--line)'}}>
+            <div className="px-5 pt-5 pb-3 border-b" style={{borderColor: 'var(--line)'}}>
               <h3 className="text-[18px] leading-tight" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.014em'}}>
                 Keep these photos?
               </h3>
@@ -578,7 +570,7 @@ const CameraCaptureModal = ({ onCapture, onClose, angles = ['front'], multi = fa
                 type="button"
                 onClick={() => { setExitConfirmOpen(false); setCapturedShots([]); onClose && onClose(); }}
                 className="w-full rounded-full py-2.5 px-4 transition hover:bg-[var(--cream-deep)]"
-                style={{background:'transparent', color:'var(--ink)', border:'1px solid var(--line)', fontWeight:600, fontSize:11.5, letterSpacing:'0.04em', cursor:'pointer'}}
+                style={{background:'transparent', color:'var(--ink)', border: '1px solid var(--line)', fontWeight:600, fontSize:11.5, letterSpacing:'0.04em', cursor:'pointer'}}
               >Discard</button>
               <button
                 type="button"

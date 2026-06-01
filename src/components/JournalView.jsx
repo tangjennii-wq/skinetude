@@ -17,6 +17,7 @@ const JournalView = ({
   journalMode, setJournalMode,
   setShowLogModal,
   setEditingLogId,
+  openCheckInDetailsForLog,
   setShowProcedureModal,
   setEditingProcedureId,
   setShowApiKeyModal,
@@ -52,7 +53,7 @@ const JournalView = ({
   setTimelineViewMode, timelineViewMode,
   storySearch, setStorySearch,
   updateProcedure,
-  // For pass-through to JournalTodayPanel + JournalCompactPanel:
+  // For pass-through to JournalTodayPanel:
   mainPhotoByDate,
   retryingLogId,
   setMainPhotoForDate,
@@ -64,8 +65,7 @@ const JournalView = ({
   setCompareSubTab,
   setWeeklyInsightLoading,
   setWeeklyInsights,
-  weeklyInsightLoading,
-}) => {
+  weeklyInsightLoading}) => {
   // Local date formatter — `fmt` used to come from the parent IIFE scope when
   // this was inlined. Define it here so the extracted component is
   // self-contained. Format matches the original ("May 16, 2026").
@@ -110,26 +110,26 @@ const JournalView = ({
               >
                 <Photo item={entry} alt="" className="w-full h-64 object-cover"
                   renderFallback={() => (
-                    <div className="w-full h-64 flex items-center justify-center text-7xl font-serif italic" style={{background:'var(--cream)', color:'var(--ink-soft)'}}>{aiScoreOut10(entry) || entry.rating}</div>
+                    <div className="w-full h-64 flex items-center justify-center text-7xl font-sans" style={{background:'var(--cream)', color:'var(--ink-soft)'}}>{aiScoreOut10(entry) || entry.rating}</div>
                   )}
                 />
                 <span
-                  className="absolute bottom-3 left-3 rounded-full px-3 py-1.5 text-[10px] tracking-[0.18em] uppercase italic flex items-center gap-1.5"
+                  className="absolute bottom-3 left-3 rounded-full px-3 py-1.5 text-[10px] tracking-[0.18em] uppercase flex items-center gap-1.5"
                   style={{background:'rgba(250,250,246,0.92)', color:'var(--ink)', backdropFilter:'blur(4px)'}}
                 >
                   <Icon name="Sparkles" size={10} style={{color:'var(--accent)'}} /> Tap for analysis
                 </span>
               </button>
               <div className="px-5 py-4">
-                <h3 className="font-serif italic text-[20px] leading-[1.15]" style={{color:'var(--ink)'}}>
+                <h3 className="font-sans text-[20px] leading-[1.15]" style={{color:'var(--ink)'}}>
                   {new Date(entry.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                 </h3>
                 <div className="text-[10px] tracking-[0.2em] uppercase mt-1.5" style={{color:'var(--ink-soft)'}}>
-                  {entry.area.replace(/-/g, ' ')}
+                  {(entry.area || 'full-face').replace(/-/g, ' ')}
                   {aiScoreOut10(entry) ? <> · <span style={{color:'var(--accent)'}}>✦</span> {aiScoreOut10(entry)}/10</> : (entry.rating != null ? ` · ${entry.rating}/10` : '')}
                 </div>
                 {entry.concerns?.length > 0 && <div className="text-[11px] mt-2 leading-relaxed" style={{color:'var(--ink-soft)'}}>{entry.concerns.join(' · ')}</div>}
-                {entry.notes && <p className="text-[12px] mt-2 italic leading-relaxed" style={{color:'var(--ink)'}}>"{entry.notes}"</p>}
+                {entry.notes && <p className="text-[12px] mt-2 leading-relaxed" style={{color:'var(--ink)'}}>"{entry.notes}"</p>}
               </div>
             </EditorialCard>
           ))}
@@ -139,17 +139,17 @@ const JournalView = ({
           <div className="grid grid-cols-3 gap-4 text-center mt-2">
             <div>
               <Eyebrow className="mb-1">Rating</Eyebrow>
-              <div className="font-serif text-[28px] md:text-[32px] italic leading-none" style={{color: later.rating > earlier.rating ? 'var(--sage)' : later.rating < earlier.rating ? 'var(--rose)' : 'var(--ink)'}}>
+              <div className="font-sans text-[28px] md:text-[32px] leading-none" style={{color: later.rating > earlier.rating ? 'var(--accent-blue)' : later.rating < earlier.rating ? 'var(--rose)' : 'var(--ink)'}}>
                 {later.rating > earlier.rating ? '+' : ''}{later.rating - earlier.rating}
               </div>
             </div>
             <div>
               <Eyebrow className="mb-1">Days apart</Eyebrow>
-              <div className="font-serif text-[28px] md:text-[32px] italic leading-none" style={{color:'var(--ink)'}}>{days}</div>
+              <div className="font-sans text-[28px] md:text-[32px] leading-none" style={{color:'var(--ink)'}}>{days}</div>
             </div>
             <div>
               <Eyebrow className="mb-1">Trend</Eyebrow>
-              <div className="font-serif text-[28px] md:text-[32px] italic leading-none" style={{color: later.rating > earlier.rating ? 'var(--sage)' : later.rating < earlier.rating ? 'var(--rose)' : 'var(--ink-soft)'}}>
+              <div className="font-sans text-[28px] md:text-[32px] leading-none" style={{color: later.rating > earlier.rating ? 'var(--accent-blue)' : later.rating < earlier.rating ? 'var(--rose)' : 'var(--ink-soft)'}}>
                 {later.rating > earlier.rating ? '↑' : later.rating < earlier.rating ? '↓' : '→'}
               </div>
             </div>
@@ -169,9 +169,9 @@ const JournalView = ({
   // Mobile (<md) is still 100% width either way, which is the design.
   const isTimelineTab = journalMode === 'timeline' || journalMode === 'extended';
   return (
-    <div className={`md:max-w-md md:mx-auto pb-6 ${isTimelineTab ? 'lg:!max-w-4xl' : ''}`}>
+    <div className={`md:max-w-[430px] md:mx-auto pb-6 ${isTimelineTab ? 'lg:!max-w-4xl' : ''}`}>
       {/* === EDITORIAL HEADER ===
-          Matches the new mockup: small "Journal" eyebrow + serif italic
+          Matches the new mockup: small "Journal" eyebrow + serif
           display "Your skin story. Captured daily." + body line. */}
       {/* Slim header — was 3 lines (eyebrow + title + body) which
           ate the top half of the viewport. Now just the eyebrow +
@@ -182,190 +182,9 @@ const JournalView = ({
         title="Understand your skin."
       />
 
-      {/* === SUNDAY DIGEST MOVED ===
-          Per Jenni: Sunday Digest now lives at the BOTTOM of the
-          Journal page as a weekly summary card. The full IIFE has
-          been relocated below the Library/Today/Timeline/Signals
-          content so it caps the page rather than dominating the top.
-          Overlap audit between Digest and the rest of the Journal
-          page is deferred. */}
-      {false && (() => {
-        const hasPhotoFn = (l) => l && (l.photoPath || (typeof l.photo === 'string' && l.photo.startsWith('data:')));
-        // Anchor week to today (Mon-Sun) BASE; then shift by digest
-        // offset so the user can scrub back through prior weeks.
-        const tdy = new Date(); tdy.setHours(0,0,0,0);
-        const dayIdx = tdy.getDay() === 0 ? 6 : tdy.getDay() - 1;
-        const baseWeekStart = new Date(tdy); baseWeekStart.setDate(tdy.getDate() - dayIdx);
-        const weekStart = new Date(baseWeekStart);
-        weekStart.setDate(baseWeekStart.getDate() + journalDigestWeekOffset * 7);
-        const isCurrentDigestWeek = journalDigestWeekOffset === 0;
-        const weekDaysArr = Array.from({ length: 7 }, (_, i) => {
-          const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
-          return {
-            iso: localDateISO(d),
-            name: ['MON','TUE','WED','THU','FRI','SAT','SUN'][i],
-            isToday: d.getTime() === tdy.getTime(),
-            isFuture: d.getTime() > tdy.getTime(),
-          };
-        });
-        const weekStartLabel = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
-        const weekEndLabel = weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        // Per-day log + AI score lookup.
-        const logsThisWeek = weekDaysArr
-          .map(d => ({ ...d, log: (logs || []).find(l => l.date === d.iso && hasPhotoFn(l)) }))
-          .map(d => ({ ...d, score: d.log ? aiScoreOut10(d.log) : null }));
-        // Stats.
-        const checkInDays = logsThisWeek.filter(d => d.log).length;
-        const scoresOnly = logsThisWeek.filter(d => d.score != null).map(d => Number(d.score));
-        const avgScore = scoresOnly.length ? (scoresOnly.reduce((s, v) => s + v, 0) / scoresOnly.length).toFixed(1) : null;
-        // Biggest move = day with greatest delta vs. the week's average.
-        const biggestMover = (() => {
-          if (scoresOnly.length < 2 || !avgScore) return null;
-          const avgN = Number(avgScore);
-          let best = null;
-          logsThisWeek.forEach(d => {
-            if (d.score == null) return;
-            const delta = Number(d.score) - avgN;
-            if (!best || Math.abs(delta) > Math.abs(best.delta)) best = { day: d, delta };
-          });
-          return best;
-        })();
-        return (
-          <section className="rounded-[20px] mb-5 overflow-hidden" style={{background:'var(--cream-deep)', border:'1.5px solid var(--accent)'}}>
-            {/* Header — terracotta border so it stands out as the
-                canonical weekly recap, not just another card. */}
-            <div className="px-5 pt-4 pb-2 flex items-start justify-between gap-2">
-              <div>
-                <Eyebrow tone="accent">✦ Sunday Digest</Eyebrow>
-                <h2 className="font-serif italic text-[22px] leading-tight mt-0.5" style={{color:'var(--ink)'}}>
-                  Your week.
-                </h2>
-              </div>
-              {/* Week scrubber — ◀ DATE RANGE ▶. Forward arrow disabled
-                  when on current week (no future). "This week" link
-                  jumps back to today's week from any prior view. */}
-              <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
-                <button
-                  type="button"
-                  onClick={() => setJournalDigestWeekOffset(o => o - 1)}
-                  className="w-6 h-6 rounded-full flex items-center justify-center transition hover:bg-[var(--cream)] cursor-pointer"
-                  style={{color:'var(--ink-soft)', cursor:'pointer'}}
-                  aria-label="Previous week"
-                  title="Previous week"
-                >
-                  <Icon name="ChevronLeft" size={12} />
-                </button>
-                <div className="flex flex-col items-center min-w-[92px]">
-                  <span className="text-[10px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)'}}>
-                    {weekStartLabel} – {weekEndLabel}
-                  </span>
-                  {!isCurrentDigestWeek && (
-                    <button
-                      type="button"
-                      onClick={() => setJournalDigestWeekOffset(0)}
-                      className="text-[8.5px] tracking-[0.2em] uppercase italic transition hover:opacity-70 mt-0.5"
-                      style={{color:'var(--accent)', cursor:'pointer'}}
-                    >
-                      this week
-                    </button>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setJournalDigestWeekOffset(o => Math.min(0, o + 1))}
-                  disabled={isCurrentDigestWeek}
-                  className="w-6 h-6 rounded-full flex items-center justify-center transition hover:bg-[var(--cream)] cursor-pointer disabled:opacity-30"
-                  style={{color:'var(--ink-soft)', cursor: isCurrentDigestWeek ? 'default' : 'pointer'}}
-                  aria-label="Next week"
-                  title={isCurrentDigestWeek ? 'Already on current week' : 'Next week'}
-                >
-                  <Icon name="ChevronRight" size={12} />
-                </button>
-              </div>
-            </div>
-            {/* Photo strip — one row of 7 day cards */}
-            <div className="px-3 pb-3">
-              <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1" style={{scrollSnapType:'x mandatory'}}>
-                {logsThisWeek.map(d => (
-                  <button
-                    key={d.iso}
-                    onClick={() => {
-                      if (d.log) setSkinReadDrawerLogId(d.log.id);
-                      else setJournalDayDetail && setJournalDayDetail(d.iso);
-                    }}
-                    className="flex-shrink-0 rounded-[12px] overflow-hidden transition hover:opacity-95 text-left"
-                    style={{width:'72px', scrollSnapAlign:'start', background:'var(--cream)', border: d.isToday ? '1.5px solid var(--accent)' : '1px solid var(--line)'}}
-                    title={d.log ? `${d.name} · tap to read` : `${d.name} · no photo`}
-                  >
-                    <div className="text-[8.5px] tracking-[0.22em] uppercase pt-1.5 pb-0.5 text-center font-medium" style={{color: d.isToday ? 'var(--accent)' : 'var(--ink-soft)'}}>
-                      {d.isToday ? 'TODAY' : d.name}
-                    </div>
-                    <div className="aspect-[3/4] mx-1 rounded-[6px] overflow-hidden flex items-center justify-center" style={{background:'var(--cream-deep)'}}>
-                      {d.log ? (
-                        <Photo item={d.log} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="font-serif italic text-[10px]" style={{color:'var(--ink-soft)'}}>{d.isFuture ? '—' : 'rest'}</span>
-                      )}
-                    </div>
-                    <div className="text-center pt-1 pb-1.5 leading-none">
-                      {d.score ? (
-                        <span className="font-serif italic text-[11px]" style={{color:'var(--accent)'}}>✦ {d.score}</span>
-                      ) : (
-                        <span className="text-[9px] italic" style={{color:'var(--ink-soft)'}}>—</span>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-            {/* Stat row */}
-            <div className="px-5 py-3 flex items-baseline gap-5 flex-wrap" style={{borderTop:'1px solid var(--line)'}}>
-              <div>
-                <div className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>Avg</div>
-                <div className="font-serif italic text-[18px] leading-none mt-0.5" style={{color: avgScore ? 'var(--ink)' : 'var(--ink-soft)'}}>
-                  {avgScore ? <><span style={{color:'var(--accent)'}}>✦</span> {avgScore}<span className="text-[10px]" style={{color:'var(--ink-soft)'}}>/10</span></> : '—'}
-                </div>
-              </div>
-              <div>
-                <div className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>Reads</div>
-                <div className="font-serif italic text-[18px] leading-none mt-0.5" style={{color:'var(--ink)'}}>
-                  {checkInDays} <span className="text-[10px]" style={{color:'var(--ink-soft)'}}>/ 7</span>
-                </div>
-              </div>
-              {biggestMover && (
-                <div>
-                  <div className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>Biggest move</div>
-                  <div className="font-serif italic text-[14px] leading-none mt-0.5" style={{color: biggestMover.delta > 0 ? 'var(--sage)' : 'var(--rose)'}}>
-                    {biggestMover.day.name} {biggestMover.delta > 0 ? '+' : ''}{biggestMover.delta.toFixed(1)}
-                  </div>
-                </div>
-              )}
-            </div>
-            {/* Calendar reminder pin */}
-            <div className="px-5 py-3 flex items-center justify-between gap-3 flex-wrap" style={{borderTop:'1px solid var(--line)', background:'var(--cream)'}}>
-              <div className="text-[11px] leading-snug flex-1 min-w-0" style={{color:'var(--ink-soft)'}}>
-                <span className="italic">Pin every Sunday at 9 AM →</span> drops a recurring event into your calendar.
-              </div>
-              <button
-                onClick={() => {
-                  downloadIcsReminder({
-                    title: 'Étude · Sunday Digest',
-                    description: 'Open Étude → Journal for your weekly skin read. https://tangjennii-wq.github.io/skinetude/',
-                    hour: 9,
-                    minute: 0,
-                  });
-                  toast('Reminder added to your downloads — open it to drop into your calendar', 'info');
-                }}
-                className="flex-shrink-0 rounded-full px-3 py-1.5 text-[10px] tracking-[0.15em] uppercase flex items-center gap-1.5 transition hover:opacity-90 cursor-pointer border"
-                style={{borderColor:'var(--accent)', color:'var(--accent)', background:'transparent', cursor:'pointer'}}
-              >
-                <Icon name="Calendar" size={11} /> Add to calendar
-              </button>
-            </div>
-          </section>
-        );
-      })()}
+      {/* Sunday Digest lives at the bottom of Journal — see the
+          relocated block further down. (~160 lines of `{false && (() => {...})()}`
+          dead code removed May 2026 audit pass.) */}
 
       {/* === SKIN READ — 4 SUB-TABS ===
           today    = hero analysis card (today's photo, dual scores, metrics, what changed, top matches)
@@ -410,7 +229,7 @@ const JournalView = ({
       {/* === TODAY TAB ===
           The flagship analysis view: today's photo as the hero with
           whole-card tap to open the full Skin Read drawer, dual scoring
-          (italic serif AI 8.2 / 10 with descriptor + a separate self-rating
+          ( serif AI 8.2 / 10 with descriptor + a separate self-rating
           chip), 5-metric grid, what-changed delta, and the swipeable
           week strip below. Old 'skinReads' / 'compact' state still
           lands here so existing users don't see an empty tab. */}
@@ -418,6 +237,7 @@ const JournalView = ({
 
         <JournalTodayPanel
           logs={logs}
+          products={products}
           regimenLogs={regimenLogs}
           retryLogAnalysis={retryLogAnalysis}
           setShowApiKeyModal={setShowApiKeyModal}
@@ -443,44 +263,13 @@ const JournalView = ({
           - Filter chips: All / Photos / Procedures / New products
           - Weekly recap card pinned at top (current week stats + AI insight)
           - Editorial cards per entry with: date headline, photo, short
-            reflection text, mini tag chips, optional Étude Note (AI prose)
+            reflection text, mini tag chips, optional Frida Note (AI prose)
           - Photo calendar at the bottom for jump-to-date
           Select-mode aware: when active, tapping a card toggles selection. */}
-      {/* Legacy weekly-recap calendar grid — kept reachable only via
-          explicit `journalMode === 'compact'` (deep links / saved state).
-          The new Timeline tab now routes to the editorial story feed
-          below, which more closely matches Jenni's mockup. */}
-      {logs.length > 0 && journalMode === 'compact' && (
-
-        <JournalCompactPanel
-          callClaude={callClaude}
-          logs={logs}
-          procedures={procedures}
-          products={products}
-          regimenLogs={regimenLogs}
-          saveData={saveData}
-          setActiveTab={setActiveTab}
-          setShowApiKeyModal={setShowApiKeyModal}
-          toast={toast}
-          weeklyInsights={weeklyInsights}
-          exitSelectMode={exitSelectMode}
-          selectMode={selectMode}
-          selectedIds={selectedIds}
-          setCompareSubTab={setCompareSubTab}
-          setCompareTimeAfterId={setCompareTimeAfterId}
-          setCompareTimeBeforeId={setCompareTimeBeforeId}
-          setJournalDayDetail={setJournalDayDetail}
-          setOpenLesson={setOpenLesson}
-          setStoryFilter={setStoryFilter}
-          setStorySearch={setStorySearch}
-          setWeeklyInsightLoading={setWeeklyInsightLoading}
-          setWeeklyInsights={setWeeklyInsights}
-          storyFilter={storyFilter}
-          storySearch={storySearch}
-          toggleSelectId={toggleSelectId}
-          weeklyInsightLoading={weeklyInsightLoading}
-        />
-      )}
+      {/* JournalCompactPanel deleted 2026-05-31: dual-render bug for legacy
+          'compact' state — JournalTodayPanel (line 236) already tolerates
+          journalMode === 'compact', so removing this branch fixes the
+          stacking and removes a redundant surface per the audit. */}
 
       {logs.length === 0 ? (
         <EmptyState icon="Calendar" text="Your journal awaits its first entry." action={() => setShowCheckInChooser(true)} actionText="Add Photo" />
@@ -497,7 +286,7 @@ const JournalView = ({
           {/* Selection status bar */}
           {selectMode && (
             <div className="mb-6 p-4 border flex justify-between items-center gap-4 flex-wrap" style={{background:'var(--cream-deep)', borderColor:'var(--ink)'}}>
-              <div className="text-sm font-light italic" style={{color:'var(--ink)'}}>
+              <div className="text-sm font-light" style={{color:'var(--ink)'}}>
                 {selectedIds.length === 0 && 'Tap any two entries to compare them.'}
                 {selectedIds.length === 1 && 'One selected — pick one more.'}
                 {selectedIds.length === 2 && 'Two selected — ready when you are.'}
@@ -518,11 +307,10 @@ const JournalView = ({
                       compareEntries: [earlier, later],
                       suggestions: [
                         "What's visibly different?",
-                        'What likely caused the change?',
+                        'What shifted between these two?',
                         'Should I keep doing what I changed?',
                         'What would a derm flag here?',
-                      ],
-                    });
+                      ]});
                     exitSelectMode();
                   }}
                   disabled={!canCompare}
@@ -543,7 +331,7 @@ const JournalView = ({
            * Editorial spine + small terracotta nodes.
            * Each entry = one ~90-120px tall row.
            * 5 filter pills (All / Skin Reads / Products / Procedures / Notes)
-           * Étude observations injected every 6 entries.
+           * Frida observations injected every 6 entries.
            * Load more pagination — initial 30, +30 per click.
            * Right rail on ≥lg: mini calendar + week summary.
            * Mobile: pinned week summary at top.
@@ -594,7 +382,7 @@ const JournalView = ({
             }
             items.sort((a, b) => b.sortKey.localeCompare(a.sortKey));
 
-            // Inject Étude observation cards every 6 entries when the
+            // Inject Frida observation cards every 6 entries when the
             // surrounding data has enough deltas to derive one.
             // We compute a simple month-over-month signal across the
             // photo logs nearest to each insertion point.
@@ -700,8 +488,7 @@ const JournalView = ({
                           style={{
                             background: active ? 'var(--ink)' : 'var(--cream-deep)',
                             color: active ? 'var(--cream)' : 'var(--ink-soft)',
-                            border: '1px solid ' + (active ? 'var(--ink)' : 'var(--line)'),
-                          }}
+                            border: '1px solid ' + (active ? 'var(--ink)' : 'var(--line)')}}
                         >{f.label}</button>
                       );
                     })}
@@ -714,7 +501,7 @@ const JournalView = ({
                     <div className="text-[9.5px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>
                       {timelineViewMode === 'compact' ? 'Day at a glance' : 'Every entry'}
                     </div>
-                    <div className="inline-flex rounded-full overflow-hidden" style={{border:'1px solid var(--line)'}}>
+                    <div className="inline-flex rounded-full overflow-hidden" style={{border: '1px solid var(--line)'}}>
                       {[
                         { id: 'compact',  label: 'Compact' },
                         { id: 'extended', label: 'Extended' },
@@ -727,8 +514,7 @@ const JournalView = ({
                             className="px-2.5 py-1 text-[9px] tracking-[0.18em] uppercase transition"
                             style={{
                               background: active ? 'var(--ink)' : 'transparent',
-                              color: active ? 'var(--cream)' : 'var(--ink-soft)',
-                            }}
+                              color: active ? 'var(--cream)' : 'var(--ink-soft)'}}
                           >{v.label}</button>
                         );
                       })}
@@ -736,25 +522,25 @@ const JournalView = ({
                   </div>
 
                   {/* Mobile-only pinned week summary card */}
-                  <div className="lg:hidden mb-4 rounded-[14px] px-4 py-3 flex items-center gap-3" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+                  <div className="lg:hidden mb-4 rounded-[14px] px-4 py-3 flex items-center gap-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
                     <div className="flex-1 min-w-0">
                       <div className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>Week summary</div>
-                      <div className="font-serif italic text-[12px] mt-0.5" style={{color:'var(--ink)'}}>{weekRangeFmt}</div>
+                      <div className="font-sans text-[12px] mt-0.5" style={{color:'var(--ink)'}}>{weekRangeFmt}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-[10px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)'}}>Reads</div>
-                      <div className="font-serif italic text-[16px] leading-none" style={{color:'var(--ink)'}}>{weekRated.length}</div>
+                      <div className="font-sans text-[16px] leading-none" style={{color:'var(--ink)'}}>{weekRated.length}</div>
                     </div>
                     {weekAvg != null && (
                       <div className="text-right">
                         <div className="text-[10px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)'}}>Avg</div>
-                        <div className="font-serif italic text-[16px] leading-none" style={{color:'var(--accent)'}}>{weekAvg.toFixed(1)}</div>
+                        <div className="font-sans text-[16px] leading-none" style={{color:'var(--accent)'}}>{weekAvg.toFixed(1)}</div>
                       </div>
                     )}
                   </div>
 
                   {visibleItems.length === 0 ? (
-                    <p className="font-serif italic text-[14px] py-12 text-center" style={{color:'var(--ink-soft)'}}>
+                    <p className="font-sans text-[14px] py-12 text-center" style={{color:'var(--ink-soft)'}}>
                       {q || storyFilter !== 'all' ? 'Nothing matches. Try less.' : 'Story starts with the first photo.'}
                     </p>
                   ) : timelineViewMode === 'compact' ? (
@@ -779,12 +565,12 @@ const JournalView = ({
                               {/* Date gutter — matches extended */}
                               <div className="absolute -left-[74px] top-2 w-[60px] text-right">
                                 <div className="text-[9px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)'}}>{gutter.main}</div>
-                                {gutter.sub && <div className="text-[9px] italic" style={{color:'var(--ink-soft)'}}>{gutter.sub}</div>}
+                                {gutter.sub && <div className="text-[9px]" style={{color:'var(--ink-soft)'}}>{gutter.sub}</div>}
                               </div>
                               {/* Node — matches extended */}
                               <div className="absolute -left-[10px] top-3 w-2.5 h-2.5 rounded-full" style={{background: nodeColor, border:'2px solid var(--cream)'}} />
                               {/* Day card — same outer style as an Extended row */}
-                              <div className="rounded-[14px] p-3 flex items-center gap-2" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
+                              <div className="rounded-[14px] p-3 flex items-center gap-2" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
                                 <div className="flex gap-1.5 overflow-x-auto no-scrollbar flex-1">
                                   {items.map(item => {
                                     if (item.kind === 'log') {
@@ -795,16 +581,16 @@ const JournalView = ({
                                           key={item.id}
                                           onClick={() => setSkinReadDrawerLogId(l.id)}
                                           className="flex-shrink-0 w-16 h-16 rounded-[10px] overflow-hidden transition hover:opacity-90 relative"
-                                          style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}
+                                          style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}
                                           title={`Skin Read · ${(l.area || 'full-face').replace(/-/g, ' ')}${l.rating != null ? ' · ' + l.rating + '/10' : ''}`}
                                         >
                                           {hasPhotoNow ? (
                                             <Photo item={l} alt="" className="w-full h-full object-cover" />
                                           ) : (
-                                            <div className="w-full h-full flex items-center justify-center font-serif italic text-[16px]" style={{color:'var(--ink-soft)'}}>{l.rating ?? '·'}</div>
+                                            <div className="w-full h-full flex items-center justify-center font-sans text-[16px]" style={{color:'var(--ink-soft)'}}>{l.rating ?? '·'}</div>
                                           )}
                                           {l.rating != null && (
-                                            <div className="absolute bottom-0 inset-x-0 text-center font-serif italic text-[10px] leading-tight py-0.5" style={{background:'rgba(245,240,232,0.85)', color:'var(--ink)'}}>{Number(l.rating).toFixed(1)}</div>
+                                            <div className="absolute bottom-0 inset-x-0 text-center font-sans text-[10px] leading-tight py-0.5" style={{background:'rgba(245,240,232,0.85)', color:'var(--ink)'}}>{Number(l.rating).toFixed(1)}</div>
                                           )}
                                         </button>
                                       );
@@ -812,7 +598,7 @@ const JournalView = ({
                                     if (item.kind === 'product-start') {
                                       const p = item.payload;
                                       return (
-                                        <div key={item.id} className="flex-shrink-0 w-16 h-16 rounded-[10px] flex flex-col items-center justify-center px-1" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}} title={`Product · ${p.name}`}>
+                                        <div key={item.id} className="flex-shrink-0 w-16 h-16 rounded-[10px] flex flex-col items-center justify-center px-1" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}} title={`Product · ${p.name}`}>
                                           <Icon name="Package" size={16} style={{color:'var(--accent)'}} />
                                           <div className="text-[8px] tracking-[0.05em] mt-1 text-center line-clamp-2 leading-tight" style={{color:'var(--ink-soft)'}}>{(p.brand || p.name || '').slice(0, 12)}</div>
                                         </div>
@@ -821,7 +607,7 @@ const JournalView = ({
                                     if (item.kind === 'procedure') {
                                       const p = item.payload;
                                       return (
-                                        <div key={item.id} className="flex-shrink-0 w-16 h-16 rounded-[10px] flex flex-col items-center justify-center px-1" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}} title={`Procedure · ${p.name}`}>
+                                        <div key={item.id} className="flex-shrink-0 w-16 h-16 rounded-[10px] flex flex-col items-center justify-center px-1" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}} title={`Procedure · ${p.name}`}>
                                           <Icon name="Activity" size={16} style={{color:'var(--accent)'}} />
                                           <div className="text-[8px] tracking-[0.05em] mt-1 text-center line-clamp-2 leading-tight" style={{color:'var(--ink-soft)'}}>{(p.name || '').slice(0, 12)}</div>
                                         </div>
@@ -830,9 +616,9 @@ const JournalView = ({
                                     if (item.kind === 'note') {
                                       const r = item.payload;
                                       return (
-                                        <div key={item.id} className="flex-shrink-0 w-16 h-16 rounded-[10px] flex flex-col items-center justify-center px-1.5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}} title={r.notes}>
+                                        <div key={item.id} className="flex-shrink-0 w-16 h-16 rounded-[10px] flex flex-col items-center justify-center px-1.5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}} title={r.notes}>
                                           <Icon name="FileText" size={14} style={{color:'var(--ink-soft)'}} />
-                                          <div className="text-[8px] mt-1 text-center line-clamp-2 leading-tight italic" style={{color:'var(--ink-soft)'}}>{(r.notes || 'note').slice(0, 18)}</div>
+                                          <div className="text-[8px] mt-1 text-center line-clamp-2 leading-tight" style={{color:'var(--ink-soft)'}}>{(r.notes || 'note').slice(0, 18)}</div>
                                         </div>
                                       );
                                     }
@@ -853,7 +639,7 @@ const JournalView = ({
                         <div className="text-center mt-6">
                           <button
                             onClick={() => setTimelineLimit(n => n + 30)}
-                            className="text-[10.5px] tracking-[0.22em] uppercase italic flex items-center gap-1.5 mx-auto px-4 py-2"
+                            className="text-[10.5px] tracking-[0.22em] uppercase flex items-center gap-1.5 mx-auto px-4 py-2"
                             style={{color:'var(--ink-soft)'}}
                           >
                             Load more <Icon name="ChevronDown" size={11} />
@@ -877,7 +663,7 @@ const JournalView = ({
                               {/* Date gutter — absolute, sits left of spine */}
                               <div className="absolute -left-[74px] top-2 w-[60px] text-right">
                                 <div className="text-[9px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)'}}>{gutter.main}</div>
-                                {gutter.sub && <div className="text-[9px] italic" style={{color:'var(--ink-soft)'}}>{gutter.sub}</div>}
+                                {gutter.sub && <div className="text-[9px]" style={{color:'var(--ink-soft)'}}>{gutter.sub}</div>}
                               </div>
                               {/* Node — small terracotta dot on the spine */}
                               <div className="absolute -left-[10px] top-3 w-2.5 h-2.5 rounded-full" style={{background: opts.nodeColor || 'var(--accent)', border:'2px solid var(--cream)'}} />
@@ -911,7 +697,7 @@ const JournalView = ({
                                 type="button"
                                 onClick={() => setSkinReadDrawerLogId(l.id)}
                                 className="w-full text-left rounded-[14px] p-3 flex items-center gap-3 transition hover:opacity-95"
-                                style={{background:'var(--cream)', border:'1px solid var(--line)'}}
+                                style={{background:'var(--cream)', border: '1px solid var(--line)'}}
                               >
                                 {hasPhoto(l) ? (
                                   <div className="w-16 h-16 rounded-[10px] overflow-hidden flex-shrink-0" style={{background:'var(--cream-deep)'}}>
@@ -919,7 +705,7 @@ const JournalView = ({
                                   </div>
                                 ) : (
                                   <div className="w-16 h-16 rounded-[10px] flex items-center justify-center flex-shrink-0" style={{background:'var(--cream-deep)', color:'var(--ink-soft)'}}>
-                                    <span className="font-serif italic text-[18px]">{primaryScore ?? '·'}</span>
+                                    <span className="font-sans text-[18px]">{primaryScore ?? '·'}</span>
                                   </div>
                                 )}
                                 <div className="flex-1 min-w-0">
@@ -928,24 +714,24 @@ const JournalView = ({
                                   </div>
                                   <div className="flex items-baseline gap-2 mt-0.5">
                                     {primaryScore != null && (
-                                      <span className="font-serif italic text-[18px] leading-none" style={{color:'var(--ink)'}}>{primaryScore}<span className="text-[10px]" style={{color:'var(--ink-soft)'}}> /10</span></span>
+                                      <span className="font-sans text-[18px] leading-none" style={{color:'var(--ink)'}}>{primaryScore}<span className="text-[10px]" style={{color:'var(--ink-soft)'}}> /10</span></span>
                                     )}
                                     {displayBalance && (
-                                      <span className="font-serif italic text-[12px]" style={{color:'var(--accent)'}}>{displayBalance}</span>
+                                      <span className="font-sans text-[12px]" style={{color:'var(--accent)'}}>{displayBalance}</span>
                                     )}
                                     {/* Show user self-rating as quiet companion when both exist and they differ */}
                                     {isAiPrimary && userScore && userScore !== aiScore && (
-                                      <span className="text-[9.5px] italic" style={{color:'var(--ink-soft)', opacity:0.7}}>you: {userScore}</span>
+                                      <span className="text-[9.5px]" style={{color:'var(--ink-soft)', opacity:0.7}}>you: {userScore}</span>
                                     )}
                                   </div>
                                   {subDescriptors.length > 0 && (
                                     <div className="text-[10.5px] mt-0.5 truncate" style={{color:'var(--ink-soft)'}}>{subDescriptors.join(' · ')}</div>
                                   )}
                                   {note && (
-                                    <div className="text-[10.5px] italic mt-0.5 truncate" style={{color:'var(--ink)'}}>{note}</div>
+                                    <div className="text-[10.5px] mt-0.5 truncate" style={{color:'var(--ink)'}}>{note}</div>
                                   )}
                                 </div>
-                                <span className="text-[9.5px] tracking-[0.22em] uppercase italic flex items-center gap-0.5 flex-shrink-0" style={{color:'var(--accent)'}}>
+                                <span className="text-[9.5px] tracking-[0.22em] uppercase flex items-center gap-0.5 flex-shrink-0" style={{color:'var(--accent)'}}>
                                   View <Icon name="ChevronRight" size={10} />
                                 </span>
                               </button>
@@ -958,7 +744,7 @@ const JournalView = ({
                             const why = p.activeIngredients ? p.activeIngredients.split(',').slice(0, 2).map(s => s.trim()).join(' · ') : (p.tags || []).slice(0, 2).join(' · ');
                             const slot = (p.useTimes || []).map(t => t.toUpperCase()).join('+');
                             return rowWrap(
-                              <div className="rounded-[14px] p-3 flex items-center gap-3" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
+                              <div className="rounded-[14px] p-3 flex items-center gap-3" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
                                 {(p.photo || p.photoPath) ? (
                                   <div className="w-12 h-14 rounded-[8px] overflow-hidden flex-shrink-0 flex items-center justify-center" style={{background:'var(--cream-deep)'}}>
                                     <Photo item={p} alt={p.name} className="h-full w-auto max-w-full object-contain" />
@@ -971,7 +757,7 @@ const JournalView = ({
                                 <div className="flex-1 min-w-0">
                                   <div className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>Product Added</div>
                                   {p.brand && <div className="text-[10px] tracking-[0.05em] uppercase mt-0.5 truncate" style={{color:'var(--ink-soft)'}}>{p.brand}</div>}
-                                  <div className="font-serif italic text-[13px] leading-tight mt-0.5 truncate" style={{color:'var(--ink)'}}>{p.name}</div>
+                                  <div className="font-sans text-[13px] leading-tight mt-0.5 truncate" style={{color:'var(--ink)'}}>{p.name}</div>
                                   {(slot || why) && (
                                     <div className="text-[10px] mt-0.5 truncate" style={{color:'var(--ink-soft)'}}>
                                       {slot && <span style={{color:'var(--accent)'}}>{slot} routine</span>}{slot && why ? ' · ' : ''}{why}
@@ -987,15 +773,15 @@ const JournalView = ({
                           if (item.kind === 'procedure') {
                             const p = item.payload;
                             return rowWrap(
-                              <div className="rounded-[14px] p-3 flex items-center gap-3" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
-                                <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{background:'var(--accent-soft, #f3e2d6)', color:'var(--accent)'}}>
+                              <div className="rounded-[14px] p-3 flex items-center gap-3" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
+                                <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{background:'var(--accent-soft, #FCE8EE)', color:'var(--accent)'}}>
                                   <Icon name="Activity" size={15} />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>Procedure</div>
-                                  <div className="font-serif italic text-[13px] leading-tight mt-0.5 truncate" style={{color:'var(--ink)'}}>{p.name}</div>
+                                  <div className="font-sans text-[13px] leading-tight mt-0.5 truncate" style={{color:'var(--ink)'}}>{p.name}</div>
                                   {(p.results || p.notes) && (
-                                    <div className="text-[10.5px] italic mt-0.5 truncate" style={{color:'var(--ink-soft)'}}>{(p.results || p.notes).slice(0, 80)}</div>
+                                    <div className="text-[10.5px] mt-0.5 truncate" style={{color:'var(--ink-soft)'}}>{(p.results || p.notes).slice(0, 80)}</div>
                                   )}
                                 </div>
                               </div>
@@ -1006,20 +792,20 @@ const JournalView = ({
                           if (item.kind === 'note') {
                             const r = item.payload;
                             return rowWrap(
-                              <div className="rounded-[14px] p-3 flex items-center gap-3" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
+                              <div className="rounded-[14px] p-3 flex items-center gap-3" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
                                 <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{background:'var(--cream-deep)', color:'var(--ink-soft)'}}>
                                   <Icon name="FileText" size={14} />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>Note</div>
-                                  <div className="font-serif italic text-[12.5px] leading-snug mt-0.5 line-clamp-2" style={{color:'var(--ink)'}}>{r.notes}</div>
+                                  <div className="font-sans text-[12.5px] leading-snug mt-0.5 line-clamp-2" style={{color:'var(--ink)'}}>{r.notes}</div>
                                 </div>
                               </div>,
                               { nodeColor: 'var(--ink-soft)' }
                             );
                           }
 
-                          // === ÉTUDE OBSERVATION (injected every 6) ===
+                          // === FRIDA OBSERVATION (injected every 6) ===
                           if (item.kind === 'observation') {
                             return rowWrap(
                               <div className="rounded-[14px] p-3 flex items-start gap-2.5" style={{background:'var(--cream-deep)', border:'1px solid var(--accent)'}}>
@@ -1027,8 +813,8 @@ const JournalView = ({
                                   <Icon name="Sparkles" size={11} />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--accent)'}}>Étude Note</div>
-                                  <div className="font-serif italic text-[12.5px] leading-snug mt-0.5" style={{color:'var(--ink)'}}>{item.payload.text}</div>
+                                  <div className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--accent)'}}>Frida Note</div>
+                                  <div className="font-sans text-[12.5px] leading-snug mt-0.5" style={{color:'var(--ink)'}}>{item.payload.text}</div>
                                 </div>
                               </div>,
                               { nodeColor: 'var(--accent)' }
@@ -1042,7 +828,7 @@ const JournalView = ({
                         <div className="text-center mt-6">
                           <button
                             onClick={() => setTimelineLimit(n => n + 30)}
-                            className="text-[10.5px] tracking-[0.22em] uppercase italic flex items-center gap-1.5 mx-auto px-4 py-2"
+                            className="text-[10.5px] tracking-[0.22em] uppercase flex items-center gap-1.5 mx-auto px-4 py-2"
                             style={{color:'var(--ink-soft)'}}
                           >
                             Load more <Icon name="ChevronDown" size={11} />
@@ -1055,7 +841,7 @@ const JournalView = ({
 
                 {/* === RIGHT RAIL (≥lg only): mini calendar + week summary === */}
                 <aside className="hidden lg:block lg:w-[260px] lg:flex-shrink-0 space-y-3">
-                  <div className="rounded-[14px] p-3" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+                  <div className="rounded-[14px] p-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
                     <div className="text-[9.5px] tracking-[0.22em] uppercase mb-2" style={{color:'var(--ink-soft)'}}>{new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</div>
                     <MiniMonthCalendar
                       logs={logs}
@@ -1064,16 +850,16 @@ const JournalView = ({
                       onDayClick={(log, dKey) => log && setSkinReadDrawerLogId(log.id)}
                     />
                   </div>
-                  <div className="rounded-[14px] p-3.5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+                  <div className="rounded-[14px] p-3.5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
                     <div className="text-[9.5px] tracking-[0.22em] uppercase mb-1" style={{color:'var(--ink-soft)'}}>Week summary</div>
-                    <div className="font-serif italic text-[13px] mb-3" style={{color:'var(--ink)'}}>{weekRangeFmt}</div>
+                    <div className="font-sans text-[13px] mb-3" style={{color:'var(--ink)'}}>{weekRangeFmt}</div>
                     <div className="space-y-2 text-[11px]" style={{color:'var(--ink)'}}>
-                      <div className="flex justify-between"><span style={{color:'var(--ink-soft)'}}>Reads completed</span><span className="font-serif italic">{weekRated.length}</span></div>
+                      <div className="flex justify-between"><span style={{color:'var(--ink-soft)'}}>Reads completed</span><span className="font-sans">{weekRated.length}</span></div>
                       {weekAvg != null && (
-                        <div className="flex justify-between"><span style={{color:'var(--ink-soft)'}}>Avg score</span><span className="font-serif italic"><span style={{color:'var(--accent)'}}>{weekAvg.toFixed(1)}</span> /10</span></div>
+                        <div className="flex justify-between"><span style={{color:'var(--ink-soft)'}}>Avg score</span><span className="font-sans"><span style={{color:'var(--accent)'}}>{weekAvg.toFixed(1)}</span> /10</span></div>
                       )}
                       {weekTopConcern && (
-                        <div className="flex justify-between"><span style={{color:'var(--ink-soft)'}}>Top concern</span><span className="font-serif italic" style={{color:'var(--ink)'}}>{weekTopConcern.replace(/-/g, ' ')}</span></div>
+                        <div className="flex justify-between"><span style={{color:'var(--ink-soft)'}}>Top concern</span><span className="font-sans" style={{color:'var(--ink)'}}>{weekTopConcern.replace(/-/g, ' ')}</span></div>
                       )}
                     </div>
                   </div>
@@ -1081,119 +867,16 @@ const JournalView = ({
               </div>
             );
           })()}
-          {/* Legacy "story" fallback block retired May 2026 —
-              its effectiveView guard ('__legacy_story_unused')
-              never matched any real view, so the entire block
-              was dead code. Compiled bundle shrinks by ~3KB. */}
-          {false && (() => {
-            const items = [];
-            return (
-              <div>
-                {items.length === 0 ? (
-                  <p className="font-serif italic text-base py-12 text-center" style={{color:'var(--ink-soft)'}}>
-                    Empty.
-                  </p>
-                ) : (
-                  <div className="space-y-8">
-                    {items.map(item => {
-                      if (item.kind === 'procedure') {
-                        const p = item.payload;
-                        return (
-                          <article key={item.id} className="border-l-2 pl-5 py-2" style={{borderColor:'var(--accent)'}}>
-                            <div className="text-[10px] tracking-[0.3em] uppercase flex items-center gap-1.5" style={{color:'var(--accent)'}}>
-                              <Icon name="Activity" size={11} /> Procedure
-                            </div>
-                            <h3 className="font-serif italic text-xl md:text-2xl mt-1" style={{color:'var(--ink)'}}>{p.name}</h3>
-                            <div className="text-xs font-light mt-0.5" style={{color:'var(--ink-soft)'}}>{fmt(p.date)} · {(p.type || 'procedure').replace(/-/g, ' ')}</div>
-                            {p.results && <p className="text-sm font-light italic mt-2 leading-relaxed" style={{color:'var(--ink)'}}>{p.results}</p>}
-                            {p.aiAnalysis && <p className="font-serif italic text-sm md:text-base mt-3 leading-relaxed whitespace-pre-wrap" style={{color:'var(--ink)'}}>{withPearls(p.aiAnalysis, setOpenLesson)}</p>}
-                          </article>
-                        );
-                      }
-                      if (item.kind === 'product-start') {
-                        const p = item.payload;
-                        return (
-                          <article key={item.id} className="border-l-2 pl-5 py-2" style={{borderColor:'var(--ink-soft)'}}>
-                            <div className="text-[10px] tracking-[0.3em] uppercase flex items-center gap-1.5" style={{color:'var(--ink-soft)'}}>
-                              <Icon name="Plus" size={11} /> Started using
-                            </div>
-                            <h3 className="font-serif italic text-lg md:text-xl mt-1" style={{color:'var(--ink)'}}>{p.name}</h3>
-                            <div className="text-xs font-light mt-0.5" style={{color:'var(--ink-soft)'}}>{fmt(item.date)}{p.brand ? ` · ${p.brand}` : ''}{p.activeIngredients ? ` · ${p.activeIngredients}` : ''}</div>
-                          </article>
-                        );
-                      }
-                      // photo log
-                      const l = item.payload;
-                      return (
-                        <article key={item.id} className="border" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
-                          <div className="md:flex md:items-stretch">
-                            {hasPhoto(l) && (
-                              <div className="md:w-48 md:flex-shrink-0 aspect-square md:aspect-auto md:h-auto overflow-hidden" style={{background:'var(--cream-deep)'}}>
-                                <Photo item={l} alt="" className="w-full h-full object-cover" />
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0 px-5 py-4 md:py-5">
-                              <div className="flex items-baseline justify-between gap-3 mb-2">
-                                <div>
-                                  <div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>{fmt(l.date)}</div>
-                                  <div className="font-serif italic text-base mt-0.5" style={{color:'var(--ink)'}}>{(l.area || 'full-face').replace(/-/g, ' ')}</div>
-                                </div>
-                                <div className="font-serif italic flex-shrink-0" style={{color:'var(--accent)', fontSize:'1.5rem'}}>
-                                  {l.rating}<span className="text-[10px] not-italic" style={{color:'var(--ink-soft)'}}>/10</span>
-                                </div>
-                              </div>
-                              {(l.concerns || []).length > 0 && (
-                                <div className="flex flex-wrap gap-1 mb-2">
-                                  {l.concerns.map(c => (
-                                    <span key={c} className="text-[10px] tracking-[0.05em] px-2 py-0.5 border rounded-full" style={{borderColor:'var(--line)', color:'var(--ink-soft)', background:'var(--cream-deep)'}}>{c}</span>
-                                  ))}
-                                </div>
-                              )}
-                              {l.notes && <p className="font-serif italic text-sm md:text-base leading-relaxed mb-3" style={{color:'var(--ink)'}}>"{l.notes}"</p>}
-                              {(l.aiAnalysis || l.ratingExplanation) && (
-                                <div className="border-l-2 pl-3 py-1 mt-3" style={{borderColor:'var(--accent)'}}>
-                                  <div className="text-[10px] tracking-[0.25em] uppercase mb-1.5 flex items-center gap-1.5" style={{color:'var(--ink-soft)'}}>
-                                    <Icon name="Sparkles" size={11} style={{color:'var(--accent)'}} /> Counsel
-                                  </div>
-                                  <p className="font-serif italic text-sm md:text-base leading-relaxed whitespace-pre-line" style={{color:'var(--ink)'}}>
-                                    {withPearls(formatAnalysisText(l.aiAnalysis || l.ratingExplanation), setOpenLesson)}
-                                  </p>
-                                </div>
-                              )}
-                              {(l.usedProducts?.length > 0 || l.usedTags?.length > 0) && (
-                                <div className="text-[11px] font-light mt-3 leading-relaxed" style={{color:'var(--ink-soft)'}}>
-                                  {l.usedProducts?.length > 0 && (
-                                    <span><span className="text-[9px] tracking-[0.2em] uppercase mr-1.5">Used</span>{(l.usedProducts || []).map(id => products.find(p => p.id === id)?.name).filter(Boolean).join(', ')}</span>
-                                  )}
-                                  {l.usedProducts?.length > 0 && l.usedTags?.length > 0 && <span> · </span>}
-                                  {l.usedTags?.length > 0 && (
-                                    <span>{l.usedTags.map(t => '#' + t).join(' ')}</span>
-                                  )}
-                                </div>
-                              )}
-                              <div className="flex items-center gap-3 mt-3 pt-3 border-t" style={{borderColor:'var(--line)'}}>
-                                <button onClick={() => { setEditingLogId(l.id); setShowLogModal(true); }} className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1" style={{color:'var(--ink-soft)'}}>
-                                  <Icon name="Edit2" size={10} /> Edit
-                                </button>
-                                <span style={{color:'var(--line)'}}>·</span>
-                                <button onClick={() => setJournalDayDetail(l.date)} className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1" style={{color:'var(--ink-soft)'}}>
-                                  <Icon name="Eye" size={10} /> Day detail
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          {/* Legacy "story" fallback block retired May 2026 (audit pass) —
+              ~110 lines of {false && (() => {...})()} dead code removed. */}
 
           {/* === TIMELINE VIEW (calendar grid alternative) === */}
           {effectiveView === 'timeline' && (
-            <PhotoTimeline logs={logs} products={products} procedures={procedures} regimenLogs={regimenLogs} dailyCoverPick={dailyCoverPick} setActiveTab={setActiveTab} selectMode={selectMode} selectedIds={selectedIds} onToggleSelect={toggleSelectId} onOpenLesson={setOpenLesson} deleteLog={deleteLog} enterCompare={enterCompare} fileToBase64={fileToBase64} onAddPriorPhoto={handleAddPriorPhoto} onEditLog={(id) => { setEditingLogId(id); setShowLogModal(true); }} />
+            <PhotoTimeline logs={logs} products={products} procedures={procedures} regimenLogs={regimenLogs} dailyCoverPick={dailyCoverPick} setActiveTab={setActiveTab} selectMode={selectMode} selectedIds={selectedIds} onToggleSelect={toggleSelectId} onOpenLesson={setOpenLesson} deleteLog={deleteLog} enterCompare={enterCompare} fileToBase64={fileToBase64} onAddPriorPhoto={handleAddPriorPhoto} onEditLog={(id) => {
+              const log = logs.find(l => l.id === id);
+              if (openCheckInDetailsForLog && log) openCheckInDetailsForLog(log);
+              else { setEditingLogId(id); setShowLogModal(true); }
+            }} />
           )}
 
           {/* === COMPARE PRESETS VIEW === */}
@@ -1204,9 +887,9 @@ const JournalView = ({
           {/* === PROCEDURES SUB-TAB — full list with briefings === */}
           {effectiveView === 'procedures' && (
             <div>
-              <div className="flex items-baseline justify-between mb-4 border-b pb-3" style={{borderColor:'var(--line)'}}>
-                <p className="text-sm font-light italic" style={{color:'var(--ink-soft)'}}>A timeline of your treatments — auto-surfaced on the calendar above.</p>
-                <button onClick={() => setShowProcedureModal(true)} className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1" style={{color:'var(--accent)'}}>
+              <div className="flex items-baseline justify-between mb-4 border-b pb-3" style={{borderColor: 'var(--line)'}}>
+                <p className="text-sm font-light" style={{color:'var(--ink-soft)'}}>A timeline of your treatments — auto-surfaced on the calendar above.</p>
+                <button onClick={() => setShowProcedureModal(true)} className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1" style={{color:'var(--accent)'}}>
                   <Icon name="Plus" size={11} /> Log procedure
                 </button>
               </div>
@@ -1293,85 +976,72 @@ const JournalView = ({
             {/* === EYEBROW + LEAD === */}
             <div>
               <div className="text-[10px] tracking-[0.32em] uppercase mb-2" style={{color:'var(--ink-soft)'}}>From your data</div>
-              <h2 className="font-serif italic text-[24px] leading-[1.1]" style={{color:'var(--ink)'}}>Patterns, quietly observed.</h2>
-              <p className="text-[12px] italic mt-2 leading-relaxed" style={{color:'var(--ink-soft)'}}>
+              <h2 className="font-sans text-[24px] leading-[1.1]" style={{color:'var(--ink)'}}>Patterns, quietly observed.</h2>
+              <p className="text-[12px] mt-2 leading-relaxed" style={{color:'var(--ink-soft)'}}>
                 Drawn only from what you've logged — {dataPoints} entr{dataPoints === 1 ? 'y' : 'ies'}, {photoCount} photo{photoCount === 1 ? '' : 's'}, {procCount} procedure{procCount === 1 ? '' : 's'}, {productCount} product{productCount === 1 ? '' : 's'}. Nothing inferred or invented.
               </p>
             </div>
 
-            {/* === EMERGING PATTERNS === */}
+            {/* === EMERGING PATTERNS — compact (May 30 v3 per Jenni) ===
+                Each concern is a one-line row with title + count.
+                No expand needed — count + label is the signal. */}
             <EditorialCard pad="normal">
-              <Eyebrow className="mb-3">Emerging patterns</Eyebrow>
+              {/* === SECTION TITLE — bigger + accent (May 30 v4 per Jenni) === */}
+              <div className="mb-3 text-[14px] tracking-[0.18em] uppercase" style={{color:'var(--accent)', fontWeight:700}}>Emerging patterns</div>
               {!enoughData ? (
-                <p className="font-serif italic text-[14px]" style={{color:'var(--ink-soft)'}}>
-                  A few more readings and patterns will start to surface. ({5 - dataPoints} more to go.)
+                <p className="text-[13px]" style={{color:'var(--ink-soft)'}}>
+                  A few more readings and patterns will surface. ({5 - dataPoints} more to go.)
                 </p>
               ) : topConcerns.length === 0 ? (
-                <p className="font-serif italic text-[14px]" style={{color:'var(--ink-soft)'}}>
-                  No recurring concerns flagged yet — your skin's been steady.
-                </p>
+                <p className="text-[13px]" style={{color:'var(--ink-soft)'}}>No recurring concerns yet — steady.</p>
               ) : (
-                <div className="space-y-2.5">
-                  {topConcerns.map(([concern, n], i) => (
-                    <div key={concern} className="flex items-baseline justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-serif italic text-[15px] leading-tight" style={{color:'var(--ink)'}}>{concern.replace(/-/g, ' ')}</div>
-                        <div className="text-[10px] italic mt-0.5" style={{color:'var(--ink-soft)'}}>flagged in {n} reading{n === 1 ? '' : 's'}</div>
-                      </div>
-                      <div className="font-serif italic text-[20px] leading-none" style={{color:'var(--accent)'}}>{n}</div>
+                <div className="space-y-2">
+                  {topConcerns.map(([concern, n]) => (
+                    <div key={concern} className="flex items-baseline gap-2 text-[14px]" style={{color:'var(--ink)'}}>
+                      <span className="capitalize" style={{fontWeight:700}}>{concern.replace(/-/g, ' ')}</span>
+                      <span style={{color:'var(--ink-soft)'}}>·</span>
+                      <span style={{color:'var(--ink-soft)'}}>{n} reading{n === 1 ? '' : 's'}</span>
                     </div>
                   ))}
                 </div>
               )}
             </EditorialCard>
 
-            {/* === MOST RESPONSIVE === */}
+            {/* === MOST RESPONSIVE — compact, bigger title === */}
             <EditorialCard pad="normal">
-              <Eyebrow className="mb-3">Most responsive</Eyebrow>
+              <div className="mb-3 text-[14px] tracking-[0.18em] uppercase" style={{color:'var(--accent-blue,#86CAE7)', fontWeight:700}}>Most responsive</div>
               {responders.length === 0 ? (
-                <p className="font-serif italic text-[14px]" style={{color:'var(--ink-soft)'}}>
+                <p className="text-[13px]" style={{color:'var(--ink-soft)'}}>
                   {(productResponse.length === 0)
                     ? 'Add start dates to your products and we can show which are working.'
                     : 'Nothing has moved the needle convincingly yet — keep logging.'}
                 </p>
               ) : (
-                <div className="space-y-3">
-                  {responders.map((r, i) => (
-                    <div key={r.product.id} className="flex items-baseline justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-serif italic text-[15px] leading-tight truncate" style={{color:'var(--ink)'}}>{r.product.name}</div>
-                        <div className="text-[10px] italic mt-0.5" style={{color:'var(--ink-soft)'}}>{r.product.brand || 'product'} · 14 days</div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <div className="font-serif italic text-[18px] leading-none" style={{color:'var(--sage,#8a9b7e)'}}>+{r.delta.toFixed(1)}</div>
-                        <div className="text-[9px] italic mt-0.5" style={{color:'var(--ink-soft)'}}>rating shift</div>
-                      </div>
+                <div className="space-y-2">
+                  {responders.map((r) => (
+                    <div key={r.product.id} className="flex items-baseline justify-between gap-3 text-[14px]">
+                      <span className="truncate" style={{color:'var(--ink)', fontWeight:650}}>{r.product.name}</span>
+                      <span className="flex-shrink-0" style={{color:'var(--accent-blue,#86CAE7)', fontWeight:800, fontSize:'16px'}}>+{r.delta.toFixed(1)}</span>
                     </div>
                   ))}
                 </div>
               )}
             </EditorialCard>
 
-            {/* === WATCH === */}
+            {/* === WATCH — compact, bigger title, gold for caution === */}
             {watchers.length > 0 && (
               <EditorialCard pad="normal">
-                <Eyebrow className="mb-3">Watch</Eyebrow>
-                <div className="space-y-3">
+                <div className="mb-3 text-[14px] tracking-[0.18em] uppercase" style={{color:'var(--gold)', fontWeight:700}}>Watch</div>
+                <div className="space-y-2">
                   {watchers.map((r) => (
-                    <div key={r.product.id} className="flex items-baseline justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-serif italic text-[15px] leading-tight truncate" style={{color:'var(--ink)'}}>{r.product.name}</div>
-                        <div className="text-[10px] italic mt-0.5" style={{color:'var(--ink-soft)'}}>{r.product.brand || 'product'} · 14 days</div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <div className="font-serif italic text-[18px] leading-none" style={{color:'var(--rose,#c9a094)'}}>{r.delta.toFixed(1)}</div>
-                        <div className="text-[9px] italic mt-0.5" style={{color:'var(--ink-soft)'}}>rating shift</div>
-                      </div>
+                    <div key={r.product.id} className="flex items-baseline justify-between gap-3 text-[14px]">
+                      <span className="truncate" style={{color:'var(--ink)', fontWeight:650}}>{r.product.name}</span>
+                      <span className="flex-shrink-0" style={{color:'var(--rose,#c9a094)', fontWeight:800, fontSize:'16px'}}>{r.delta.toFixed(1)}</span>
                     </div>
                   ))}
                 </div>
-                <div className="text-[10px] italic mt-3 pt-3" style={{color:'var(--ink-soft)', borderTop:'1px solid var(--line)'}}>
-                  Correlation, not causation — worth a closer look.
+                <div className="text-[11px] mt-3 pt-3" style={{color:'var(--ink-soft)', borderTop:'1px solid var(--line)'}}>
+                  Correlation, not causation.
                 </div>
               </EditorialCard>
             )}
@@ -1391,14 +1061,14 @@ const JournalView = ({
                       <Icon name={t.icon} size={11} />
                       <div className="text-[9px] tracking-[0.22em] uppercase">{t.label}</div>
                     </div>
-                    <div className="font-serif italic text-[12.5px] leading-tight" style={{color:'var(--ink-soft)'}}>{t.body}</div>
+                    <div className="font-sans text-[12.5px] leading-tight" style={{color:'var(--ink-soft)'}}>{t.body}</div>
                     <div className="absolute top-2 right-2" style={{color:'var(--ink-soft)', opacity:0.5}}>
                       <Icon name="Lock" size={10} />
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="text-[10px] italic mt-3 text-center" style={{color:'var(--ink-soft)'}}>Coming next — we won't fake what we can't measure.</div>
+              <div className="text-[10px] mt-3 text-center" style={{color:'var(--ink-soft)'}}>Coming next — we won't fake what we can't measure.</div>
             </div>
           </div>
         );
@@ -1417,8 +1087,8 @@ const JournalView = ({
           return (
             <EditorialCard className="text-center py-10">
               <div className="flex justify-center mb-3" style={{color:'var(--accent)'}}><Icon name="Camera" size={26} /></div>
-              <h3 className="font-serif italic text-[20px] leading-[1.1] mb-1.5" style={{color:'var(--ink)'}}>Your library begins with the first photo.</h3>
-              <p className="text-[12px] italic mb-4" style={{color:'var(--ink-soft)'}}>Capture today's skin — your gallery will fill from here.</p>
+              <h3 className="font-sans text-[20px] leading-[1.1] mb-1.5" style={{color:'var(--ink)'}}>Your library begins with the first photo.</h3>
+              <p className="text-[12px] mb-4" style={{color:'var(--ink-soft)'}}>Capture today's skin — your gallery will fill from here.</p>
               <div className="flex justify-center"><EditorialPill onClick={() => setShowCheckInChooser(true)} icon="Plus">Take today's photo</EditorialPill></div>
             </EditorialCard>
           );
@@ -1441,13 +1111,13 @@ const JournalView = ({
             <div className="flex items-baseline justify-between">
               <div>
                 <div className="text-[10px] tracking-[0.32em] uppercase mb-2" style={{color:'var(--ink-soft)'}}>Library</div>
-                <h2 className="font-serif italic text-[24px] leading-[1.1]" style={{color:'var(--ink)'}}>Every photo, kept.</h2>
-                <p className="text-[12px] italic mt-1.5" style={{color:'var(--ink-soft)'}}>{photoLogs.length} photo{photoLogs.length === 1 ? '' : 's'} · tap to read · long-press to select for compare</p>
+                <h2 className="font-sans text-[24px] leading-[1.1]" style={{color:'var(--ink)'}}>Every photo, kept.</h2>
+                <p className="text-[12px] mt-1.5" style={{color:'var(--ink-soft)'}}>{photoLogs.length} photo{photoLogs.length === 1 ? '' : 's'} · tap to read · long-press to select for compare</p>
               </div>
               {photoLogs.length >= 2 && (
                 <button
                   onClick={() => { setSelectMode(s => !s); setSelectedIds([]); }}
-                  className="text-[9.5px] tracking-[0.22em] uppercase italic px-3 py-1.5 transition flex items-center gap-1"
+                  className="text-[9.5px] tracking-[0.22em] uppercase px-3 py-1.5 transition flex items-center gap-1"
                   style={{color: selectMode ? 'var(--cream)' : 'var(--ink-soft)', background: selectMode ? 'var(--ink)' : 'transparent', border:'1px solid ' + (selectMode ? 'var(--ink)' : 'var(--line)')}}
                 >
                   <Icon name={selectMode ? 'X' : 'CheckSquare'} size={10} /> {selectMode ? 'Cancel' : 'Select'}
@@ -1457,7 +1127,7 @@ const JournalView = ({
 
             {selectMode && selectedIds.length === 2 && (
               <div className="rounded-[12px] p-3 flex items-center justify-between gap-3" style={{background:'var(--cream-deep)', border:'1px solid var(--ink)'}}>
-                <div className="text-[11px] italic" style={{color:'var(--ink)'}}>Two selected — open them side by side?</div>
+                <div className="text-[11px]" style={{color:'var(--ink)'}}>Two selected — open them side by side?</div>
                 <button
                   onClick={() => { setJournalViewOverride('compare'); }}
                   className="text-[10px] tracking-[0.22em] uppercase px-3 py-1.5 flex items-center gap-1"
@@ -1471,8 +1141,8 @@ const JournalView = ({
             {monthKeys.map(key => (
               <div key={key}>
                 <div className="flex items-baseline justify-between mb-3">
-                  <div className="font-serif italic text-[18px] leading-none" style={{color:'var(--ink)'}}>{monthLabel(key)}</div>
-                  <div className="text-[10px] italic" style={{color:'var(--ink-soft)'}}>{byMonth[key].length} photo{byMonth[key].length === 1 ? '' : 's'}</div>
+                  <div className="font-sans text-[18px] leading-none" style={{color:'var(--ink)'}}>{monthLabel(key)}</div>
+                  <div className="text-[10px]" style={{color:'var(--ink-soft)'}}>{byMonth[key].length} photo{byMonth[key].length === 1 ? '' : 's'}</div>
                 </div>
                 <div className="grid grid-cols-4 gap-1.5">
                   {byMonth[key].map(l => {
@@ -1495,14 +1165,13 @@ const JournalView = ({
                         style={{
                           border: isSelected ? '2px solid var(--accent)' : '1px solid var(--line)',
                           outline: isSelected ? '2px solid var(--cream)' : 'none',
-                          outlineOffset: '-4px',
-                        }}
+                          outlineOffset: '-4px'}}
                         aria-label={`Photo ${new Date(l.date + 'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' })}`}
                       >
                         <Photo item={l} alt="" className="w-full h-full object-cover"
-                          renderFallback={() => <div className="w-full h-full flex items-center justify-center font-serif italic text-[18px]" style={{background:'var(--cream)', color:'var(--ink-soft)'}}>{l.rating}</div>}
+                          renderFallback={() => <div className="w-full h-full flex items-center justify-center font-sans text-[18px]" style={{background:'var(--cream)', color:'var(--ink-soft)'}}>{l.rating}</div>}
                         />
-                        <div className="absolute bottom-1 left-1 right-1 text-[8.5px] tracking-[0.05em] uppercase italic px-1 py-0.5 text-center rounded-sm" style={{background:'rgba(245,240,232,0.85)', color:'var(--ink)'}}>
+                        <div className="absolute bottom-1 left-1 right-1 text-[8.5px] tracking-[0.05em] uppercase px-1 py-0.5 text-center rounded-sm" style={{background:'rgba(245,240,232,0.85)', color:'var(--ink)'}}>
                           {new Date(l.date + 'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' })}
                         </div>
                         {isSelected && (
@@ -1520,12 +1189,10 @@ const JournalView = ({
         );
       })()}
 
-      {/* === SUNDAY DIGEST (relocated to bottom of Journal) ===
-          Lives at the foot of the Journal page as the weekly summary
-          card so the daily content (Today / Timeline / Signals /
-          Library tabs + entries) is what greets the user. Same body
-          as the original — moved per Jenni's spec. */}
-      {(() => {
+      {/* === SUNDAY DIGEST — TODAY TAB ONLY (May 30 v2 per Jenni) ===
+          Was rendering on every Journal sub-tab. Now gated to Today
+          so Signals / Timeline / Library don't carry the weekly card. */}
+      {(journalMode === 'today' || journalMode === 'skinReads' || journalMode === 'compact' || !journalMode) && (() => {
         const hasPhotoFn = (l) => l && (l.photoPath || (typeof l.photo === 'string' && l.photo.startsWith('data:')));
         const tdy = new Date(); tdy.setHours(0,0,0,0);
         const dayIdx = tdy.getDay() === 0 ? 6 : tdy.getDay() - 1;
@@ -1539,8 +1206,7 @@ const JournalView = ({
             iso: localDateISO(d),
             name: ['MON','TUE','WED','THU','FRI','SAT','SUN'][i],
             isToday: d.getTime() === tdy.getTime(),
-            isFuture: d.getTime() > tdy.getTime(),
-          };
+            isFuture: d.getTime() > tdy.getTime()};
         });
         const weekStartLabel = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
@@ -1563,11 +1229,11 @@ const JournalView = ({
           return best;
         })();
         return (
-          <section className="rounded-[20px] mt-6 mb-2 overflow-hidden" style={{background:'var(--cream-deep)', border:'1.5px solid var(--accent)'}}>
+          <section className="rounded-[20px] mt-6 mb-2 overflow-hidden" style={{background:'var(--cream-deep)', border: '1.5px solid var(--accent)', boxShadow: '0 1px 2px rgba(229,60,45,0.06), 0 8px 22px rgba(229,60,45,0.06)'}}>
             <div className="px-5 pt-4 pb-2 flex items-start justify-between gap-2">
               <div>
                 <Eyebrow tone="accent">✦ Sunday Digest</Eyebrow>
-                <h2 className="font-serif italic text-[22px] leading-tight mt-0.5" style={{color:'var(--ink)'}}>
+                <h2 className="font-sans text-[22px] leading-tight mt-0.5" style={{color:'var(--ink)'}}>
                   Your week.
                 </h2>
               </div>
@@ -1590,7 +1256,7 @@ const JournalView = ({
                     <button
                       type="button"
                       onClick={() => setJournalDigestWeekOffset(0)}
-                      className="text-[8.5px] tracking-[0.2em] uppercase italic transition hover:opacity-70 mt-0.5"
+                      className="text-[8.5px] tracking-[0.2em] uppercase transition hover:opacity-70 mt-0.5"
                       style={{color:'var(--accent)', cursor:'pointer'}}
                     >
                       this week
@@ -1630,14 +1296,14 @@ const JournalView = ({
                       {d.log ? (
                         <Photo item={d.log} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="font-serif italic text-[10px]" style={{color:'var(--ink-soft)'}}>{d.isFuture ? '—' : 'rest'}</span>
+                        <span className="font-sans text-[10px]" style={{color:'var(--ink-soft)'}}>{d.isFuture ? '—' : 'rest'}</span>
                       )}
                     </div>
                     <div className="text-center pt-1 pb-1.5 leading-none">
                       {d.score ? (
-                        <span className="font-serif italic text-[11px]" style={{color:'var(--accent)'}}>✦ {d.score}</span>
+                        <span className="font-sans text-[11px]" style={{color:'var(--accent)'}}>✦ {d.score}</span>
                       ) : (
-                        <span className="text-[9px] italic" style={{color:'var(--ink-soft)'}}>—</span>
+                        <span className="text-[9px]" style={{color:'var(--ink-soft)'}}>—</span>
                       )}
                     </div>
                   </button>
@@ -1647,20 +1313,20 @@ const JournalView = ({
             <div className="px-5 py-3 flex items-baseline gap-5 flex-wrap" style={{borderTop:'1px solid var(--line)'}}>
               <div>
                 <div className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>Avg</div>
-                <div className="font-serif italic text-[18px] leading-none mt-0.5" style={{color: avgScore ? 'var(--ink)' : 'var(--ink-soft)'}}>
+                <div className="font-sans text-[18px] leading-none mt-0.5" style={{color: avgScore ? 'var(--ink)' : 'var(--ink-soft)'}}>
                   {avgScore ? <><span style={{color:'var(--accent)'}}>✦</span> {avgScore}<span className="text-[10px]" style={{color:'var(--ink-soft)'}}>/10</span></> : '—'}
                 </div>
               </div>
               <div>
                 <div className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>Reads</div>
-                <div className="font-serif italic text-[18px] leading-none mt-0.5" style={{color:'var(--ink)'}}>
+                <div className="font-sans text-[18px] leading-none mt-0.5" style={{color:'var(--ink)'}}>
                   {checkInDays} <span className="text-[10px]" style={{color:'var(--ink-soft)'}}>/ 7</span>
                 </div>
               </div>
               {biggestMover && (
                 <div>
                   <div className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>Biggest move</div>
-                  <div className="font-serif italic text-[14px] leading-none mt-0.5" style={{color: biggestMover.delta > 0 ? 'var(--sage)' : 'var(--rose)'}}>
+                  <div className="font-sans text-[14px] leading-none mt-0.5" style={{color: biggestMover.delta > 0 ? 'var(--accent-blue)' : 'var(--rose)'}}>
                     {biggestMover.day.name} {biggestMover.delta > 0 ? '+' : ''}{biggestMover.delta.toFixed(1)}
                   </div>
                 </div>
@@ -1668,20 +1334,19 @@ const JournalView = ({
             </div>
             <div className="px-5 py-3 flex items-center justify-between gap-3 flex-wrap" style={{borderTop:'1px solid var(--line)', background:'var(--cream)'}}>
               <div className="text-[11px] leading-snug flex-1 min-w-0" style={{color:'var(--ink-soft)'}}>
-                <span className="italic">Pin every Sunday at 9 AM →</span> drops a recurring event into your calendar.
+                <span className="">Pin every Sunday at 9 AM →</span> drops a recurring event into your calendar.
               </div>
               <button
                 onClick={() => {
                   downloadIcsReminder({
-                    title: 'Étude · Sunday Digest',
-                    description: 'Open Étude → Journal for your weekly skin read. https://tangjennii-wq.github.io/skinetude/',
+                    title: 'Frida · Sunday Digest',
+                    description: 'Open Frida → Journal for your weekly skin read. https://tangjennii-wq.github.io/skinetude/',
                     hour: 9,
-                    minute: 0,
-                  });
+                    minute: 0});
                   toast('Reminder added to your downloads — open it to drop into your calendar', 'info');
                 }}
                 className="flex-shrink-0 rounded-full px-3 py-1.5 text-[10px] tracking-[0.15em] uppercase flex items-center gap-1.5 transition hover:opacity-90 cursor-pointer border"
-                style={{borderColor:'var(--accent)', color:'var(--accent)', background:'transparent', cursor:'pointer'}}
+                style={{borderColor: 'var(--line)', color:'var(--accent)', background:'transparent', cursor:'pointer'}}
               >
                 <Icon name="Calendar" size={11} /> Add to calendar
               </button>

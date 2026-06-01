@@ -65,16 +65,16 @@ const TodayReminder = ({ logs, products, procedures, events, cycleData, setActiv
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {reminders.slice(0, 2).map((r, i) => (
-        <div key={i} className="border p-5 flex gap-4 items-start" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
+        <div key={i} className="border p-5 flex gap-4 items-start" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
           <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{background:'var(--cream)', color:'var(--ink)'}}>
             <Icon name={r.icon} size={14} />
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[10px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>For today</div>
-            <div className="font-serif italic text-lg mt-0.5" style={{color:'var(--ink)'}}>{r.title}</div>
+            <div className="font-sans text-lg mt-0.5" style={{color:'var(--ink)'}}>{r.title}</div>
             <p className="text-xs font-light leading-relaxed mt-1" style={{color:'var(--ink-soft)'}}>{r.text}</p>
             {r.action && (
-              <button onClick={r.action} className="mt-2 text-[10px] tracking-[0.15em] uppercase italic" style={{color:'var(--ink)'}}>
+              <button onClick={r.action} className="mt-2 text-[10px] tracking-[0.15em] uppercase" style={{color:'var(--ink)'}}>
                 Open →
               </button>
             )}

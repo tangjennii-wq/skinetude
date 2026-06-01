@@ -18,7 +18,7 @@ const ProcedureModal = ({
   fileToBase64,
   withTimeout,
   getApiKey,
-}) => {
+  onProcedureLogged}) => {
   const editingProcedure = editingProcedureId ? procedures.find(p => p.id === editingProcedureId) : null;
   const isEditingProc = !!editingProcedure;
   const [form, setForm] = useState(editingProcedure ? {
@@ -55,6 +55,21 @@ const ProcedureModal = ({
     setProcedures(updated);
     await saveData('procedures', updated);
     setShowProcedureModal(false);
+    if (!getApiKey()) {
+      // === T4 FIX (May 2026) ===
+      // Without an API key the modal closed silently — no toast
+      // meant the user couldn't tell if the procedure had saved.
+      // Always fire a confirmation toast in the no-key branch.
+      toast(`${form.name} logged`, 'success');
+    }
+    // === REBUILD-PROMPT FIRE (June 2026 per Jenni) ===
+    // Surface the "Rebuild routine in Refine?" banner at App level. Post-
+    // procedure skin needs gentler actives + careful sequencing, so we
+    // nudge the user to refine. Auto-dismisses after 8s. Edit-mode path
+    // above returns early so this only fires for NEW procedure logs.
+    if (typeof onProcedureLogged === 'function') {
+      onProcedureLogged(newProc);
+    }
     if (getApiKey()) {
       toast('Generating evidence-based briefing…', 'info');
       (async () => {
@@ -117,7 +132,7 @@ EVIDENCE NOTE: [Brief note on the strength of clinical evidence for this procedu
           Save pill matches the accent-fill pattern with letter-spacing. */}
       <div className="space-y-4">
         {/* AI auto-briefing reassurance — matches the ProductModal autofill
-            hint visually (small italic accent line with sparkle icon). */}
+            hint visually (small accent line with sparkle icon). */}
         <div className="flex items-start gap-1.5 text-[10px] leading-snug" style={{color:'var(--accent)'}}>
           <Icon name="Sparkles" size={10} className="flex-shrink-0 mt-0.5" />
           <span>AI auto-generates the briefing — recovery timeline, post-care, frequency, complementary treatments.</span>
@@ -125,7 +140,7 @@ EVIDENCE NOTE: [Brief note on the strength of clinical evidence for this procedu
 
         {/* === Procedure name — primary input. Match search-product card visual:
             cream-deep tile, serif name input, no grey form aesthetic. */}
-        <div className="rounded-[14px] px-3 py-2.5 flex items-center gap-2.5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+        <div className="rounded-[14px] px-3 py-2.5 flex items-center gap-2.5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
           <div className="flex-shrink-0 w-7 h-9 flex items-end justify-center" style={{color:'var(--ink-soft)'}}>
             <Icon name="Sparkles" size={16} />
           </div>
@@ -135,7 +150,7 @@ EVIDENCE NOTE: [Brief note on the strength of clinical evidence for this procedu
               value={form.name}
               onChange={(v) => setForm({...form, name: v})}
               placeholder="Procedure name (e.g. Hydrafacial)"
-              className="w-full font-serif text-[14px] leading-tight bg-transparent border-0 focus:outline-none px-0 py-0"
+              className="w-full font-sans text-[14px] leading-tight bg-transparent border-0 focus:outline-none px-0 py-0"
               style={{color:'var(--ink)', fontWeight:600}}
             />
           </div>
@@ -168,8 +183,7 @@ EVIDENCE NOTE: [Brief note on the strength of clinical evidence for this procedu
                     background: on ? 'var(--accent)' : 'var(--cream)',
                     color: on ? 'var(--cream)' : 'var(--ink)',
                     border: on ? '1px solid var(--accent)' : '1px solid var(--line)',
-                    fontSize: 11, fontWeight: 600, letterSpacing: '-0.005em', cursor: 'pointer',
-                  }}
+                    fontSize: 11, fontWeight: 600, letterSpacing: '-0.005em', cursor: 'pointer'}}
                 >{t.label}</button>
               );
             })}
@@ -185,7 +199,7 @@ EVIDENCE NOTE: [Brief note on the strength of clinical evidence for this procedu
               value={form.date}
               onChange={e => setForm({...form, date: e.target.value})}
               className="w-full rounded-[10px] px-3 py-2 text-[12px]"
-              style={{background:'var(--cream)', border:'1px solid var(--line)', color:'var(--ink)'}}
+              style={{background:'var(--cream)', border: '1px solid var(--line)', color:'var(--ink)'}}
             />
           </div>
           <div>
@@ -196,7 +210,7 @@ EVIDENCE NOTE: [Brief note on the strength of clinical evidence for this procedu
               onChange={(v) => setForm({...form, cost: v})}
               placeholder="$"
               className="w-full rounded-[10px] px-3 py-2 text-[12px]"
-              style={{background:'var(--cream)', border:'1px solid var(--line)', color:'var(--ink)'}}
+              style={{background:'var(--cream)', border: '1px solid var(--line)', color:'var(--ink)'}}
             />
           </div>
         </div>
@@ -210,7 +224,7 @@ EVIDENCE NOTE: [Brief note on the strength of clinical evidence for this procedu
             onChange={(v) => setForm({...form, provider: v})}
             placeholder="Who performed it"
             className="w-full rounded-[10px] px-3 py-2 text-[12px]"
-            style={{background:'var(--cream)', border:'1px solid var(--line)', color:'var(--ink)'}}
+            style={{background:'var(--cream)', border: '1px solid var(--line)', color:'var(--ink)'}}
           />
         </div>
 
@@ -225,7 +239,7 @@ EVIDENCE NOTE: [Brief note on the strength of clinical evidence for this procedu
             rows={2}
             placeholder="Any details to factor into the briefing"
             className="w-full rounded-[10px] px-3 py-2 text-[12px]"
-            style={{background:'var(--cream)', border:'1px solid var(--line)', color:'var(--ink)', fontFamily:'inherit'}}
+            style={{background:'var(--cream)', border: '1px solid var(--line)', color:'var(--ink)', fontFamily:'inherit'}}
           />
         </div>
 
@@ -240,7 +254,7 @@ EVIDENCE NOTE: [Brief note on the strength of clinical evidence for this procedu
             rows={2}
             placeholder="What you noticed afterward…"
             className="w-full rounded-[10px] px-3 py-2 text-[12px]"
-            style={{background:'var(--cream)', border:'1px solid var(--line)', color:'var(--ink)', fontFamily:'inherit'}}
+            style={{background:'var(--cream)', border: '1px solid var(--line)', color:'var(--ink)', fontFamily:'inherit'}}
           />
         </div>
 
@@ -253,8 +267,7 @@ EVIDENCE NOTE: [Brief note on the strength of clinical evidence for this procedu
             background: 'var(--accent)',
             color: 'var(--cream)',
             opacity: !form.name ? 0.5 : 1,
-            cursor: !form.name ? 'not-allowed' : 'pointer',
-          }}
+            cursor: !form.name ? 'not-allowed' : 'pointer'}}
         >
           {isEditingProc ? 'Save changes' : 'Save procedure'}
         </button>

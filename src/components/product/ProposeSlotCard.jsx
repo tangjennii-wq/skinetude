@@ -19,15 +19,15 @@ const ProposeSlotCard = ({
   const dayCodes = ['S','M','T','W','T','F','S'];
   const queueCount = (queue || []).length;
   return (
-    <div className="rounded-[18px] p-4 space-y-3" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
+    <div className="rounded-[18px] p-4 space-y-3" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
       <div className="flex items-center justify-between">
-        <div className="text-[9.5px] tracking-[0.24em] uppercase" style={{color:'var(--accent)', fontWeight:600}}>Étude suggests</div>
+        <div className="text-[9.5px] tracking-[0.24em] uppercase" style={{color:'var(--accent)', fontWeight:600}}>Frida suggests</div>
         <button onClick={onClose} className="text-[10px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600, cursor:'pointer'}} type="button">Close</button>
       </div>
       {queueCount > 1 && (
         <div className="text-[10.5px]" style={{color:'var(--ink-soft)'}}>{queueCount} products to slot — one at a time.</div>
       )}
-      <div className="p-3 rounded-[12px]" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+      <div className="p-3 rounded-[12px]" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
         {product.brand && (
           <div className="text-[9px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>{product.brand}</div>
         )}

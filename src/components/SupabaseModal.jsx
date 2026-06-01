@@ -13,8 +13,7 @@ const SupabaseModal = ({
   setPatternInsight, setCycleData, setHormonalContext, setSensitivities,
   setRegimenLogs, setUserConcerns, setCoverRoutine, setCounselInsights,
   setDailyCoverPick, setWeeklyInsights,
-  toast,
-}) => {
+  toast}) => {
   const cfg = getSupabaseConfig();
   const [tempUrl, setTempUrl] = useState(cfg.url);
   const [tempAnonKey, setTempAnonKey] = useState(cfg.anonKey);
@@ -91,7 +90,7 @@ const SupabaseModal = ({
         <p className="text-sm font-light leading-relaxed" style={{color:'var(--ink-soft)'}}>
           Enable cloud sync so your account works across all your devices. Your journal, photos, and products will sync automatically.
         </p>
-        <div className="text-xs font-light p-3 rounded-md" style={{background:'var(--cream-deep)', border:'1px solid var(--line)', color:'var(--ink-soft)'}}>
+        <div className="text-xs font-light p-3 rounded-md" style={{background:'var(--cream-deep)', border: '1px solid var(--line)', color:'var(--ink-soft)'}}>
           <strong>How to get these:</strong> In your Supabase project, go to <strong>Project Settings → API</strong>. Copy your <strong>Project URL</strong> and the <strong>anon / public</strong> key.
         </div>
         <Field label="Project URL">
@@ -121,12 +120,12 @@ const SupabaseModal = ({
         </button>
 
         {supaEnabled && (
-          <button onClick={disable} className="w-full text-xs tracking-widest uppercase italic py-2" style={{color:'#a04555'}}>
+          <button onClick={disable} className="w-full text-xs tracking-widest uppercase py-2" style={{color:'#a04555'}}>
             Disable Cloud Sync
           </button>
         )}
 
-        <div className="pt-4 mt-2 border-t" style={{borderColor:'var(--line)'}}>
+        <div className="pt-4 mt-2 border-t" style={{borderColor: 'var(--line)'}}>
           <div className="text-[10px] tracking-[0.25em] uppercase mb-2" style={{color:'var(--ink-soft)'}}>Privacy</div>
           <p className="text-xs font-light leading-relaxed mb-3" style={{color:'var(--ink-soft)'}}>
             Photos and entries are cached in this browser for speed. If you share this device, or just want a clean slate, you can wipe the local cache. Cloud-synced data is unaffected.

@@ -18,6 +18,9 @@ const RegimenView = ({
   generatedProductArt,
   homeDevices, setHomeDevices,
   sensitivities, setSensitivities,
+  userProfile,
+  cycleData,
+  hormonalContext,
   userConcerns, setUserConcerns,
   ritualViewDate, setRitualViewDate,
   setRitualSlot,
@@ -80,6 +83,7 @@ const RegimenView = ({
   setRitualSuggestToken,
   setRitualSuggestion,
   setShelfQuickAddOpen,
+  setUsedSomethingElseSheet,
   // Forwarded to RegimenShelfView.
   assessProduct,
   assessingProduct,
@@ -93,15 +97,15 @@ const RegimenView = ({
   setShowInactiveProducts, showInactiveProducts,
   // Forwarded to RegimenOccasionsView.
   rotationViewMode, setRotationViewMode,
-  setWeeklyExpandedDay, weeklyExpandedDay,
-}) => (
+  rotationTargetSlot, setRotationTargetSlot,
+  setWeeklyExpandedDay, weeklyExpandedDay}) => (
 <div className="md:max-w-md md:mx-auto pb-6">
   {/* === EDITORIAL HEADER ===
-      Eyebrow + serif italic display. The Shelf "Add Product" CTA moves
+      Eyebrow + serif display. The Shelf "Add Product" CTA moves
       inline to the Shelf view itself instead of living in the global
       page header — keeps the title clean and matches the cover language. */}
   <EditorialPageHeader
-    eyebrow="Étude"
+    eyebrow="Frida"
     title="Regimen"
     body="What to do today, and how it changes across the week."
     action={() => { setEditingProductId(null); setShowProductModal(true); }}
@@ -118,13 +122,19 @@ const RegimenView = ({
       rhythm exists. The id stays 'build' for both states so all
       existing deep-links/handlers keep working. The legacy
       'occasions' id is preserved → renders Rotation body. */}
-  <div className="mb-4 md:mb-3">
+  <div className="mb-2.5 md:mb-3">
+    {/* === TAB ORDER — June 2026 per Jenni ===
+        Moved Refine/Build to position 2 (was last). The "make my
+        routine evolve" intent is the second-most-frequent thing
+        users come to Regimen for, after checking Today. Putting it
+        third or fourth made it feel like an admin / edge surface
+        rather than a primary daily-use tool. */}
     <EditorialSubTabs
       tabs={[
         { id: 'today', label: 'Today' },
+        { id: 'build', label: userHasBuiltPattern(products) ? 'Refine' : 'Build' },
         { id: 'occasions', label: 'Rotation' },
         { id: 'shelf', label: 'Shelf' },
-        { id: 'build', label: userHasBuiltPattern(products) ? 'Refine' : 'Build' },
       ]}
       value={regimenView}
       onChange={setRegimenView}
@@ -134,7 +144,7 @@ const RegimenView = ({
   {/* === RITUAL TODAY VIEW (Page 1) ===
       The hero of Ritual. Composed of:
         1. Today's Ritual editorial card — AM + PM thumbnail rows,
-           progress ring, Continue CTA, Why-this-today italic link.
+           progress ring, Continue CTA, Why-this-today link.
         2. Weekly Rotation card — horizontal day strip Mon→Sun, each
            tile shows hero theme + AM/PM micro icons. TAP A TILE to
            open the magical day-detail bottom sheet (signature UX).
@@ -146,6 +156,8 @@ const RegimenView = ({
   {regimenView === 'today' && (
     <RegimenTodayView
       generatedProductArt={{}}
+      buildPlan={buildPlan}
+      buildPlanAccepted={buildPlanAccepted}
       products={products}
       regimenLogs={regimenLogs}
       ritualViewDate={ritualViewDate}
@@ -169,11 +181,12 @@ const RegimenView = ({
       setRitualSuggestToken={setRitualSuggestToken}
       setRitualSuggestion={setRitualSuggestion}
       setShelfQuickAddOpen={setShelfQuickAddOpen}
+      setUsedSomethingElseSheet={setUsedSomethingElseSheet}
     />
   )}
 
   {/* === BUILD VIEW ===
-      Étude Formulary panel at the top (inline version of the same
+      Frida Formulary panel at the top (inline version of the same
       drawer on the Journal page) + the existing RoutineBuilder
       wizard below. Both surfaces share matchesDrawerFilter state so
       pill selection persists across the two views. */}
@@ -193,6 +206,10 @@ const RegimenView = ({
       setPostAcceptDay={setPostAcceptDay}
       homeDevices={homeDevices}
       setHomeDevices={setHomeDevices}
+      sensitivities={sensitivities}
+      userProfile={userProfile}
+      cycleData={cycleData}
+      hormonalContext={hormonalContext}
       userConcerns={userConcerns}
       setUserConcerns={setUserConcerns}
       setEditingProductId={setEditingProductId}
@@ -305,6 +322,8 @@ const RegimenView = ({
       setShowProductModal={setShowProductModal}
       rotationViewMode={rotationViewMode}
       setRotationViewMode={setRotationViewMode}
+      rotationTargetSlot={rotationTargetSlot}
+      setRotationTargetSlot={setRotationTargetSlot}
       setBuildPlanAccepted={setBuildPlanAccepted}
       setBuildStep={setBuildStep}
       setWeeklyExpandedDay={setWeeklyExpandedDay}
@@ -334,13 +353,13 @@ const RegimenView = ({
     };
     return (
       <div className="space-y-6">
-        <div className="border p-5 md:p-6" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
+        <div className="border p-5 md:p-6" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
           <div className="text-[9px] tracking-[0.3em] uppercase mb-2 flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
             <span className="w-1.5 h-1.5 rounded-full inline-block" style={{background:'var(--accent)'}} />
             Why this matters
           </div>
-          <p className="text-sm font-light italic leading-relaxed" style={{color:'var(--ink)'}}>
-            Anything you list here is fed into AI photo and product analysis. If a product contains a trigger, you'll get flagged. If your skin reacts on a logged day, the AI will look here first when deciding what's likely the culprit.
+          <p className="text-sm font-light leading-relaxed" style={{color:'var(--ink)'}}>
+            Anything you list here is fed into AI photo and product analysis. If a product contains a trigger, you'll get flagged. If your skin reacts on a logged day, the AI will look here first.
           </p>
         </div>
 
@@ -362,7 +381,7 @@ const RegimenView = ({
             {COMMON_TRIGGERS.map(t => {
               const already = sensitivities.includes(t);
               return (
-                <button key={t} disabled={already} onClick={() => addSensitivity(t)} className="text-[10px] tracking-[0.1em] px-2.5 py-1 border rounded-full transition disabled:opacity-40 disabled:cursor-not-allowed" style={{borderColor:'var(--line)', color: already ? 'var(--ink-soft)' : 'var(--ink)', background:'var(--cream)'}}>
+                <button key={t} disabled={already} onClick={() => addSensitivity(t)} className="text-[10px] tracking-[0.1em] px-2.5 py-1 border rounded-full transition disabled:opacity-40 disabled:cursor-not-allowed" style={{borderColor: 'var(--line)', color: already ? 'var(--ink-soft)' : 'var(--ink)', background:'var(--cream)'}}>
                   {already ? '✓ ' : '+ '}{t}
                 </button>
               );
@@ -372,13 +391,13 @@ const RegimenView = ({
 
         {/* Current list */}
         <div>
-          <div className="text-[10px] tracking-[0.2em] uppercase mb-2 border-b pb-2" style={{color:'var(--ink-soft)', borderColor:'var(--line)'}}>Your list ({sensitivities.length})</div>
+          <div className="text-[10px] tracking-[0.2em] uppercase mb-2 border-b pb-2" style={{color:'var(--ink-soft)', borderColor: 'var(--line)'}}>Your list ({sensitivities.length})</div>
           {sensitivities.length === 0 ? (
-            <p className="text-sm font-light italic" style={{color:'var(--ink-soft)'}}>Nothing flagged yet. Add anything that's burned, stung, or broken you out.</p>
+            <p className="text-sm font-light" style={{color:'var(--ink-soft)'}}>Nothing flagged yet. Add anything that's burned, stung, or broken you out.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {sensitivities.map(s => (
-                <span key={s} className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 border rounded-full" style={{borderColor:'var(--accent)', color:'var(--accent)', background:'var(--cream)'}}>
+                <span key={s} className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 border rounded-full" style={{borderColor: 'var(--line)', color:'var(--accent)', background:'var(--cream)'}}>
                   {s}
                   <button onClick={() => removeSensitivity(s)} className="opacity-60 hover:opacity-100" aria-label={`Remove ${s}`}>
                     <Icon name="X" size={10} />
@@ -397,7 +416,7 @@ const RegimenView = ({
           });
           return flagged.length > 0 ? (
             <div>
-              <div className="text-[10px] tracking-[0.2em] uppercase mb-2 border-b pb-2 flex items-center gap-2" style={{color:'var(--accent)', borderColor:'var(--line)'}}>
+              <div className="text-[10px] tracking-[0.2em] uppercase mb-2 border-b pb-2 flex items-center gap-2" style={{color:'var(--accent)', borderColor: 'var(--line)'}}>
                 <Icon name="AlertTriangle" size={11} /> Products on your shelf that touch these triggers
               </div>
               <div className="space-y-2">
@@ -405,11 +424,11 @@ const RegimenView = ({
                   const haystack = `${p.name || ''} ${p.activeIngredients || ''} ${p.mainIngredients || ''} ${(p.tags || []).join(' ')}`.toLowerCase();
                   const matches = sensitivities.filter(s => haystack.includes(s));
                   return (
-                    <div key={p.id} className="border p-3" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
+                    <div key={p.id} className="border p-3" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
                       <div className="flex justify-between items-baseline gap-2 flex-wrap">
                         <div>
                           <div className="text-[9px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{p.brand}</div>
-                          <div className="font-serif italic text-sm" style={{color:'var(--ink)'}}>{p.name}</div>
+                          <div className="font-sans text-sm" style={{color:'var(--ink)'}}>{p.name}</div>
                         </div>
                         <div className="flex flex-wrap gap-1">
                           {matches.map(m => (

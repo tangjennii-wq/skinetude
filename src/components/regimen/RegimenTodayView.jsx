@@ -4,6 +4,8 @@
 
 const RegimenTodayView = ({
   generatedProductArt,
+  buildPlan,
+  buildPlanAccepted,
   products,
   regimenLogs,
   ritualViewDate,
@@ -28,7 +30,14 @@ const RegimenTodayView = ({
   setRitualSuggestToken,
   setRitualSuggestion,
   setShelfQuickAddOpen,
-}) => {
+  setUsedSomethingElseSheet}) => {
+  const [showAllRitualItems, setShowAllRitualItems] = useState(false);
+  const [expandedRitualItemId, setExpandedRitualItemId] = useState(null);
+  // Per-row "show full mechanism / evidence" toggles (May 31 2026 per Jenni).
+  // Verbose AI dumps default to truncated; user can expand individually.
+  const [mechExpandedForRow, setMechExpandedForRow] = useState({});
+  const [evidenceExpandedForRow, setEvidenceExpandedForRow] = useState({});
+  const [ritualActionsOpen, setRitualActionsOpen] = useState(false);
   return (() => {
   const todayKey = localDateISO();
   // ritualViewDate drives which day's regimen we show + edit.
@@ -88,7 +97,7 @@ const RegimenTodayView = ({
   // EXCLUDED from the Regimen home view — Jenni's call. They still
   // live on the log (so Suggests can show them in its own sheet) but
   // shouldn't muddy the routine you tap into daily. To surface them
-  // again, open Étude Suggests.
+  // again, open Frida Suggests.
   // Same bug fix as cover buildSlot: today's regimen page starts
   // EMPTY when no log exists. The useTimes shelf-default fallback
   // was misleading — useTimes is the generic "typically AM/PM"
@@ -112,7 +121,7 @@ const RegimenTodayView = ({
     products,
     regimenLogs,
     date: viewDate,
-  });
+    acceptedPlan: buildPlanAccepted ? buildPlan : null});
   const amProducts = regimenTodayResolved.am;
   const pmProducts = regimenTodayResolved.pm;
   const totalSteps = amProducts.length + pmProducts.length;
@@ -122,6 +131,19 @@ const RegimenTodayView = ({
   const isShowingPatternFallback = regimenTodayResolved.source === 'pattern' && totalSteps > 0;
   const amOverflowRegimen = regimenTodayResolved.amOverflow;
   const pmOverflowRegimen = regimenTodayResolved.pmOverflow;
+  const amHiddenRegimen = regimenTodayResolved.amHidden || [];
+  const pmHiddenRegimen = regimenTodayResolved.pmHidden || [];
+  const activeSlotProducts = ritualSlot === 'pm' ? pmProducts : amProducts;
+  const activeSlotHidden = ritualSlot === 'pm' ? pmHiddenRegimen : amHiddenRegimen;
+  const activeSlotVisibleCount = activeSlotProducts.length + (showAllRitualItems ? activeSlotHidden.length : 0);
+  const activeSlotIsEmpty = activeSlotProducts.length === 0;
+  const hasBuiltRoutineForToday = userHasBuiltPattern(products) || !!(buildPlanAccepted && buildPlan);
+  const activeSlotDoneKey = ritualSlot === 'pm' ? 'pmDone' : 'amDone';
+  const activeSlotSkippedKey = ritualSlot === 'pm' ? 'pmSkipped' : 'amSkipped';
+  const activeSlotSubmitted = !!(todayLog && todayLog.submitted && (
+    (Array.isArray(todayLog[activeSlotDoneKey]) && todayLog[activeSlotDoneKey].length > 0)
+    || activeSlotProducts.length > 0
+  ));
 
   // Mirror cover's repeatYesterday — copies yesterday's picks into today
   // and marks today as submitted in regimenLogs.
@@ -140,8 +162,7 @@ const RegimenTodayView = ({
       hydration: yesterdayCheckIn.hydration || false,
       sunscreenReapply: yesterdayCheckIn.sunscreenReapply || false,
       notes: '',
-      submitted: true,
-    };
+      submitted: true};
     const newList = [next, ...(regimenLogs || [])];
     setRegimenLogs(newList);
     saveData('regimenLogs', newList);
@@ -181,8 +202,7 @@ const RegimenTodayView = ({
         amProducts: [], pmProducts: [],
         amExtras: [], pmExtras: [],
         devices: [], sleep: '', supplements: [],
-        submitted: false,
-      };
+        submitted: false};
       const newList = [...(regimenLogs || []), emptyLog];
       setRegimenLogs(newList);
       saveData('regimenLogs', newList);
@@ -229,8 +249,7 @@ const RegimenTodayView = ({
         pmProducts: slot === 'pm' ? patSlotIds : [],
         amExtras: [], pmExtras: [],
         devices: [], sleep: '', supplements: [],
-        submitted: false,
-      };
+        submitted: false};
       const newList = [...(regimenLogs || []), newLog];
       setRegimenLogs(newList);
       saveData('regimenLogs', newList);
@@ -246,6 +265,94 @@ const RegimenTodayView = ({
     saveData('regimenLogs', newList);
     setCoverRoutineRebuildToken(t => t + 1);
     toast(`Restored ${slot.toUpperCase()} from your weekly plan`, 'info');
+  };
+  const skipSlotForToday = (slot) => {
+    const slotKey = slot === 'am' ? 'amProducts' : 'pmProducts';
+    const doneKey = slot === 'am' ? 'amDone' : 'pmDone';
+    const skippedKey = slot === 'am' ? 'amSkipped' : 'pmSkipped';
+    const batchKey = slot === 'am' ? 'amBatchConfirmed' : 'pmBatchConfirmed';
+    const existing = (regimenLogs || []).find(r => r.date === viewDate);
+    const nextLog = {
+      ...(existing || {}),
+      id: existing?.id || Date.now(),
+      date: viewDate,
+      amProducts: existing?.amProducts || (slot === 'am' ? [] : amProducts.map(p => p.id).filter(Boolean)),
+      pmProducts: existing?.pmProducts || (slot === 'pm' ? [] : pmProducts.map(p => p.id).filter(Boolean)),
+      [slotKey]: [],
+      [doneKey]: [],
+      [skippedKey]: [],
+      [batchKey]: true,
+      amExtras: existing?.amExtras || [],
+      pmExtras: existing?.pmExtras || [],
+      devices: existing?.devices || [],
+      sleep: existing?.sleep || '',
+      supplements: existing?.supplements || [],
+      notes: existing?.notes || '',
+      submitted: true,
+      submittedAt: Date.now()};
+    const next = existing
+      ? (regimenLogs || []).map(r => r.date === viewDate ? nextLog : r)
+      : [nextLog, ...(regimenLogs || [])];
+    setRegimenLogs(next);
+    saveData('regimenLogs', next);
+    setCoverRoutineRebuildToken(t => t + 1);
+    toast(`${slot.toUpperCase()} regimen logged`, 'success');
+  };
+  const logActiveSlotNow = () => {
+    const amIds = amProducts.map(p => p && p.id).filter(Boolean);
+    const pmIds = pmProducts.map(p => p && p.id).filter(Boolean);
+    const existing = (regimenLogs || []).find(r => r.date === viewDate);
+    const prevAmDone = existing && Array.isArray(existing.amDone) ? existing.amDone : [];
+    const prevPmDone = existing && Array.isArray(existing.pmDone) ? existing.pmDone : [];
+    const prevAmSkipped = existing && Array.isArray(existing.amSkipped) ? existing.amSkipped : [];
+    const prevPmSkipped = existing && Array.isArray(existing.pmSkipped) ? existing.pmSkipped : [];
+    const commitSkipped = ritualSlot === 'am' ? prevAmSkipped : prevPmSkipped;
+    const commitPlanned = ritualSlot === 'am' ? amIds : pmIds;
+    const skippedSet = new Set(commitSkipped);
+    const commitDone = commitPlanned.filter(id => !skippedSet.has(id));
+    const nextLog = {
+      ...(existing || {}),
+      id: existing?.id || Date.now(),
+      date: viewDate,
+      amProducts: existing?.amProducts || amIds,
+      pmProducts: existing?.pmProducts || pmIds,
+      amDone: ritualSlot === 'am' ? commitDone : prevAmDone,
+      pmDone: ritualSlot === 'pm' ? commitDone : prevPmDone,
+      amSkipped: ritualSlot === 'am' ? commitSkipped : prevAmSkipped,
+      pmSkipped: ritualSlot === 'pm' ? commitSkipped : prevPmSkipped,
+      amExtras: existing?.amExtras || [],
+      pmExtras: existing?.pmExtras || [],
+      amBatchConfirmed: ritualSlot === 'am' ? commitSkipped.length === 0 : (existing?.amBatchConfirmed ?? false),
+      pmBatchConfirmed: ritualSlot === 'pm' ? commitSkipped.length === 0 : (existing?.pmBatchConfirmed ?? false),
+      notes: existing?.notes || '',
+      submitted: true,
+      submittedAt: Date.now()};
+    const next = existing
+      ? (regimenLogs || []).map(r => r.date === viewDate ? nextLog : r)
+      : [nextLog, ...(regimenLogs || [])];
+    setRegimenLogs(next);
+    setCoverRoutineRebuildToken(t => t + 1);
+    saveData('regimenLogs', next).catch(e => {
+      console.error('[regimen today quick-log] saveData failed:', e);
+      toast(`Save error: ${e?.message || 'unknown'}`, 'error');
+    });
+    toast(`${ritualSlot.toUpperCase()} regimen logged`, 'success');
+  };
+  const undoActiveSlotLog = () => {
+    const existing = (regimenLogs || []).find(r => r.date === viewDate);
+    if (!existing) return;
+    const nextLog = {
+      ...existing,
+      amDone: ritualSlot === 'am' ? [] : (existing.amDone || []),
+      pmDone: ritualSlot === 'pm' ? [] : (existing.pmDone || []),
+      submitted: ritualSlot === 'am'
+        ? ((existing.pmDone || []).length > 0)
+        : ((existing.amDone || []).length > 0)};
+    const next = (regimenLogs || []).map(r => r.date === viewDate ? nextLog : r);
+    setRegimenLogs(next);
+    setCoverRoutineRebuildToken(t => t + 1);
+    saveData('regimenLogs', next).catch(() => {});
+    toast(`${ritualSlot.toUpperCase()} log undone`, 'info');
   };
 
   // AI Suggest entry point — opens the bottom sheet for today.
@@ -306,13 +413,11 @@ const RegimenTodayView = ({
       amDone: [],
       pmDone: [],
       notes: '',
-      submitted: false,
-    };
+      submitted: false};
     const updated = {
       ...baseLog,
       [slotKey]: (baseLog[slotKey] || []).filter(id => id !== p.id),
-      [otherKey]: baseLog[otherKey] || [],
-    };
+      [otherKey]: baseLog[otherKey] || []};
     const exists = (regimenLogs || []).some(r => r.date === today);
     const newLogs = exists
       ? regimenLogs.map(r => r.date === today ? updated : r)
@@ -339,7 +444,7 @@ const RegimenTodayView = ({
             type="button"
             onClick={(e) => { e.stopPropagation(); removeFromRegimenSlot(p, slot); }}
             className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center transition hover:opacity-90 cursor-pointer z-10"
-            style={{background:'var(--cream)', border:'1px solid var(--line)', color:'var(--ink-soft)', boxShadow:'0 1px 2px rgba(28,25,23,0.05)', cursor:'pointer'}}
+            style={{background:'var(--cream)', border: '1px solid var(--line)', color:'var(--ink-soft)', boxShadow:'0 1px 2px rgba(28,25,23,0.05)', cursor:'pointer'}}
             title={`Remove from ${slot.toUpperCase()}`}
             aria-label={`Remove ${p.name} from ${slot.toUpperCase()}`}
           >
@@ -415,8 +520,7 @@ const RegimenTodayView = ({
       theme,
       hasAm: dayAmProducts.length > 0 || (!log && (i % 2 === 0)), // heuristic for fallback
       hasPm: dayPmProducts.length > 0 || (!log && (i % 2 === 1)),
-      amProducts: dayAmProducts, pmProducts: dayPmProducts, log,
-    };
+      amProducts: dayAmProducts, pmProducts: dayPmProducts, log};
   });
 
   // Progress ring SVG — circumference based.
@@ -440,14 +544,14 @@ const RegimenTodayView = ({
             type="button"
             onClick={(e) => { e.stopPropagation(); removeFromRegimenSlot(p, slot); }}
             className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center transition hover:opacity-90 cursor-pointer z-10"
-            style={{background:'var(--cream)', border:'1px solid var(--line)', color:'var(--ink-soft)', boxShadow:'0 1px 2px rgba(28,25,23,0.05)', cursor:'pointer'}}
+            style={{background:'var(--cream)', border: '1px solid var(--line)', color:'var(--ink-soft)', boxShadow:'0 1px 2px rgba(28,25,23,0.05)', cursor:'pointer'}}
             title={`Remove from ${slot.toUpperCase()}`}
             aria-label={`Remove ${p.name} from ${slot.toUpperCase()}`}
           >
             <Icon name="X" size={7} />
           </button>
         )}
-        <div className="w-[78px] h-[78px] md:w-[72px] md:h-[72px] rounded-[14px] overflow-hidden flex items-center justify-center" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+        <div className="w-[78px] h-[78px] md:w-[72px] md:h-[72px] rounded-[14px] overflow-hidden flex items-center justify-center" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
           {hasPhoto ? (
             <Photo item={p} alt={p.name} className="w-full h-full object-cover"
               renderFallback={() => aiArt
@@ -490,11 +594,11 @@ const RegimenTodayView = ({
           Header: TODAY'S RITUAL eyebrow + ⓘ info icon top-right,
           Regimen serif title, "Your selected ritual for today."
           subtitle. Below: 3-equal-segment action bar (Repeat
-          Yesterday / Edit Today / Étude Suggests). Then Morning
+          Yesterday / Edit Today / Frida Suggests). Then Morning
           and Evening sections each as a horizontal scroll row of
           square product tiles + dashed Add Step tiles. Bottom:
-          single subtle Étude AI note card.
-          AI is opt-in via the "Suggest with AI" italic link in
+          single subtle Frida AI note card.
+          AI is opt-in via the "Suggest with AI" link in
           the action row below; it proposes a routine the user
           can accept item-by-item. The eyebrow reflects state,
           not source: LOGGED (submitted), PLANNED (default), or
@@ -508,15 +612,9 @@ const RegimenTodayView = ({
             only context). */}
         <div className="flex items-start justify-between gap-3 mb-2 md:mb-2">
           <div className="min-w-0 flex-1">
-            <Eyebrow className="mb-1 md:mb-0.5">{isViewingToday ? "Today's Regimen" : `${viewDayLabel}'s Regimen`}</Eyebrow>
-            <h2 className="font-serif italic text-[22px] md:text-[22px] leading-[1.05] mb-0.5" style={{color:'var(--ink)'}}>
+            <h2 className="font-sans text-[22px] md:text-[22px] leading-[1.05] mb-0.5" style={{color:'var(--ink)'}}>
               Regimen
             </h2>
-            <p className="text-[11.5px] md:text-[11px] leading-snug" style={{color:'var(--ink-soft)'}}>
-              {isShowingPatternFallback
-                ? 'From your current routine.'
-                : isViewingToday ? 'Your regimen for today.' : 'Edit a prior day\'s log if something was off.'}
-            </p>
             {/* === GENERATED-FROM-WEEK INDICATOR (May 2026, slice 5) ===
                 Surfaces the connection between Today and Rotation
                 so users understand this isn't a static product
@@ -537,72 +635,71 @@ const RegimenTodayView = ({
               </button>
             )}
           </div>
-          {/* Quick-action stack — Repeat + Clear/Restore.
-              May 2026: export (JPG) and info (full plan sheet)
-              icons retired per Jenni — the surface had too
-              many controls. Repeat and Clear stack vertically
-              on the right rail, mirroring how the buttons read
-              most naturally as a small editorial action list. */}
-          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+          <div className="relative flex-shrink-0">
             {isViewingToday && (
               <>
                 <button
                   type="button"
-                  onClick={() => { if (submittedToday) undoRepeatYesterday(); else repeatYesterday(); }}
-                  disabled={!yesterdayCheckIn}
-                  className="flex items-center gap-1 transition hover:opacity-70 disabled:opacity-30"
-                  style={{color: submittedToday ? 'var(--accent)' : 'var(--ink-soft)', cursor: yesterdayCheckIn ? 'pointer' : 'default'}}
-                  title={submittedToday ? 'Repeated — tap to clear' : (yesterdayCheckIn ? 'Repeat yesterday\'s picks' : 'No yesterday log to repeat')}
-                  aria-label="Repeat last regimen"
+                  onClick={() => setRitualActionsOpen(v => !v)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center transition hover:bg-[var(--cream)]"
+                  style={{color:'var(--ink-soft)', border: '1px solid var(--line)', background:'var(--cream)', cursor:'pointer'}}
+                  title="Regimen actions"
+                  aria-label="Regimen actions"
                 >
-                  <Icon name={submittedToday ? 'Check' : 'RotateCcw'} size={11} />
-                  <span className="text-[9px] tracking-[0.18em] uppercase">{submittedToday ? 'Repeated' : 'Repeat'}</span>
+                  <Icon name="Ellipsis" size={16} />
                 </button>
-                {/* === CLEAR ↔ RESTORE TOGGLE (May 2026) ===
-                    Same button position, swaps role based on
-                    whether the active slot currently has any
-                    products. If empty AND a built pattern
-                    exists for today → "RESTORE" with the undo
-                    icon. If empty AND no pattern → hide
-                    entirely (nothing to act on). If has
-                    products → "CLEAR" with trash icon. */}
-                {(() => {
-                  const activeSlotList = ritualSlot === 'pm' ? pmProducts : amProducts;
-                  const activeSlotEmpty = activeSlotList.length === 0;
-                  const patternBuiltForUser = userHasBuiltPattern(products);
-                  // Hide if empty AND no pattern (nothing to clear, nothing to restore)
-                  if (activeSlotEmpty && !patternBuiltForUser) return null;
-                  if (activeSlotEmpty) {
-                    // Empty but pattern exists → Restore
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => regenerateSlotForToday(ritualSlot)}
-                        className="flex items-center gap-1 transition hover:opacity-70"
-                        style={{color:'var(--accent)', cursor:'pointer'}}
-                        title={`Restore ${ritualSlot.toUpperCase()} from your weekly plan`}
-                        aria-label={`Restore ${ritualSlot.toUpperCase()} from your weekly plan`}
-                      >
-                        <Icon name="RotateCcw" size={11} />
-                        <span className="text-[9px] tracking-[0.18em] uppercase">Restore {ritualSlot.toUpperCase()}</span>
-                      </button>
-                    );
-                  }
-                  // Default state: slot has products → Clear
-                  return (
+                {ritualActionsOpen && (
+                  <div
+                    className="absolute right-0 top-9 z-20 w-[210px] rounded-[14px] overflow-hidden shadow-lg"
+                    style={{background:'var(--cream)', border: '1px solid var(--line)', boxShadow:'0 12px 30px rgba(34,27,24,0.14)'}}
+                  >
                     <button
                       type="button"
-                      onClick={() => clearTodayRoutine(ritualSlot)}
-                      className="flex items-center gap-1 transition hover:opacity-70"
-                      style={{color:'var(--ink-soft)', cursor:'pointer'}}
-                      title={`Clear ${ritualSlot.toUpperCase()} routine for today`}
-                      aria-label={`Clear ${ritualSlot.toUpperCase()} routine`}
+                      onClick={() => { setRitualActionsOpen(false); clearTodayRoutine(ritualSlot); }}
+                      disabled={activeSlotProducts.length === 0}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)] disabled:opacity-40"
+                      style={{color:'var(--ink)', cursor: activeSlotProducts.length === 0 ? 'default' : 'pointer'}}
                     >
-                      <Icon name="Trash2" size={11} />
-                      <span className="text-[9px] tracking-[0.18em] uppercase">Clear {ritualSlot.toUpperCase()}</span>
+                      <Icon name="Trash2" size={13} />
+                      <span className="text-[10px] tracking-[0.12em] uppercase">Clear {ritualSlot.toUpperCase()}</span>
                     </button>
-                  );
-                })()}
+                    <button
+                      type="button"
+                      onClick={() => { setRitualActionsOpen(false); if (submittedToday) undoRepeatYesterday(); else repeatYesterday(); }}
+                      disabled={!yesterdayCheckIn}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)] disabled:opacity-40"
+                      style={{color:'var(--ink)', cursor: yesterdayCheckIn ? 'pointer' : 'default'}}
+                    >
+                      <Icon name={submittedToday ? 'Check' : 'RotateCcw'} size={13} />
+                      <span className="text-[10px] tracking-[0.12em] uppercase">{submittedToday ? 'Clear repeat' : 'Repeat yesterday'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setRitualActionsOpen(false); setRegimenView('build'); }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
+                      style={{color:'var(--ink)', cursor:'pointer'}}
+                    >
+                      <Icon name="RefreshCw" size={13} />
+                      <span className="text-[10px] tracking-[0.12em] uppercase">Rebuild routine</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRitualActionsOpen(false);
+                        if (typeof setUsedSomethingElseSheet === 'function') {
+                          setUsedSomethingElseSheet({ open: true, slot: ritualSlot, date: viewDate });
+                        } else {
+                          setAddRitualSheet({ slot: ritualSlot });
+                        }
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
+                      style={{color:'var(--ink)', cursor:'pointer'}}
+                    >
+                      <Icon name="Plus" size={13} />
+                      <span className="text-[10px] tracking-[0.12em] uppercase">Add something else</span>
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -610,7 +707,7 @@ const RegimenTodayView = ({
         {/* Day scrubber — ◀ DAY ▶ navigation. Forward arrow
             disabled on today (no future). When on a prior day,
             a quick "jump to today" link sits next to the date. */}
-        <div className="flex items-center justify-between gap-2 mb-3 px-1">
+        <div className="flex items-center justify-between gap-2 mb-2 px-1">
           <button
             type="button"
             onClick={() => shiftDay(-1)}
@@ -621,12 +718,12 @@ const RegimenTodayView = ({
             <Icon name="ChevronLeft" size={14} />
           </button>
           <div className="flex items-baseline gap-2">
-            <span className="font-serif italic text-[13px]" style={{color: isViewingToday ? 'var(--accent)' : 'var(--ink)'}}>{viewDayLabel}</span>
+            <span className="font-sans text-[13px]" style={{color: isViewingToday ? 'var(--accent)' : 'var(--ink)'}}>{viewDayLabel}</span>
             {/* Logged-today cue (restored May 2026). */}
             {isViewingToday && submittedToday && (
               <span
                 className="inline-flex items-center gap-1 text-[8.5px] tracking-[0.18em] uppercase"
-                style={{color:'var(--sage, #8a9b7e)', fontWeight:600}}
+                style={{color:'var(--accent-blue, #86CAE7)', fontWeight:600}}
                 title={`Logged${todayLog?.submittedAt ? ' · ' + new Date(todayLog.submittedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}`}
               >
                 <Icon name="Check" size={9} /> Logged
@@ -636,7 +733,7 @@ const RegimenTodayView = ({
               <button
                 type="button"
                 onClick={() => setRitualViewDate(todayKey)}
-                className="text-[9px] tracking-[0.2em] uppercase italic transition hover:opacity-70"
+                className="text-[9px] tracking-[0.2em] uppercase transition hover:opacity-70"
                 style={{color:'var(--accent)'}}
               >
                 jump to today
@@ -662,14 +759,14 @@ const RegimenTodayView = ({
              the user can edit without a popup. AM/PM toggle, numbered
              rows with auto-save X, then three action pills (Repeat /
              From Shelf / New Product), utility row (Reorder / Clear),
-             and Étude Suggests as a tappable inline card that opens
+             and Frida Suggests as a tappable inline card that opens
              the existing AI suggestion sheet. */}
 
         {/* AM / PM segmented toggle */}
-        <div className="rounded-full flex p-1 gap-1 mb-4" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+        <div className="rounded-full flex p-1 gap-1 mb-2.5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
           {[
-            { id: 'am', label: 'AM routine', icon: 'Sun' },
-            { id: 'pm', label: 'PM routine', icon: 'Moon' },
+            { id: 'am', label: 'AM routine', icon: 'Sun', activeBg: 'var(--surface-selected)', activeFg: 'var(--accent)' },
+            { id: 'pm', label: 'PM routine', icon: 'Moon', activeBg: 'var(--surface-selected)', activeFg: 'var(--accent)' },
           ].map(t => {
             const active = ritualSlot === t.id;
             return (
@@ -677,15 +774,14 @@ const RegimenTodayView = ({
                 key={t.id}
                 type="button"
                 onClick={() => setRitualSlot(t.id)}
-                className="flex-1 rounded-full py-2 px-3 flex items-center justify-center gap-1.5 transition"
+                className="flex-1 rounded-full py-1.5 px-3 flex items-center justify-center gap-1.5 transition"
                 style={{
-                  background: active ? 'var(--cream)' : 'transparent',
-                  color: active ? 'var(--ink)' : 'var(--ink-soft)',
-                  boxShadow: active ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
-                  cursor:'pointer',
-                }}
+                  background: active ? t.activeBg : 'transparent',
+                  color: active ? t.activeFg : 'var(--ink-soft)',
+                  boxShadow: 'none',
+                  cursor:'pointer'}}
               >
-                <Icon name={t.icon} size={12} style={{color: active ? 'var(--accent)' : 'var(--ink-soft)'}} />
+                <Icon name={t.icon} size={12} style={{color: active ? t.activeFg : 'var(--ink-soft)'}} />
                 <span className="text-[11px] tracking-[0.18em] uppercase">{t.label}</span>
               </button>
             );
@@ -694,7 +790,10 @@ const RegimenTodayView = ({
 
         {/* Numbered rows for the active slot — auto-save on X */}
         {(() => {
-          const slotList = ritualSlot === 'pm' ? pmProducts : amProducts;
+          const baseSlotList = ritualSlot === 'pm' ? pmProducts : amProducts;
+          const hiddenSlotList = ritualSlot === 'pm' ? pmHiddenRegimen : amHiddenRegimen;
+          const slotOverflow = ritualSlot === 'pm' ? pmOverflowRegimen : amOverflowRegimen;
+          const slotList = showAllRitualItems ? [...baseSlotList, ...hiddenSlotList] : baseSlotList;
           const slotKey = ritualSlot;
           if (slotList.length === 0) {
             // === EMPTY STATE COPY (May 2026) ===
@@ -707,142 +806,277 @@ const RegimenTodayView = ({
             //     (user cleared, or pattern legitimately has
             //     nothing here) → existing T&G snark + a hint
             //     that they can Restore from the corner.
-            const patternBuiltForUser = userHasBuiltPattern(products);
+            const patternBuiltForUser = hasBuiltRoutineForToday;
             if (!patternBuiltForUser) {
               return (
-                <button
-                  type="button"
-                  onClick={() => { setRegimenView('build'); }}
-                  className="w-full rounded-[14px] p-6 text-center mb-4 transition hover:bg-[var(--cream)]"
-                  style={{background:'var(--cream-deep)', border:'1px dashed var(--accent)', cursor:'pointer'}}
-                  aria-label="Go to Build to design your weekly rotation"
-                >
-                  <Icon name="Sparkles" size={14} style={{color:'var(--accent)', marginBottom:6, opacity:0.85}} />
-                  <div className="text-[14px]" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.01em'}}>
-                    No regimen yet. Build one.
-                  </div>
-                  <div className="text-[11px] mt-1" style={{color:'var(--ink-soft)'}}>
-                    Tell Étude your concerns and active cadence — we'll lay out the week.
-                  </div>
-                  <div className="mt-2.5 text-[10px] tracking-[0.22em] uppercase inline-flex items-center gap-1.5" style={{color:'var(--accent)', fontWeight:600}}>
-                    Build your week
-                    <Icon name="ArrowRight" size={10} />
-                  </div>
-                </button>
+                <div className="mb-4">
+                  <h2 className="text-[17px] md:text-[18px] leading-[1.2] mb-2" style={{color:'var(--ink)', fontWeight:500, letterSpacing:'-0.012em'}}>
+                    No routine built yet.
+                  </h2>
+                  <p className="text-[12.5px] leading-relaxed mb-2" style={{color:'var(--ink)', fontWeight:400}}>
+                    Tell Frida what you own, what your skin tolerates, and how often you want actives. We’ll turn the shelf into an actual week.
+                  </p>
+                  <p className="text-[11.5px] leading-relaxed mb-4" style={{color:'var(--ink-soft)', fontWeight:400}}>
+                    You can still mark today as skipped, but building the routine is the useful next move.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setRegimenView('build'); }}
+                    className="w-full rounded-full py-3 px-4 flex items-center justify-center gap-2 transition hover:opacity-90 mt-3"
+                    style={{
+                      background: 'var(--accent)',
+                      color: 'var(--cream)',
+                      border: '1px solid var(--accent)',
+                      fontWeight: 600, fontSize: 12.5, letterSpacing: '0.04em', cursor: 'pointer'}}
+                    title="Build your standing routine"
+                  >
+                    <Icon name="Sparkles" size={13} />
+                    <span className="truncate">Build routine</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => skipSlotForToday(slotKey)}
+                    className="w-full rounded-full py-2.5 px-4 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)] mt-2"
+                    style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:11.5, letterSpacing:'0.02em', cursor:'pointer'}}
+                    title={`Log ${slotKey.toUpperCase()} as bare for today`}
+                  >
+                    <Icon name={slotKey === 'pm' ? 'Moon' : 'Sun'} size={12} />
+                    <span>Skip {slotKey.toUpperCase()} products today</span>
+                  </button>
+                </div>
               );
             }
             return (
-              <div className="rounded-[14px] p-6 text-center mb-4" style={{background:'var(--cream-deep)', border:'1px dashed var(--line)'}}>
-                <div className="font-serif italic text-[15px] mb-1" style={{color:'var(--ink)'}}>
-                  {slotKey === 'am' ? 'Stepping out bare? Brave.' : 'Going to bed bare? Bolder.'}
-                </div>
-                <div className="text-[11px]" style={{color:'var(--ink-soft)'}}>
-                  {slotKey === 'am' ? 'Even SPF beats nothing.' : 'At least wash the day off.'} Pull from your shelf, or restore your weekly plan above.
-                </div>
+              <div className="mb-4">
+                <h2 className="text-[17px] md:text-[18px] leading-[1.2] mb-2" style={{color:'var(--ink)', fontWeight:500, letterSpacing:'-0.012em'}}>
+                  Nothing in this slot yet.
+                </h2>
+                <p className="text-[12.5px] leading-relaxed mb-2" style={{color:'var(--ink)', fontWeight:400}}>
+                  Your weekly routine exists; today’s {slotKey.toUpperCase()} just needs a product logged or added.
+                </p>
+                <p className="text-[11.5px] leading-relaxed mb-4" style={{color:'var(--ink-soft)', fontWeight:400}}>
+                  Fill this slot from your shelf, or mark it skipped if bare was intentional.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => regenerateSlotForToday(slotKey)}
+                  className="w-full rounded-full py-3 px-4 flex items-center justify-center gap-2 transition hover:opacity-90 mt-3"
+                  style={{
+                    background: 'var(--accent)',
+                    color: 'var(--cream)',
+                    border: '1px solid var(--accent)',
+                    fontWeight: 600, fontSize: 12.5, letterSpacing: '0.04em', cursor: 'pointer'}}
+                  title={`Restore ${slotKey.toUpperCase()} from your weekly plan`}
+                >
+                  <Icon name="RotateCcw" size={13} />
+                  <span className="truncate">Restore {slotKey.toUpperCase()}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setRegimenView('build'); }}
+                  className="w-full rounded-full py-2.5 px-4 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)] mt-2"
+                  style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:11.5, letterSpacing:'0.02em', cursor:'pointer'}}
+                  title="Rebuild your standing routine"
+                >
+                  <Icon name="Sparkles" size={12} />
+                  <span>Rebuild routine</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => skipSlotForToday(slotKey)}
+                  className="w-full rounded-full py-2.5 px-4 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)] mt-2"
+                  style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:11.5, letterSpacing:'0.02em', cursor:'pointer'}}
+                  title={`Log ${slotKey.toUpperCase()} as bare for today`}
+                >
+                  <Icon name={slotKey === 'pm' ? 'Moon' : 'Sun'} size={12} />
+                  <span>Skip {slotKey.toUpperCase()} products today</span>
+                </button>
               </div>
             );
           }
           return (
-            <div className="space-y-1 mb-4">
-              {slotList.map((p, i) => {
-                if (p.isExtra) {
-                  // AI-suggested product not yet on shelf — non-removable text row.
+            <div className="mb-3">
+              <div className="text-[9px] tracking-[0.3em] uppercase mb-1.5 flex items-baseline justify-between" style={{color:'var(--ink-soft)'}}>
+                <span>{ritualSlot.toUpperCase()} regimen</span>
+                <span className="font-sans text-[10px] normal-case tracking-normal" style={{color:'var(--ink-soft)'}}>{slotList.length}</span>
+              </div>
+              <div className="regimen-shelf-list">
+                {slotList.map((p, i) => {
+                  const rowKey = p.isExtra ? `extra-${i}` : p.id;
+                  const expanded = expandedRitualItemId === rowKey;
+                  const rowActionColor = 'var(--ink-soft)';
+                  const categoryColor = 'var(--ink-soft)';
+                  if (p.isExtra) {
+                    return (
+                      <div key={rowKey} style={{borderTop: i === 0 ? 'none' : '1px solid var(--line)'}}>
+                        <div className="regimen-row regimen-shelf-row">
+                          <div className="font-sans text-[14px] text-center" style={{color:'var(--ink-soft)'}}>{i + 1}</div>
+                          <button type="button" onClick={() => setExpandedRitualItemId(expanded ? null : rowKey)} className="min-w-0 text-left transition hover:opacity-80" style={{cursor:'pointer'}}>
+                            <div className="font-medium text-[13px] truncate" style={{color:'var(--ink)'}}>{p.name}</div>
+                            <div className="text-[9.5px] mt-0.5 tracking-[0.12em] uppercase" style={{color:'var(--ink-soft)'}}>AI suggestion · not on shelf</div>
+                          </button>
+                          <button type="button" onClick={() => setExpandedRitualItemId(expanded ? null : rowKey)} className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)] justify-self-end" style={{color: rowActionColor, cursor:'pointer'}} title={expanded ? 'Collapse details' : 'Expand details'} aria-label={expanded ? 'Collapse details' : 'Expand details'}>
+                            <Icon name={expanded ? 'ChevronUp' : 'ChevronDown'} size={13} />
+                          </button>
+                        </div>
+                        {expanded && (
+                          <div className="regimen-shelf-detail">
+                            <div className="text-[9px] tracking-[0.2em] uppercase mb-1.5" style={{color:'var(--ink-soft)'}}>Suggestion</div>
+                            <div className="text-[10.5px] leading-snug" style={{color:'var(--ink-soft)'}}>This item is not on your shelf yet. Add it if you used it today.</div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  const actives = p.activeIngredients || p.mainIngredients || '';
+                  const rawAnalysis = p.aiAnalysis || '';
+                  const sectionText = (label) => {
+                    if (!rawAnalysis) return '';
+                    const re = new RegExp(`${label}\\s*:\\s*([\\s\\S]*?)(?=\\n\\s*(?:MECHANISM|EVIDENCE|REVIEWS|CONFLICTS|ALTERNATIVES|ASSESSMENT)\\s*:|$)`, 'i');
+                    const m = rawAnalysis.match(re);
+                    return m ? m[1].trim().replace(/\n+/g, ' ') : '';
+                  };
+                  const mechanism = sectionText('MECHANISM') || sectionText('ASSESSMENT');
+                  const evidence = sectionText('EVIDENCE');
                   return (
-                    <div key={`extra-${i}`} className="regimen-row">
-                      <div className="font-serif italic text-[14px] text-center" style={{color:'var(--ink-soft)'}}>{i + 1}</div>
-                      <div className="h-12 flex items-end justify-center overflow-hidden">
-                        <DashedBottleOutline />
+                    <div key={p.id} style={{borderTop: i === 0 ? 'none' : '1px solid var(--line)'}}>
+                      <div className="regimen-row regimen-shelf-row">
+                        <div className="font-sans text-[14px] text-center" style={{color:'var(--ink-soft)'}}>{i + 1}</div>
+                        <button type="button" onClick={() => setExpandedRitualItemId(expanded ? null : rowKey)} className="min-w-0 text-left transition hover:opacity-80" style={{cursor:'pointer'}}>
+                          {p.brand && <div className="text-[9px] tracking-[0.22em] uppercase truncate" style={{color:'var(--ink-soft)'}}>{p.brand}</div>}
+                          <div className="font-medium text-[13px] truncate" style={{color:'var(--ink)'}}>{p.name || p.brand || 'Product'}</div>
+                          {p.category && <div className="text-[9.5px] mt-0.5 tracking-[0.12em] uppercase" style={{color: categoryColor, fontWeight:600}}>{p.category.replace(/-/g, ' ')}</div>}
+                        </button>
+                        <div className="flex items-center justify-end gap-0.5">
+                          <button type="button" onClick={() => setExpandedRitualItemId(expanded ? null : rowKey)} className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)]" style={{color: rowActionColor, cursor:'pointer'}} title={expanded ? 'Collapse details' : 'Expand details'} aria-label={expanded ? 'Collapse details' : 'Expand details'}>
+                            <Icon name={expanded ? 'ChevronUp' : 'ChevronDown'} size={13} />
+                          </button>
+                          <button onClick={() => removeFromRegimenSlot(p, slotKey)} className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)]" style={{color: rowActionColor, cursor:'pointer'}} title="Remove from routine" type="button">
+                            <Icon name="X" size={12} />
+                          </button>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <div className="font-medium text-[13px] truncate" style={{color:'var(--ink)'}}>{p.name}</div>
-                        <div className="text-[9.5px] mt-0.5 tracking-[0.12em] uppercase italic" style={{color:'var(--ink-soft)'}}>AI suggestion · not on shelf</div>
-                      </div>
-                      <span style={{width:28}} />
+                      {expanded && (
+                        <div className="regimen-shelf-detail">
+                          {p.brand && <div className="text-[9px] tracking-[0.2em] uppercase mb-2" style={{color:'var(--ink-soft)'}}>{p.brand}</div>}
+                          {actives && (
+                            <div className="text-[10.5px] leading-snug mb-2" style={{color:'var(--ink-soft)'}}>
+                              <span className="tracking-[0.2em] uppercase mr-1.5" style={{fontSize:9, color:'var(--ink-soft)', fontWeight:600}}>Also</span>
+                              {actives}
+                            </div>
+                          )}
+                          {p.tags && p.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {p.tags.map((t, tagIdx) => <span key={tagIdx} className="text-[9px] tracking-[0.1em] px-1.5 py-0.5 border rounded-full" style={{borderColor: 'var(--line)', color:'var(--ink-soft)', background:'var(--cream)'}}>{t}</span>)}
+                            </div>
+                          )}
+                          <div className="text-[10px] font-light mb-2" style={{color:'var(--ink-soft)'}}>
+                            {p.frequency ? p.frequency.replace(/-/g, ' ') : 'as needed'}
+                            {Array.isArray(p.useTimes) && p.useTimes.length > 0 ? ` · ${p.useTimes.map(t => t.toUpperCase()).join(' + ')}` : ''}
+                            {p.startDate ? ` · started ${new Date(p.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+                          </div>
+                          {(mechanism || evidence) && (
+                            <div className="pt-2 mt-2 border-t space-y-2" style={{borderColor: 'var(--line)'}}>
+                              {mechanism && (() => {
+                                const trimmed = mechanism.trim();
+                                const isLong = trimmed.length > 240;
+                                const w = trimmed.slice(0, 280);
+                                const cut = w.match(/^(.{60,}?[.!?])(?:\s|$)/);
+                                const concise = isLong ? (cut ? cut[1].trim() : w.slice(0, w.lastIndexOf(' ')).trim() + '…') : trimmed;
+                                return (
+                                  <div>
+                                    <div className="text-[8px] tracking-[0.2em] uppercase mb-1" style={{color:'var(--ink-soft)'}}>Mechanism</div>
+                                    <div className="flex gap-1.5 text-[11px] leading-snug font-light" style={{color:'var(--ink)'}}>
+                                      <span style={{color:'var(--accent)'}}>·</span>
+                                      <span className="flex-1">
+                                        {mechExpandedForRow[rowKey] ? trimmed : concise}
+                                        {isLong && (
+                                          <button type="button" onClick={(e) => { e.stopPropagation(); setMechExpandedForRow(prev => ({...prev, [rowKey]: !prev[rowKey]})); }} className="ml-1.5 text-[9.5px] tracking-[0.14em] uppercase" style={{color:'var(--accent)', fontWeight:600, cursor:'pointer'}}>
+                                            {mechExpandedForRow[rowKey] ? 'Less' : 'More'}
+                                          </button>
+                                        )}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                              {evidence && (() => {
+                                const trimmed = evidence.trim();
+                                const isLong = trimmed.length > 240;
+                                const w = trimmed.slice(0, 280);
+                                const cut = w.match(/^(.{60,}?[.!?])(?:\s|$)/);
+                                const concise = isLong ? (cut ? cut[1].trim() : w.slice(0, w.lastIndexOf(' ')).trim() + '…') : trimmed;
+                                return (
+                                  <div>
+                                    <div className="text-[8px] tracking-[0.2em] uppercase mb-1" style={{color:'var(--ink-soft)'}}>Evidence</div>
+                                    <div className="flex gap-1.5 text-[11px] leading-snug font-light" style={{color:'var(--ink)'}}>
+                                      <span style={{color:'var(--accent)'}}>·</span>
+                                      <span className="flex-1">
+                                        {evidenceExpandedForRow[rowKey] ? trimmed : concise}
+                                        {isLong && (
+                                          <button type="button" onClick={(e) => { e.stopPropagation(); setEvidenceExpandedForRow(prev => ({...prev, [rowKey]: !prev[rowKey]})); }} className="ml-1.5 text-[9.5px] tracking-[0.14em] uppercase" style={{color:'var(--accent)', fontWeight:600, cursor:'pointer'}}>
+                                            {evidenceExpandedForRow[rowKey] ? 'Less' : 'More'}
+                                          </button>
+                                        )}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+                          {p.notes && <div className="mt-2 text-[11px] font-light" style={{color:'var(--ink-soft)'}}>{p.notes}</div>}
+                        </div>
+                      )}
                     </div>
                   );
-                }
-                const art = generatedProductArt && generatedProductArt[`prod-${p.id}`];
-                const hasRealPhoto = p.photo || p.photoPath;
-                return (
-                  <div key={p.id} className="regimen-row">
-                    <div className="font-serif italic text-[14px] text-center" style={{color:'var(--ink-soft)'}}>{i + 1}</div>
-                    <div className="h-12 flex items-end justify-center overflow-hidden">
-                      {hasRealPhoto ? (
-                        <Photo item={p} alt={p.name} className="h-full w-auto max-w-full object-contain"
-                          renderFallback={() => art ? <img src={art} alt={p.name} className="h-full w-auto max-w-full object-contain" /> : <DashedBottleOutline />}
-                        />
-                      ) : art ? (
-                        <img src={art} alt={p.name} className="h-full w-auto max-w-full object-contain" />
-                      ) : (
-                        <DashedBottleOutline />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-medium text-[13px] truncate" style={{color:'var(--ink)'}}>{p.brand || p.name}</div>
-                      {p.brand && p.name && p.brand !== p.name && (
-                        <div className="text-[10.5px] truncate" style={{color:'var(--ink-soft)'}}>{p.name}</div>
-                      )}
-                      {p.category && (
-                        <div className="text-[9.5px] mt-0.5 tracking-[0.12em] uppercase" style={{color:'var(--ink-soft)'}}>{p.category.replace(/-/g, ' ')}</div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => removeFromRegimenSlot(p, slotKey)}
-                      className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)]"
-                      style={{color:'var(--ink-soft)', cursor:'pointer'}}
-                      title="Remove from routine"
-                      type="button"
-                    >
-                      <Icon name="X" size={12} />
-                    </button>
-                  </div>
-                );
-              })}
+                })}
+              </div>
             </div>
           );
         })()}
+        {(() => {
+          const slotOverflow = ritualSlot === 'pm' ? pmOverflowRegimen : amOverflowRegimen;
+          if (!slotOverflow) return null;
+          return (
+            <button
+              type="button"
+              onClick={() => setShowAllRitualItems(v => !v)}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-[10px] transition hover:opacity-80 mb-4"
+              style={{background:'var(--surface-selected-soft)', border:'1px dashed var(--border-mid)', color:'var(--accent)', fontWeight:600, fontSize:10.5, letterSpacing:'0.04em', cursor:'pointer'}}
+              title={showAllRitualItems ? 'Collapse extra routine items' : 'Show every product logged for this slot'}
+            >
+              <Icon name={showAllRitualItems ? 'ChevronUp' : 'ChevronDown'} size={11} />
+              <span>{showAllRitualItems ? 'Show fewer' : `+${slotOverflow} more items`}</span>
+            </button>
+          );
+        })()}
 
-        {/* Two primary action pills — From Shelf + New Product.
-            Repeat moved to upper-right header icons (with Clear). */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <button
-            onClick={() => setShelfQuickAddOpen(true)}
-            className="pill-primary pill-compact"
-            title="Pick from your shelf — taps add directly to AM or PM"
-            type="button"
-          >
-            <Icon name="Plus" size={12} />
-            <span>From Shelf</span>
-          </button>
-          <button
-            onClick={() => { setEditingProductId(null); setShowProductModal(true); }}
-            className="pill-secondary pill-compact"
-            title="Add a new product to your shelf"
-            type="button"
-          >
-            <Icon name="Plus" size={12} />
-            <span>New Product</span>
-          </button>
-        </div>
-
-        {/* === Étude Suggests — full-width pill ===
-             Promoted from a quiet editorial card to an actual pill
-             button so the affordance reads as "tap to do something
-             AI-y" instead of an info card. Filled with sparkle icon
-             for brand emphasis. */}
-        <button
-          onClick={openSuggestForToday}
-          className="w-full pill-secondary pill-compact mb-2"
-          style={{borderColor:'var(--accent)', color:'var(--accent)'}}
-          title="Tang & Gainey pick from products already on your shelf"
-          type="button"
-        >
-          <Icon name="Sparkles" size={12} />
-          <span>Suggest picks from your shelf</span>
-        </button>
+        {/* Hero-matched action stack: confirm, add one-off, rebuild.
+            The one-off sheet carries From Shelf / New Product /
+            procedure / supplement / device / note, same as Atelier. */}
+        {!activeSlotIsEmpty && (
+          <>
+            <button
+              onClick={activeSlotSubmitted ? undoActiveSlotLog : logActiveSlotNow}
+              className="w-full rounded-full py-3 px-4 flex items-center justify-center gap-2 transition hover:opacity-90 mt-3"
+              style={{
+                background: activeSlotSubmitted ? 'var(--status-info-bg)' : 'var(--accent)',
+                color: activeSlotSubmitted ? 'var(--status-info-fg)' : 'var(--cream)',
+                border: activeSlotSubmitted ? '1px solid var(--accent-blue)' : '1px solid var(--accent)',
+                fontWeight: 600, fontSize: 12.5, letterSpacing: '0.04em', cursor: 'pointer'}}
+              title={activeSlotSubmitted ? `Tap to undo today's ${ritualSlot.toUpperCase()} commit` : `Mark all ${ritualSlot.toUpperCase()} products as done for today`}
+              aria-label={activeSlotSubmitted ? `${ritualSlot.toUpperCase()} regimen logged for today — tap to undo` : `Mark ${ritualSlot.toUpperCase()} regimen done`}
+              type="button"
+            >
+              <Icon name={activeSlotSubmitted ? 'Check' : (ritualSlot === 'pm' ? 'Moon' : 'Sun')} size={13} style={activeSlotSubmitted ? {color:'var(--accent-blue)'} : undefined} />
+              <span className="truncate">{activeSlotSubmitted ? 'Today logged' : (ritualSlot === 'pm' ? 'Yes, I did my PM regimen' : 'Yes, I did my AM regimen')}</span>
+            </button>
+          </>
+        )}
 
         {/* Clear utility moved to upper-right header icons (slot-aware). */}
-        {/* Note card removed (May 2026 per Jenni): "Étude AI learns
+        {/* Note card removed (May 2026 per Jenni): "Frida AI learns
             from your log to personalize recommendations" was static
             clutter. The same line now surfaces inside the Suggest
             sheet's loading state, where it has meaning (the
@@ -856,7 +1090,7 @@ const RegimenTodayView = ({
             Set to false to keep the JSX block intact for easy
             un-hide if we want it back. */}
         {false && submittedToday && totalSteps > 0 && (
-          <div className="mt-4 pt-3 border-t" style={{borderColor:'var(--line)'}}>
+          <div className="mt-4 pt-3 border-t" style={{borderColor: 'var(--line)'}}>
             <div className="flex items-center gap-3 mb-3">
               <div className="relative flex-shrink-0" style={{width:'56px', height:'56px'}}>
                 <svg viewBox="0 0 56 56" width="56" height="56">
@@ -870,17 +1104,17 @@ const RegimenTodayView = ({
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="font-serif italic text-[14px]" style={{color:'var(--ink)'}}>{doneCount}/{totalSteps}</span>
+                  <span className="font-sans text-[14px]" style={{color:'var(--ink)'}}>{doneCount}/{totalSteps}</span>
                 </div>
               </div>
               <div className="flex-1 min-w-0">
                 <Eyebrow className="mb-0.5">{nextStep ? 'Next' : 'Complete'}</Eyebrow>
-                <div className="font-serif italic text-[16px] leading-tight truncate" style={{color:'var(--ink)'}}>{nextLabel}</div>
+                <div className="font-sans text-[16px] leading-tight truncate" style={{color:'var(--ink)'}}>{nextLabel}</div>
               </div>
               {doneCount > 0 && (
                 <button
                   onClick={resetToday}
-                  className="text-[10px] tracking-[0.18em] uppercase italic transition hover:opacity-70 flex-shrink-0"
+                  className="text-[10px] tracking-[0.18em] uppercase transition hover:opacity-70 flex-shrink-0"
                   style={{color:'var(--ink-soft)'}}
                   title="Reset today's progress"
                 >

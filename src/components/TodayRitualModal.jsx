@@ -45,8 +45,7 @@ const TodayRitualModal = ({
   toast,
   saveData,
   // Wave 8 audit (May 2026) — App-scope, not module-scope.
-  generateProductArtForAll,
-}) => {
+  generateProductArtForAll}) => {
   // === DATE-AWARE ===
   // Edits whichever day's regimen the user is viewing (via cover or
   // regimen scrubber). Defaults to today. When opened on a prior day,
@@ -68,12 +67,10 @@ const TodayRitualModal = ({
       const resolved = resolveTodayRitual({
         products: products || [],
         regimenLogs: [],
-        date: targetDate,
-      });
+        date: targetDate});
       return {
         am: (resolved.am || []).map(p => p.id),
-        pm: (resolved.pm || []).map(p => p.id),
-      };
+        pm: (resolved.pm || []).map(p => p.id)};
     } catch (_) {
       return { am: [], pm: [] };
     }
@@ -84,15 +81,13 @@ const TodayRitualModal = ({
     pmProducts: [...(existing.pmProducts || [])],
     amDone: [...(existing.amDone || existing.amProducts || [])],
     pmDone: [...(existing.pmDone || existing.pmProducts || [])],
-    notes: existing.notes || '',
-  } : {
+    notes: existing.notes || ''} : {
     date: targetDate,
     amProducts: seedFromPlanned.am,
     pmProducts: seedFromPlanned.pm,
     amDone: [],
     pmDone: [],
-    notes: '',
-  };
+    notes: ''};
   const form = ritualFormRef.current || ritualForm || formSeed;
   const setForm = (updater) => {
     const base = ritualFormRef.current || ritualForm || formSeed;
@@ -126,8 +121,7 @@ const TodayRitualModal = ({
     setForm(f => ({
       ...f,
       [slotKey]: (f[slotKey] || []).filter(x => x !== productId),
-      [doneKey]: (f[doneKey] || []).filter(x => x !== productId),
-    }));
+      [doneKey]: (f[doneKey] || []).filter(x => x !== productId)}));
   };
   const moveStep = (productId, dir) => {
     setForm(f => {
@@ -149,8 +143,7 @@ const TodayRitualModal = ({
       amProducts: [...(yesterdayCheckIn.amProducts || [])],
       pmProducts: [...(yesterdayCheckIn.pmProducts || [])],
       amDone: [...(yesterdayCheckIn.amProducts || [])],
-      pmDone: [...(yesterdayCheckIn.pmProducts || [])],
-    }));
+      pmDone: [...(yesterdayCheckIn.pmProducts || [])]}));
     toast('Pulled in yesterday\'s routine', 'info');
   };
   const clearSlot = () => {
@@ -166,8 +159,7 @@ const TodayRitualModal = ({
       id,
       date: targetDate,
       submitted: true,
-      submittedAt: Date.now(),
-    };
+      submittedAt: Date.now()};
     const next = existing
       ? regimenLogs.map(r => r.date === targetDate ? { ...r, ...submitted } : r)
       : [submitted, ...regimenLogs];
@@ -219,8 +211,7 @@ const TodayRitualModal = ({
     essence: ['essence'],
     cleanser: ['cleanser', 'wash'],
     'eye-care': ['eye'],
-    spf: ['spf', 'sunscreen'],
-  };
+    spf: ['spf', 'sunscreen']};
   const shelfSheetProducts = (() => {
     const q = editRegimenShelfSearch.trim().toLowerCase();
     const matchKeys = shelfFilterToCategory[editRegimenShelfFilter];
@@ -253,10 +244,10 @@ const TodayRitualModal = ({
       return new Date(targetDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) + " check-in";
     })()} actionLabel={ritualSlot === 'pm' ? 'Save PM check-in' : 'Save AM check-in'} action={handleSubmit}>
       <div className="space-y-4">
-        <p className="text-[11.5px] -mt-1" style={{color:'var(--ink-soft)', fontStyle:'italic'}}>
+        <p className="text-[11.5px] -mt-1" style={{color:'var(--ink-soft)'}}>
           {ritualSlot === 'pm' ? 'Close the loop on tonight\'s routine.' : 'Confirm what you used this morning.'}
         </p>
-        <div className="rounded-full flex p-1 gap-1" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+        <div className="rounded-full flex p-1 gap-1" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
           {[
             { id: 'am', label: 'AM products', icon: 'Sun' },
             { id: 'pm', label: 'PM products', icon: 'Moon' },
@@ -269,13 +260,13 @@ const TodayRitualModal = ({
                 onClick={() => setRitualSlot(t.id)}
                 className="flex-1 rounded-full py-2 px-3 flex items-center justify-center gap-1.5 transition"
                 style={{
-                  background: active ? 'var(--cream)' : 'transparent',
-                  color: active ? 'var(--ink)' : 'var(--ink-soft)',
-                  boxShadow: active ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
-                }}
+                  background: active ? 'var(--accent-soft)' : 'transparent',
+                  color: active ? 'var(--accent)' : 'var(--ink-soft)',
+                  boxShadow: 'none',
+                  whiteSpace: 'nowrap'}}
               >
                 <Icon name={t.icon} size={12} style={{color: active ? 'var(--accent)' : 'var(--ink-soft)'}} />
-                <span className="text-[11px] tracking-[0.18em] uppercase">{t.label}</span>
+                <span className="text-[11px] tracking-[0.16em] uppercase" style={{whiteSpace:'nowrap'}}>{t.label}</span>
               </button>
             );
           })}
@@ -283,7 +274,7 @@ const TodayRitualModal = ({
 
         {slotProducts.length === 0 ? (
           <div className="rounded-[14px] p-6 text-center" style={{background:'var(--cream-deep)', border:'1px dashed var(--line)'}}>
-            <div className="font-serif italic text-[15px] mb-1" style={{color:'var(--ink)'}}>
+            <div className="font-sans text-[15px] mb-1" style={{color:'var(--ink)'}}>
               {slot === 'am' ? 'Stepping out bare? Brave.' : 'Going to bed bare? Bolder.'}
             </div>
             <div className="text-[11px]" style={{color:'var(--ink-soft)'}}>
@@ -297,7 +288,7 @@ const TodayRitualModal = ({
               const hasRealPhoto = p.photo || p.photoPath;
               return (
                 <div key={p.id} className="regimen-row">
-                  <div className="font-serif italic text-[14px] text-center" style={{color:'var(--ink-soft)'}}>{i + 1}</div>
+                  <div className="font-sans text-[14px] text-center" style={{color:'var(--ink-soft)'}}>{i + 1}</div>
                   <div className="h-12 flex items-end justify-center overflow-hidden">
                     {hasRealPhoto ? (
                       <Photo item={p} alt={p.name} className="h-full w-auto max-w-full object-contain"
@@ -375,7 +366,7 @@ const TodayRitualModal = ({
             onClick={() => setReorderMode(v => !v)}
             disabled={slotProducts.length < 2}
             className="shortcut-card"
-            style={reorderMode ? {borderColor:'var(--accent)', background:'var(--accent-soft)'} : null}
+            style={reorderMode ? {borderColor: 'var(--line)', background:'var(--accent-soft)'} : null}
             type="button"
           >
             <Icon name="Menu" size={13} style={{color:'var(--accent)'}} />
@@ -388,7 +379,7 @@ const TodayRitualModal = ({
             type="button"
           >
             <Icon name="Trash2" size={13} style={{color:'var(--accent)'}} />
-            <span>Clear {slot.toUpperCase()} routine</span>
+            <span style={{whiteSpace:'nowrap'}}>Clear {slot.toUpperCase()}</span>
           </button>
         </div>
 
@@ -424,21 +415,20 @@ const TodayRitualModal = ({
               useDays: [0,1,2,3,4,5,6],
               useTimes: [slot],
               frequency: 'daily',
-              notes: '',
-            });
+              notes: ''});
             setShowProductModal(true);
             setSomethingElseInput('');
             setSomethingElsePromptOpen(false);
           };
           return (
-            <div className="mt-4 pt-3 border-t" style={{borderColor:'var(--line)'}}>
+            <div className="mt-4 pt-3 border-t" style={{borderColor: 'var(--line)'}}>
               <div className="text-[9.5px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--ink-soft)', fontWeight:600}}>Also today?</div>
               {slotExtras.length > 0 && (
                 <div className="space-y-1 mb-2">
                   {slotExtras.map((name, i) => (
                     <div key={`${name}-${i}`} className="flex items-center gap-2 px-2.5 py-1.5 rounded-[10px]" style={{background:'var(--accent-soft)'}}>
                       <Icon name="Check" size={11} style={{color:'var(--accent)'}} />
-                      <span className="text-[11.5px] flex-1 italic truncate" style={{color:'var(--ink)'}}>{name}</span>
+                      <span className="text-[11.5px] flex-1 truncate" style={{color:'var(--ink)'}}>{name}</span>
                       <button
                         onClick={() => setForm(f => ({ ...f, [extrasKey]: (f[extrasKey] || []).filter(x => x !== name) }))}
                         className="text-[10px] tracking-[0.18em] uppercase"
@@ -455,7 +445,7 @@ const TodayRitualModal = ({
                     type="button"
                     onClick={() => setSomethingElsePromptOpen(true)}
                     className="rounded-[12px] px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
-                    style={{background:'var(--cream-deep)', border:'1px solid var(--line)', cursor:'pointer'}}
+                    style={{background:'var(--cream-deep)', border: '1px solid var(--line)', cursor:'pointer'}}
                   >
                     <div className="flex items-center gap-1.5">
                       <Icon name="Plus" size={11} style={{color:'var(--accent)'}} />
@@ -472,7 +462,7 @@ const TodayRitualModal = ({
                       setTimeout(() => setShowProcedureModal(true), 60);
                     }}
                     className="rounded-[12px] px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
-                    style={{background:'var(--cream-deep)', border:'1px solid var(--line)', cursor:'pointer'}}
+                    style={{background:'var(--cream-deep)', border: '1px solid var(--line)', cursor:'pointer'}}
                   >
                     <div className="flex items-center gap-1.5">
                       <Icon name="Plus" size={11} style={{color:'var(--accent)'}} />
@@ -484,7 +474,7 @@ const TodayRitualModal = ({
                   </button>
                 </div>
               ) : (
-                <div className="rounded-[12px] p-3" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+                <div className="rounded-[12px] p-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
                   <input
                     autoFocus
                     type="text"
@@ -493,7 +483,7 @@ const TodayRitualModal = ({
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addExtrasToday(); } }}
                     placeholder="e.g., Sample Vitamin C from event"
                     className="w-full px-3 py-2 text-[12.5px] rounded-[10px]"
-                    style={{background:'var(--cream)', border:'1px solid var(--line)', color:'var(--ink)'}}
+                    style={{background:'var(--cream)', border: '1px solid var(--line)', color:'var(--ink)'}}
                   />
                   <div className="flex items-center gap-2 mt-2">
                     <button
@@ -508,7 +498,7 @@ const TodayRitualModal = ({
                       onClick={addExtrasToShelf}
                       disabled={!inputVal.trim()}
                       className="flex-1 rounded-full py-2 px-3 text-[10.5px] tracking-[0.16em] uppercase transition hover:bg-[var(--cream)] disabled:opacity-40"
-                      style={{background:'transparent', color:'var(--ink)', border:'1px solid var(--line)', fontWeight:600, cursor:'pointer'}}
+                      style={{background:'transparent', color:'var(--ink)', border: '1px solid var(--line)', fontWeight:600, cursor:'pointer'}}
                     >Add to shelf</button>
                     <button
                       type="button"
@@ -533,7 +523,7 @@ const TodayRitualModal = ({
         <div className="shelf-bottom-sheet" role="dialog" aria-label="Add from shelf">
           <div className="px-4 pt-4 pb-2 flex items-center justify-between">
             <div>
-              <div className="font-serif italic text-[16px]" style={{color:'var(--ink)'}}>Add from shelf</div>
+              <div className="font-sans text-[16px]" style={{color:'var(--ink)'}}>Add from shelf</div>
               <div className="text-[10.5px] tracking-[0.18em] uppercase mt-0.5" style={{color:'var(--ink-soft)'}}>
                 to {ritualSlot.toUpperCase()} routine
               </div>
@@ -550,7 +540,7 @@ const TodayRitualModal = ({
           </div>
 
           <div className="px-4 pb-2">
-            <div className="flex items-center gap-2 rounded-full px-3 py-2" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+            <div className="flex items-center gap-2 rounded-full px-3 py-2" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
               <Icon name="Search" size={12} style={{color:'var(--ink-soft)'}} />
               <input
                 type="text"
@@ -593,7 +583,7 @@ const TodayRitualModal = ({
           <div className="shelf-scroll-area">
             {shelfSheetProducts.length === 0 ? (
               <div className="py-12 text-center">
-                <div className="font-serif italic text-[14px] mb-1" style={{color:'var(--ink)'}}>
+                <div className="font-sans text-[14px] mb-1" style={{color:'var(--ink)'}}>
                   {activeProductsList.filter(p => !slotIds.includes(p.id)).length === 0
                     ? 'Whole shelf is already in. Greedy.'
                     : 'Nothing here. Try less.'}
@@ -659,10 +649,10 @@ const TodayRitualModal = ({
               onClick={commitShelfSelection}
               disabled={editRegimenShelfSelected.length === 0}
               className="pill-primary"
-              style={editRegimenShelfSelected.length === 0 ? {opacity:0.5, pointerEvents:'none'} : null}
+              style={editRegimenShelfSelected.length === 0 ? {opacity:0.5, pointerEvents:'none', whiteSpace:'nowrap'} : {whiteSpace:'nowrap'}}
               type="button"
             >
-              Add to {ritualSlot.toUpperCase()} Routine
+              Add to {ritualSlot.toUpperCase()}
             </button>
           </div>
         </div>

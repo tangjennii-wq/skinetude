@@ -17,8 +17,7 @@ const EvidenceDot = ({ evidence, IconComponent }) => {
     rct: 'Strong RCT evidence',
     observational: 'Consistent observational data',
     mechanism: 'Mechanism-based',
-    expert: 'Clinician opinion',
-  }[evidence.source] || 'Evidence noted';
+    expert: 'Clinician opinion'}[evidence.source] || 'Evidence noted';
   const levelLabel = evidence.level === 'strong' ? 'Strong' : evidence.level === 'moderate' ? 'Moderate' : 'Emerging';
   return (
     <span className="inline-flex items-center relative flex-shrink-0 align-middle ml-1">
@@ -34,8 +33,7 @@ const EvidenceDot = ({ evidence, IconComponent }) => {
           <span key={i} style={{
             display:'inline-block', width:'5px', height:'5px', borderRadius:'50%',
             background: i < filled ? 'var(--accent)' : 'transparent',
-            border: '1px solid var(--accent)',
-          }} />
+            border: '1px solid var(--accent)'}} />
         ))}
       </button>
       {open && (
@@ -45,7 +43,7 @@ const EvidenceDot = ({ evidence, IconComponent }) => {
           style={{background:'var(--ink)', color:'var(--cream)', boxShadow:'0 4px 12px rgba(42,37,32,0.18)'}}
           role="tooltip"
         >
-          <span className="font-serif italic" style={{color:'var(--cream)'}}>{levelLabel}</span>
+          <span className="font-sans" style={{color:'var(--cream)'}}>{levelLabel}</span>
           <span style={{opacity:0.75}}> · {sourceLabel}</span>
         </span>
       )}

@@ -28,7 +28,17 @@ environment: { city: '', humidity: '', uv: '', altitude: '', seasonality: '', po
 location: '',
 goals: [],
 ageBand: '',
-};
+// === AGE (May 30 2026 — Agent D-v3) ===
+// Numeric age. Distinct from `ageBand` (legacy free-text range).
+// Onboarding writes it; ProfileModal step 8 makes it editable;
+// Insights reads it for context. Null when the user hasn't set it.
+age: null,
+// === EXPERIENCE LEVEL (mirror, May 30 2026) ===
+// Mirrored from onboardingState.experienceLevel at the end of
+// onboarding so post-flow surfaces (Insights Lessons filter,
+// future profile-aware AI prompts) have a single source of
+// truth without reaching into onboardingState directly.
+experienceLevel: ''};
 const ProfileModal = ({
 // === State + setters (lifted from App) ===
 profileWizardForm, setProfileWizardForm,
@@ -58,8 +68,8 @@ getApiKey,
 toast,
 saveData,
 setShowProfileModal,
-DEFAULT_USER_PROFILE = PROFILE_MODAL_DEFAULT_USER_PROFILE,
-}) => {
+onOpenScoreExplainer,
+DEFAULT_USER_PROFILE = PROFILE_MODAL_DEFAULT_USER_PROFILE}) => {
   // === STATE COMES FROM APP-LEVEL REFS (see comment near profileWizardStep) ===
   // ProfileModal is recreated on every App render; using local useState would
   // reset progress whenever a toast/log/auto-save fires. The lifted state lives
@@ -85,7 +95,7 @@ DEFAULT_USER_PROFILE = PROFILE_MODAL_DEFAULT_USER_PROFILE,
   const stepIdx = profileWizardStep;
   const setStepIdx = setProfileWizardStep;
   // === TOTAL_STEPS = 12 (May 2026) ===
-  // Section 12 is a "How Étude reads you" summary that maps each profile
+  // Section 12 is a "How Frida reads you" summary that maps each profile
   // answer to a concrete change in how the app's AI surfaces recommendations.
   // Distinct from Section 11 (which is the editorial Skin Summary) — Section
   // 12 is the impact-on-analysis explainer the user can review before saving.
@@ -107,6 +117,19 @@ DEFAULT_USER_PROFILE = PROFILE_MODAL_DEFAULT_USER_PROFILE,
   const toneError = profileToneError;
   const setToneError = setProfileToneError;
   const toneFileInputRef = useRef(null);
+  // === HANG-FIX: INLINE ERROR STATE (May 31 2026 per Jenni) ===
+  // Local state — does NOT need to persist across App remounts because
+  // it's only meaningful in the moment a failed/timed-out AI call lands.
+  // When set, the AI summary block (bottom of the wizard) renders a
+  // banner with "try again" / "close" instead of either the spinner
+  // (which used to hang forever on network failure) or nothing (which
+  // left the user staring at a dead modal with no signal). The X in
+  // Modal.jsx is always clickable regardless — see Modal.jsx onClose.
+  const [profileSummaryError, setProfileSummaryError] = useState(null);
+  // 15s AI timeout cap — anything longer feels broken to the user even
+  // if the network is technically still alive. Surfaces a clean error
+  // banner with retry instead of spinning indefinitely.
+  const PROFILE_AI_TIMEOUT_MS = 15000;
 
   // Auto-pull most recent skin photo when the user lands on the Monk step
   // for the first time (and only if they haven't already loaded a photo).
@@ -136,7 +159,7 @@ DEFAULT_USER_PROFILE = PROFILE_MODAL_DEFAULT_USER_PROFILE,
 
   // Run Gemini Vision to suggest a Monk swatch whenever the loaded photo
   // changes. Strict JSON contract; we never auto-set the user's pick — the
-  // suggestion lives as a quiet "Étude's best guess" chip they can tap to
+  // suggestion lives as a quiet "Frida's best guess" chip they can tap to
   // accept. Lighting variance makes this advisory at best.
   useEffect(() => {
     if (stepIdx !== 1) return;
@@ -157,7 +180,13 @@ CRITICAL CONTEXT:
 
 Respond ONLY with this JSON, no prose, no code fences:
 {"swatch":"<1-10>","confidence":"low|medium|high","note":"<one short sentence about lighting or what you observed, max 14 words>"}`;
-    callGeminiVision(tonePhoto, prompt, { temperature: 0.1, maxTokens: 200 })
+    // 15s race — if the vision call hangs (rate-limit retry storm, dead
+    // network), surface a soft "unavailable" message instead of leaving
+    // the tone suggestion chip spinning.
+    Promise.race([
+      callGeminiVision(tonePhoto, prompt, { temperature: 0.1, maxTokens: 200 }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Vision request timed out after 15s')), PROFILE_AI_TIMEOUT_MS))
+    ])
       .then(text => {
         if (cancelled) return;
         try {
@@ -171,8 +200,7 @@ Respond ONLY with this JSON, no prose, no code fences:
           setToneSuggestion({
             swatch,
             confidence: ['low','medium','high'].includes(parsed.confidence) ? parsed.confidence : 'medium',
-            note: String(parsed.note || '').slice(0, 120),
-          });
+            note: String(parsed.note || '').slice(0, 120)});
         } catch (e) {
           setToneError("Couldn't read the photo cleanly.");
         }
@@ -237,10 +265,25 @@ Respond ONLY with this JSON, no prose, no code fences:
     const sunToFitz = { 'always-burns':'I', 'usually-burns':'II', 'sometimes-burns':'III', 'rarely-burns':'IV', 'very-rarely':'V', 'never-burns':'VI' };
     const finalProfile = { ...profileForm, fitzpatrick: profileForm.fitzpatrick || sunToFitz[profileForm.sunReactivity] || '' };
     setUserProfile(finalProfile);
-    await saveData('userProfile', finalProfile);
+    // Bug #8 (May 31 2026): if saveData rejects (storage full, Supabase
+    // offline, etc.) control never reached the AI block below — the
+    // modal hung with no signal, no toast, no banner. Wrap so we surface
+    // a clean inline error banner + toast and bail out before the AI
+    // summary code path. profileSummaryLoading is explicitly cleared
+    // (Agent C added the inline error state above).
+    try {
+      await saveData('userProfile', finalProfile);
+    } catch (e) {
+      console.warn('[ProfileModal handleSave saveData]', e);
+      try { toast('Profile save failed — please retry', 'error'); } catch (_) {}
+      setProfileSummaryError('Could not save profile. Please retry.');
+      setProfileSummaryLoading(false);
+      return;
+    }
     // Kick off AI summary — non-blocking, shows inline on the wizard.
     if (getApiKey()) {
       setProfileSummaryLoading(true);
+      setProfileSummaryError(null);
       const profileLines = [];
       if (finalProfile.skinType) profileLines.push(`Skin type: ${finalProfile.skinType}`);
       if (finalProfile.fitzpatrick) profileLines.push(`Fitzpatrick: ${finalProfile.fitzpatrick}`);
@@ -255,13 +298,19 @@ Respond ONLY with this JSON, no prose, no code fences:
       if (hormonalContext) profileLines.push(`Hormonal context: ${hormonalContext}`);
       const aiPrompt = `The user just filled in their clinical skin profile. Write ONE short read — UNDER 50 WORDS TOTAL — explaining what their inputs change about how we'll read their skin going forward.\n\nProfile:\n${profileLines.join('\n')}\n\nLead with the most consequential trait (e.g. "Fitzpatrick II + barrier-stripped" or "Tretinoin user with retinoid sensitivity"). Then in one sentence say what we'll watch for, in one sentence say what we'll skip recommending. 50 words max. No greeting, no signoff.`;
       try {
-        const summary = await withTimeout(
-          callClaude(aiPrompt, '', null, { model: 'claude-haiku-4-5-20251001', maxTokens: 200, voice: true }),
-          20000,
-          'profile-summary'
-        );
+        // 15s timeout (was 20s) — both via withTimeout AND a defensive
+        // Promise.race in case withTimeout's underlying impl ever changes.
+        // Belt-and-suspenders here matters because this is the spot Jenni
+        // reported the modal hanging with no recourse.
+        const claudeCall = callClaude(aiPrompt, '', null, { model: 'claude-haiku-4-5-20251001', maxTokens: 200, voice: true });
+        const raced = Promise.race([
+          claudeCall,
+          new Promise((_, rej) => setTimeout(() => rej(new Error('AI request timed out after 15s')), PROFILE_AI_TIMEOUT_MS))
+        ]);
+        const summary = await withTimeout(raced, PROFILE_AI_TIMEOUT_MS, 'profile-summary');
         const cleaned = String(summary || '').trim();
         setProfileAiSummary(cleaned);
+        setProfileSummaryError(null);
         // Also persist on userProfile so future opens can show the prior summary.
         const withSummary = { ...finalProfile, aiSummary: cleaned, aiSummaryAt: Date.now() };
         setUserProfile(withSummary);
@@ -269,7 +318,9 @@ Respond ONLY with this JSON, no prose, no code fences:
       } catch (e) {
         console.warn('[profile-ai-summary]', e?.message);
         setProfileAiSummary(null);
-        toast('Profile saved — AI read unavailable right now', 'info');
+        // Inline banner — replaces the toast-then-hang behavior. Profile
+        // is already saved (above), so user can safely close or retry.
+        setProfileSummaryError(e?.message || 'AI read unavailable');
       } finally {
         setProfileSummaryLoading(false);
       }
@@ -281,7 +332,7 @@ Respond ONLY with this JSON, no prose, no code fences:
   };
 
   // === Editorial summary generator ===
-  // Produces the "Étude understands your skin as…" sentence on step 11.
+  // Produces the "Frida understands your skin as…" sentence on step 11.
   // Reads from current profileForm (not saved profile yet) so user sees a
   // live preview as they go back to tweak.
   const buildSummary = () => {
@@ -403,7 +454,7 @@ Respond ONLY with this JSON, no prose, no code fences:
   const POLLUTION_OPTS = ['low', 'medium', 'high', 'urban-high'];
   const GOAL_OPTS = [
     'clear-acne', 'calm-redness', 'fade-pigmentation', 'strengthen-barrier',
-    'glow', 'anti-aging', 'simplify-routine', 'luxury-ritual', 'science-first-results',
+    'glow', 'anti-aging', 'simplify-routine', 'indulgent-routine', 'science-first-results',
   ];
 
   // === SHARED STEP CHROME ===
@@ -419,13 +470,12 @@ Respond ONLY with this JSON, no prose, no code fences:
             style={{
               background: i === n ? 'var(--accent)' : 'transparent',
               color: i === n ? 'var(--cream)' : 'var(--ink-soft)',
-              border: i === n ? '1px solid var(--accent)' : '1px solid var(--line)',
-            }}
+              border: i === n ? '1px solid var(--accent)' : '1px solid var(--line)'}}
             aria-label={`Step ${i + 1}`}
           >{i + 1}</button>
         ))}
       </div>
-      <h2 className="font-serif italic text-[24px] md:text-[26px] leading-tight mb-2" style={{color:'var(--ink)'}}>{title}</h2>
+      <h2 className="font-sans text-[24px] md:text-[26px] leading-tight mb-2" style={{color:'var(--ink)'}}>{title}</h2>
       <p className="text-[12px] leading-relaxed" style={{color:'var(--ink-soft)'}}>{q}</p>
     </div>
   );
@@ -447,8 +497,7 @@ Respond ONLY with this JSON, no prose, no code fences:
                     style={{
                       borderColor: on ? 'var(--accent)' : 'var(--line)',
                       background: on ? 'var(--accent-soft)' : 'var(--cream)',
-                      color: 'var(--ink)',
-                    }}
+                      color: 'var(--ink)'}}
                   >
                     <span className="flex items-center gap-2 text-[12.5px]">
                       <Icon name="Sun" size={11} style={{color:'var(--ink-soft)'}} />
@@ -458,8 +507,8 @@ Respond ONLY with this JSON, no prose, no code fences:
                   </button>
                 );
               })}
-              <div className="text-[10px] italic mt-2 px-4 py-2 rounded-[10px]" style={{background:'var(--cream-deep)', color:'var(--ink-soft)'}}>
-                Why we ask: dermatologists use sun reactivity to estimate UV sensitivity, pigmentation response, and irritation risk.
+              <div className="text-[10px] mt-2 px-4 py-2 rounded-[10px]" style={{background:'var(--cream-deep)', color:'var(--ink-soft)'}}>
+                Why we ask: sun reactivity helps us estimate UV sensitivity, pigmentation response, and irritation risk.
               </div>
             </div>
           </>
@@ -476,22 +525,22 @@ Respond ONLY with this JSON, no prose, no code fences:
                 No photo on file → soft prompt to upload one. Always: a small
                 "Replace" link so they can swap to a fresh photo where the
                 lighting is better. Hidden file input handles both cases. */}
-            <div className="mb-4 rounded-[14px] p-3 flex items-center gap-3" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+            <div className="mb-4 rounded-[14px] p-3 flex items-center gap-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
               {tonePhoto ? (
                 <>
-                  <img src={tonePhoto} alt="Your reference" className="w-14 h-14 rounded-full object-cover flex-shrink-0" style={{border:'1px solid var(--line)'}} />
+                  <img src={tonePhoto} alt="Your reference" className="w-14 h-14 rounded-full object-cover flex-shrink-0" style={{border: '1px solid var(--line)'}} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[9.5px] tracking-[0.22em] uppercase italic" style={{color:'var(--ink-soft)'}}>
+                    <div className="text-[9.5px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>
                       {tonePhotoSource === 'fresh' ? 'Fresh reference photo' : 'From your recent photo'}
                     </div>
-                    <div className="font-serif italic text-[12.5px] mt-0.5 leading-snug" style={{color:'var(--ink)'}}>
+                    <div className="font-sans text-[12.5px] mt-0.5 leading-snug" style={{color:'var(--ink)'}}>
                       Compare your face to the swatches below.
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => toneFileInputRef.current?.click()}
-                    className="text-[9.5px] tracking-[0.22em] uppercase italic flex-shrink-0 underline"
+                    className="text-[9.5px] tracking-[0.22em] uppercase flex-shrink-0 underline"
                     style={{color:'var(--accent)'}}
                   >Replace</button>
                 </>
@@ -501,15 +550,15 @@ Respond ONLY with this JSON, no prose, no code fences:
                     <Icon name="Camera" size={16} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[9.5px] tracking-[0.22em] uppercase italic" style={{color:'var(--ink-soft)'}}>Optional · helpful</div>
-                    <div className="font-serif italic text-[12.5px] mt-0.5 leading-snug" style={{color:'var(--ink)'}}>
-                      Add a face photo and Étude will suggest the closest swatch.
+                    <div className="text-[9.5px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>Optional · helpful</div>
+                    <div className="font-sans text-[12.5px] mt-0.5 leading-snug" style={{color:'var(--ink)'}}>
+                      Add a face photo and Frida will suggest the closest swatch.
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => toneFileInputRef.current?.click()}
-                    className="text-[9.5px] tracking-[0.22em] uppercase italic flex-shrink-0 px-3 py-1.5 rounded-full"
+                    className="text-[9.5px] tracking-[0.22em] uppercase flex-shrink-0 px-3 py-1.5 rounded-full"
                     style={{background:'var(--accent)', color:'var(--cream)'}}
                   >Add photo</button>
                 </>
@@ -535,14 +584,14 @@ Respond ONLY with this JSON, no prose, no code fences:
             </div>
 
             {/* === SUGGESTION CHIP ===
-                Three states: in-flight (small italic ticker), result (tappable
+                Three states: in-flight (small ticker), result (tappable
                 chip with the swatch dot + confidence), or soft error (one
                 line saying "pick yourself"). Result chip never auto-sets the
                 user's choice — they have to tap to accept. Confidence
                 surfaces honestly; lighting variance is real. */}
             {toneSuggesting && (
-              <div className="mb-3 flex items-center gap-2 text-[11px] italic" style={{color:'var(--ink-soft)'}}>
-                <Icon name="Sparkles" size={11} /> Étude is reading your photo…
+              <div className="mb-3 flex items-center gap-2 text-[11px]" style={{color:'var(--ink-soft)'}}>
+                <Icon name="Sparkles" size={11} /> Frida is reading your photo…
               </div>
             )}
             {toneSuggestion && !toneSuggesting && (() => {
@@ -557,21 +606,21 @@ Respond ONLY with this JSON, no prose, no code fences:
                   className="mb-3 w-full text-left rounded-[12px] px-3 py-2.5 flex items-center gap-2.5 transition hover:opacity-90 disabled:opacity-100 disabled:cursor-default"
                   style={{background:'var(--cream)', border:'1px solid var(--accent)'}}
                 >
-                  <div className="w-9 h-9 rounded-full flex-shrink-0" style={{background: sug.hex, border:'1px solid var(--line)'}} />
+                  <div className="w-9 h-9 rounded-full flex-shrink-0" style={{background: sug.hex, border: '1px solid var(--line)'}} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[9.5px] tracking-[0.22em] uppercase italic" style={{color:'var(--accent)'}}>
-                      {alreadyAccepted ? 'Étude’s guess · accepted' : 'Étude’s best guess · adjust if needed'}
+                    <div className="text-[9.5px] tracking-[0.22em] uppercase" style={{color:'var(--accent)'}}>
+                      {alreadyAccepted ? 'Frida’s guess · accepted' : 'Frida’s best guess · adjust if needed'}
                     </div>
-                    <div className="font-serif italic text-[12.5px] mt-0.5 leading-snug" style={{color:'var(--ink)'}}>
+                    <div className="font-sans text-[12.5px] mt-0.5 leading-snug" style={{color:'var(--ink)'}}>
                       Closest match · MST-{toneSuggestion.swatch}
                       {toneSuggestion.confidence === 'low' ? ' · low confidence' : toneSuggestion.confidence === 'high' ? '' : ' · medium confidence'}
                     </div>
                     {toneSuggestion.note && (
-                      <div className="text-[10px] italic mt-0.5" style={{color:'var(--ink-soft)'}}>{toneSuggestion.note}</div>
+                      <div className="text-[10px] mt-0.5" style={{color:'var(--ink-soft)'}}>{toneSuggestion.note}</div>
                     )}
                   </div>
                   {!alreadyAccepted && (
-                    <span className="text-[9.5px] tracking-[0.22em] uppercase italic flex-shrink-0 flex items-center gap-1" style={{color:'var(--accent)'}}>
+                    <span className="text-[9.5px] tracking-[0.22em] uppercase flex-shrink-0 flex items-center gap-1" style={{color:'var(--accent)'}}>
                       Use <Icon name="ChevronRight" size={10} />
                     </span>
                   )}
@@ -579,7 +628,7 @@ Respond ONLY with this JSON, no prose, no code fences:
               );
             })()}
             {toneError && !toneSuggesting && (
-              <div className="mb-3 text-[10.5px] italic" style={{color:'var(--ink-soft)'}}>
+              <div className="mb-3 text-[10.5px]" style={{color:'var(--ink-soft)'}}>
                 {toneError} Pick from the swatches yourself — you know your skin best.
               </div>
             )}
@@ -605,8 +654,7 @@ Respond ONLY with this JSON, no prose, no code fences:
                                 : isSuggested ? '1.5px dashed var(--accent)'
                                 : '1px solid var(--line)',
                         transform: on ? 'scale(1.08)' : isSuggested ? 'scale(1.04)' : 'scale(1)',
-                        boxShadow: on ? '0 4px 10px rgba(58,51,40,0.12)' : 'none',
-                      }}
+                        boxShadow: on ? '0 4px 10px rgba(58,51,40,0.12)' : 'none'}}
                     />
                     <span className="text-[10px] tracking-wider" style={{color: on ? 'var(--accent)' : isSuggested ? 'var(--accent)' : 'var(--ink-soft)'}}>{t.id}</span>
                   </button>
@@ -623,14 +671,13 @@ Respond ONLY with this JSON, no prose, no code fences:
                     style={{
                       borderColor: on ? 'var(--accent)' : 'var(--line)',
                       background: on ? 'var(--accent-soft)' : 'transparent',
-                      color: 'var(--ink)',
-                    }}
+                      color: 'var(--ink)'}}
                   >{o.label}</button>
                 );
               })}
             </div>
-            <div className="text-[10px] italic px-4 py-2 rounded-[10px]" style={{background:'var(--cream-deep)', color:'var(--ink-soft)'}}>
-              Why we ask: this helps Étude better understand pigmentation, redness, sunscreen cast, and tone changes over time.
+            <div className="text-[10px] px-4 py-2 rounded-[10px]" style={{background:'var(--cream-deep)', color:'var(--ink-soft)'}}>
+              Why we ask: this helps Frida better understand pigmentation, redness, sunscreen cast, and tone changes over time.
             </div>
           </>
         );
@@ -648,8 +695,7 @@ Respond ONLY with this JSON, no prose, no code fences:
                     style={{
                       borderColor: on ? 'var(--accent)' : 'var(--line)',
                       background: on ? 'var(--accent-soft)' : 'var(--cream)',
-                      color: 'var(--ink)',
-                    }}
+                      color: 'var(--ink)'}}
                   >
                     <span className="text-[12.5px]">{o.label}</span>
                     {on && <Icon name="Check" size={12} style={{color:'var(--accent)'}} />}
@@ -667,8 +713,7 @@ Respond ONLY with this JSON, no prose, no code fences:
                     style={{
                       borderColor: on ? 'var(--accent)' : 'var(--line)',
                       background: on ? 'var(--accent-soft)' : 'transparent',
-                      color: 'var(--ink)',
-                    }}
+                      color: 'var(--ink)'}}
                   >
                     {m.replace(/-/g, ' ')}
                     {on && <Icon name="Check" size={10} style={{color:'var(--accent)'}} />}
@@ -692,8 +737,7 @@ Respond ONLY with this JSON, no prose, no code fences:
                     style={{
                       borderColor: on ? 'var(--accent)' : 'var(--line)',
                       background: on ? 'transparent' : 'transparent',
-                      color: on ? 'var(--accent)' : 'var(--ink)',
-                    }}
+                      color: on ? 'var(--accent)' : 'var(--ink)'}}
                   >
                     {c.replace(/-/g, ' ')}
                     {on && <Icon name="Check" size={10} />}
@@ -715,7 +759,7 @@ Respond ONLY with this JSON, no prose, no code fences:
                   <div key={key}>
                     <div className="flex items-baseline justify-between mb-1.5">
                       <span className="text-[12px]" style={{color:'var(--ink)'}}>{label}</span>
-                      <span className="font-serif italic text-[11px]" style={{color: val != null ? 'var(--accent)' : 'var(--ink-soft)'}}>
+                      <span className="font-sans text-[11px]" style={{color: val != null ? 'var(--accent)' : 'var(--ink-soft)'}}>
                         {val != null ? `${val}/5` : '—'}
                       </span>
                     </div>
@@ -727,8 +771,7 @@ Respond ONLY with this JSON, no prose, no code fences:
                             className="flex-1 h-6 rounded-sm border transition"
                             style={{
                               borderColor: on ? 'var(--accent)' : 'var(--line)',
-                              background: on ? 'var(--accent)' : 'transparent',
-                            }}
+                              background: on ? 'var(--accent)' : 'transparent'}}
                             aria-label={`${label} ${n} of 5`}
                           />
                         );
@@ -754,8 +797,7 @@ Respond ONLY with this JSON, no prose, no code fences:
                     style={{
                       borderColor: on ? 'var(--accent)' : 'var(--line)',
                       background: on ? 'var(--accent)' : 'transparent',
-                      color: on ? 'var(--cream)' : 'var(--ink)',
-                    }}
+                      color: on ? 'var(--cream)' : 'var(--ink)'}}
                   >{o.label}</button>
                 );
               })}
@@ -766,12 +808,11 @@ Respond ONLY with this JSON, no prose, no code fences:
                 const on = (profileForm.triggers || []).includes(t);
                 return (
                   <button key={t} type="button" onClick={() => toggleArrayItem('triggers', t)}
-                    className="px-2.5 py-1 text-[11px] italic rounded-full border transition"
+                    className="px-2.5 py-1 text-[11px] rounded-full border transition"
                     style={{
                       borderColor: on ? 'var(--accent)' : 'var(--line)',
                       background: on ? 'var(--accent-soft)' : 'transparent',
-                      color: 'var(--ink)',
-                    }}
+                      color: 'var(--ink)'}}
                   >{t}</button>
                 );
               })}
@@ -792,33 +833,57 @@ Respond ONLY with this JSON, no prose, no code fences:
                     style={{
                       borderColor: on ? 'var(--accent)' : 'var(--line)',
                       background: on ? 'var(--accent)' : 'transparent',
-                      color: on ? 'var(--cream)' : 'var(--ink)',
-                    }}
+                      color: on ? 'var(--cream)' : 'var(--ink)'}}
                   >{h.label}</button>
                 );
               })}
             </div>
           </>
         );
-      // Step 8 — Diagnosed Conditions
+      // Step 8 — Diagnosed Conditions + Age
       case 7:
         return (
           <>
-            {stepHeader(7, 'Diagnosed Conditions', 'Any conditions a dermatologist has diagnosed? (Select all that apply)')}
+            {stepHeader(7, 'Diagnosed Conditions', 'Anything you’ve been formally diagnosed with? (Select all that apply)')}
             <div className="flex flex-wrap gap-1.5">
               {DIAGNOSED_OPTS.map(d => {
                 const on = (profileForm.diagnosedConditions || []).includes(d);
                 return (
                   <button key={d} type="button" onClick={() => toggleArrayItem('diagnosedConditions', d)}
-                    className="px-2.5 py-1 text-[11px] italic rounded-full border transition"
+                    className="px-2.5 py-1 text-[11px] rounded-full border transition"
                     style={{
                       borderColor: on ? 'var(--accent)' : 'var(--line)',
                       background: on ? 'var(--accent-soft)' : 'transparent',
-                      color: 'var(--ink)',
-                    }}
+                      color: 'var(--ink)'}}
                   >{d}</button>
                 );
               })}
+            </div>
+            {/* === AGE (May 30 2026 — Agent D-v3) ===
+                Editable here so the user can update post-onboarding.
+                Reads/writes profileForm.age (number). ageBand is the
+                legacy free-text range field still surfaced in the
+                editorial summary — leaving it untouched for now so
+                existing summaries don't break. */}
+            <div className="mt-5">
+              <div className="text-[11px] tracking-[0.18em] uppercase mb-2" style={{color:'var(--ink-soft)'}}>Age</div>
+              <input
+                type="number"
+                inputMode="numeric"
+                min="13"
+                max="100"
+                step="1"
+                value={profileForm.age == null ? '' : profileForm.age}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === '') { update('age', null); return; }
+                  const n = parseInt(raw, 10);
+                  if (Number.isFinite(n) && n >= 0 && n <= 120) update('age', n);
+                }}
+                placeholder="e.g. 34"
+                className={inputCls + ' !py-1.5 !text-[11px]'}
+              />
+              <p className="text-[10px] mt-1.5" style={{color:'var(--ink-soft)'}}>Used to read sun damage, collagen, and hormonal patterns in context. Optional.</p>
             </div>
           </>
         );
@@ -832,19 +897,18 @@ Respond ONLY with this JSON, no prose, no code fences:
                 const on = (profileForm.currentRx || []).includes(r);
                 return (
                   <button key={r} type="button" onClick={() => toggleArrayItem('currentRx', r)}
-                    className="px-2.5 py-1 text-[11px] italic rounded-full border transition"
+                    className="px-2.5 py-1 text-[11px] rounded-full border transition"
                     style={{
                       borderColor: on ? 'var(--accent)' : 'var(--line)',
                       background: on ? 'var(--accent-soft)' : 'transparent',
-                      color: 'var(--ink)',
-                    }}
+                      color: 'var(--ink)'}}
                   >{r}</button>
                 );
               })}
             </div>
             <div className="mt-4">
               <div className="text-[11px] tracking-[0.18em] uppercase mb-2" style={{color:'var(--ink-soft)'}}>Known sensitivities</div>
-              <div className="text-[10px] italic mb-1.5" style={{color:'var(--ink-soft)'}}>
+              <div className="text-[10px] mb-1.5" style={{color:'var(--ink-soft)'}}>
                 {sensitivities?.length > 0 ? sensitivities.join(' · ') : 'None listed yet.'}
               </div>
               <input autoCapitalize="off"
@@ -954,36 +1018,35 @@ Respond ONLY with this JSON, no prose, no code fences:
       case 10:
         return (
           <>
-            {stepHeader(10, 'Your Clinical Skin Summary', 'Étude understands your skin as…')}
+            {stepHeader(10, 'Your Clinical Skin Summary', 'Frida understands your skin as…')}
             {/* Goals selector — pick top 3 */}
             <div className="mb-4">
               <div className="text-[11px] tracking-[0.18em] uppercase mb-2 flex items-baseline justify-between" style={{color:'var(--ink-soft)'}}>
                 <span>Top goals (pick up to 3)</span>
-                <span className="text-[10px] italic normal-case tracking-normal">{(profileForm.goals || []).length}/3</span>
+                <span className="text-[10px] normal-case tracking-normal">{(profileForm.goals || []).length}/3</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {GOAL_OPTS.map(g => {
                   const on = (profileForm.goals || []).includes(g);
                   return (
                     <button key={g} type="button" onClick={() => toggleArrayCapped('goals', g, 3)}
-                      className="px-2.5 py-1 text-[11px] italic rounded-full border transition"
+                      className="px-2.5 py-1 text-[11px] rounded-full border transition"
                       style={{
                         borderColor: on ? 'var(--accent)' : 'var(--line)',
                         background: on ? 'var(--accent)' : 'transparent',
-                        color: on ? 'var(--cream)' : 'var(--ink)',
-                      }}
+                        color: on ? 'var(--cream)' : 'var(--ink)'}}
                     >{g.replace(/-/g, ' ')}</button>
                   );
                 })}
               </div>
             </div>
             {/* Editorial summary card */}
-            <div className="rounded-[14px] px-5 py-5 mb-3" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
-              <p className="font-serif italic text-[16px] md:text-[17px] leading-relaxed mb-4" style={{color:'var(--ink)'}}>
+            <div className="rounded-[14px] px-5 py-5 mb-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+              <p className="font-sans text-[16px] md:text-[17px] leading-relaxed mb-4" style={{color:'var(--ink)'}}>
                 {buildSummary()}
               </p>
               {buildHighlights().length > 0 && (
-                <div className="space-y-1.5 pt-3 border-t" style={{borderColor:'var(--line)'}}>
+                <div className="space-y-1.5 pt-3 border-t" style={{borderColor: 'var(--line)'}}>
                   {buildHighlights().map((h, i) => (
                     <div key={i} className="flex items-center gap-2 text-[11px]" style={{color:'var(--ink)'}}>
                       <Icon name={h.icon} size={11} style={{color:'var(--ink-soft)'}} />
@@ -993,13 +1056,13 @@ Respond ONLY with this JSON, no prose, no code fences:
                 </div>
               )}
             </div>
-            <p className="text-[10px] italic text-center" style={{color:'var(--ink-soft)'}}>You can update this anytime.</p>
+            <p className="text-[10px] text-center" style={{color:'var(--ink-soft)'}}>You can update this anytime.</p>
           </>
         );
-      // === STEP 12 — "How Étude Reads You" ===
+      // === STEP 12 — "How Frida Reads You" ===
       // Concrete mapping from profile answers → analysis-time behavior.
       // Tells the user, in plain language, what each answer changes about
-      // how Étude evaluates their photos / suggests products / flags
+      // how Frida evaluates their photos / suggests products / flags
       // conflicts. Distinct from step 11 (skin-type summary) — this is the
       // "impact" page, NOT the "identity" page.
       case 11:
@@ -1038,7 +1101,7 @@ Respond ONLY with this JSON, no prose, no code fences:
             impacts.push({ icon: 'Shield', label: 'Barrier state', detail: 'Strong-actives (high-% retinoids, AHAs >10%) get a friction warning. Barrier-first ordering applied in routines.' });
           }
           if ((f.triggers || []).length) {
-            impacts.push({ icon: 'AlertTriangle', label: 'Triggers', detail: `Étude won't recommend products containing ${(f.triggers || []).join(', ')} — and flags those if you add them manually.` });
+            impacts.push({ icon: 'AlertTriangle', label: 'Triggers', detail: `Frida won't recommend products containing ${(f.triggers || []).join(', ')} — and flags those if you add them manually.` });
           }
           // Hormonal context → cycle-aware patterns.
           if (f.hormonalContext && f.hormonalContext !== 'none' && f.hormonalContext !== 'unspecified') {
@@ -1046,11 +1109,11 @@ Respond ONLY with this JSON, no prose, no code fences:
           }
           // Diagnosed conditions → contraindication respect.
           if ((f.diagnosedConditions || []).filter(c => c !== 'none').length) {
-            impacts.push({ icon: 'Stethoscope', label: 'Diagnosed conditions', detail: `${f.diagnosedConditions.filter(c => c !== 'none').join(', ')} — contraindicated actives auto-excluded; flares flagged in photo reads.` });
+            impacts.push({ icon: 'Stethoscope', label: 'Diagnosed conditions', detail: `${f.diagnosedConditions.filter(c => c !== 'none').join(', ')} — actives that don’t mix well auto-excluded; flares flagged in photo reads.` });
           }
           // Current Rx → no doubling actives.
           if ((f.currentRx || []).filter(r => r !== 'none').length) {
-            impacts.push({ icon: 'Pill', label: 'Current prescriptions', detail: `${f.currentRx.filter(r => r !== 'none').join(', ')} — Étude won't recommend overlapping OTC equivalents. Suggests complementary, not redundant.` });
+            impacts.push({ icon: 'Pill', label: 'Current prescriptions', detail: `${f.currentRx.filter(r => r !== 'none').join(', ')} — Frida won't recommend overlapping OTC equivalents. Suggests complementary, not redundant.` });
           }
           // Environment → barrier + SPF intensity.
           const env = f.environment || {};
@@ -1058,24 +1121,24 @@ Respond ONLY with this JSON, no prose, no code fences:
             const bits = [env.humidity, env.seasonality, env.pollution].filter(Boolean).join(' / ');
             impacts.push({ icon: 'Cloud', label: 'Climate', detail: `${bits} — moisture/occlusive balance recalibrated; antioxidant priority adjusts with pollution load.` });
           }
-          // Goals → what gets surfaced first in Étude Suggests.
+          // Goals → what gets surfaced first in Frida Suggests.
           if ((f.goals || []).length) {
-            impacts.push({ icon: 'Compass', label: 'Goals', detail: `Étude Suggests leads with ${f.goals.slice(0, 2).map(g => g.replace(/-/g, ' ')).join(' + ')} — other goals stay in rotation but later in the list.` });
+            impacts.push({ icon: 'Compass', label: 'Goals', detail: `Frida Suggests leads with ${f.goals.slice(0, 2).map(g => g.replace(/-/g, ' ')).join(' + ')} — other goals stay in rotation but later in the list.` });
           }
           return (
             <>
-              {stepHeader(11, 'How Étude reads you', 'Your answers, mapped to what changes in the app.')}
+              {stepHeader(11, 'How Frida reads you', 'Your answers, mapped to what changes in the app.')}
               {impacts.length === 0 ? (
                 <div className="rounded-[14px] px-5 py-6 text-center" style={{background:'var(--cream-deep)', border:'1px dashed var(--line)'}}>
-                  <p className="font-serif italic text-[14px] mb-1.5" style={{color:'var(--ink)'}}>Nothing locked in yet.</p>
+                  <p className="font-sans text-[14px] mb-1.5" style={{color:'var(--ink)'}}>Nothing locked in yet.</p>
                   <p className="text-[11px]" style={{color:'var(--ink-soft)'}}>Go back through the sections and fill a few — we'll show you exactly what each one changes here.</p>
                 </div>
               ) : (
                 <>
                   <div className="space-y-2 mb-4">
                     {impacts.map((it, i) => (
-                      <div key={i} className="rounded-[14px] px-4 py-3 flex items-start gap-3" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{background:'var(--cream)', color:'var(--accent)', border:'1px solid var(--line)'}}>
+                      <div key={i} className="rounded-[14px] px-4 py-3 flex items-start gap-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{background:'var(--cream)', color:'var(--accent)', border: '1px solid var(--line)'}}>
                           <Icon name={it.icon} size={12} />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1085,8 +1148,8 @@ Respond ONLY with this JSON, no prose, no code fences:
                       </div>
                     ))}
                   </div>
-                  <p className="text-[10.5px] italic text-center mb-1" style={{color:'var(--ink-soft)'}}>
-                    Tap Save Profile to lock these mappings in. Étude will start using them on your next photo read.
+                  <p className="text-[10.5px] text-center mb-1" style={{color:'var(--ink-soft)'}}>
+                    Tap Save Profile to lock these mappings in. Frida will start using them on your next photo read.
                   </p>
                 </>
               )}
@@ -1105,22 +1168,49 @@ Respond ONLY with this JSON, no prose, no code fences:
         {renderStep()}
         {/* === AI IMPACT SUMMARY PANEL ===
             Surfaces after final save. Inline so the user sees what their
-            answers actually change about how Étude reads their skin —
+            answers actually change about how Frida reads their skin —
             not just "saved ✓" toast disappearing. 50-word cap enforced
             in the prompt. Tap "Done" to close the wizard. */}
-        {(profileSummaryLoading || profileAiSummary) && (
-          <div className="mt-5 rounded-[14px] px-4 py-3" style={{background:'var(--cream-deep)', border:'1px solid var(--accent)'}}>
-            <div className="text-[10px] tracking-[0.22em] uppercase mb-1.5 flex items-center gap-1.5" style={{color:'var(--accent)'}}>
-              <Icon name="Sparkles" size={11} /> What this changes
+        {(profileSummaryLoading || profileAiSummary || profileSummaryError) && (
+          <div className="mt-5 rounded-[14px] px-4 py-3" style={{background:'var(--cream-deep)', border:`1px solid ${profileSummaryError ? 'var(--rose, #c44a4a)' : 'var(--accent)'}`}}>
+            <div className="text-[10px] tracking-[0.22em] uppercase mb-1.5 flex items-center gap-1.5" style={{color: profileSummaryError ? 'var(--rose, #c44a4a)' : 'var(--accent)'}}>
+              <Icon name={profileSummaryError ? 'AlertTriangle' : 'Sparkles'} size={11} /> {profileSummaryError ? 'Something went wrong' : 'What this changes'}
             </div>
             {profileSummaryLoading ? (
-              <p className="font-serif italic text-[13px] flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
+              <p className="font-sans text-[13px] flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
                 <Icon name="Loader2" size={12} className="spin" /> Reading your profile…
               </p>
+            ) : profileSummaryError ? (
+              <>
+                {/* === INLINE ERROR BANNER ===
+                    Replaces the silent toast-and-hang behavior. The
+                    profile itself is already saved (handleSave commits
+                    BEFORE the AI call), so the user can safely close or
+                    retry without losing anything. */}
+                <p className="text-[12.5px] leading-relaxed mb-3" style={{color:'var(--ink)'}}>
+                  Something went wrong — try again or close.
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSave}
+                    className="flex-1 py-2 text-[10px] tracking-[0.2em] uppercase transition hover:opacity-90"
+                    style={{background:'var(--ink)', color:'var(--cream)', borderRadius:'9999px'}}
+                  >
+                    Retry
+                  </button>
+                  <button
+                    onClick={() => { setProfileSummaryError(null); setShowProfileModal(false); }}
+                    className="flex-1 py-2 text-[10px] tracking-[0.2em] uppercase transition hover:opacity-90"
+                    style={{background:'transparent', color:'var(--ink)', border:'1px solid var(--line)', borderRadius:'9999px'}}
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
             ) : (
               <p className="text-[12.5px] leading-relaxed" style={{color:'var(--ink)'}}>{profileAiSummary}</p>
             )}
-            {profileAiSummary && (
+            {profileAiSummary && !profileSummaryError && (
               <button
                 onClick={() => { setShowProfileModal(false); setProfileAiSummary(null); /* scroll reset no-op — extracted modal does not remount */ }}
                 className="mt-3 w-full py-2 text-[10px] tracking-[0.2em] uppercase transition hover:opacity-90"
@@ -1132,11 +1222,11 @@ Respond ONLY with this JSON, no prose, no code fences:
           </div>
         )}
         {/* Sticky footer nav — Back / Next / Save & close (per-step) / Save Profile (last step) */}
-        <div className="flex items-center gap-2 pt-5 mt-5 border-t" style={{borderColor:'var(--line)'}}>
+        <div className="flex items-center gap-2 pt-5 mt-5 border-t" style={{borderColor: 'var(--line)'}}>
           <button
             onClick={() => setStepIdx(i => Math.max(0, i - 1))}
             disabled={stepIdx === 0}
-            className="px-4 py-2.5 text-[10px] tracking-[0.2em] uppercase italic transition hover:opacity-70 disabled:opacity-30"
+            className="px-4 py-2.5 text-[10px] tracking-[0.2em] uppercase transition hover:opacity-70 disabled:opacity-30"
             style={{color:'var(--ink-soft)'}}
           >
             ‹ Back
@@ -1159,7 +1249,7 @@ Respond ONLY with this JSON, no prose, no code fences:
                   /* scroll reset no-op — extracted modal does not remount */
                   toast('Saved — pick up where you left off', 'info');
                 }}
-                className="px-3 py-2.5 text-[10px] tracking-[0.18em] uppercase italic transition hover:opacity-70"
+                className="px-3 py-2.5 text-[10px] tracking-[0.18em] uppercase transition hover:opacity-70"
                 style={{color:'var(--accent)'}}
                 title="Save what you've entered and come back to finish later"
               >
@@ -1177,6 +1267,25 @@ Respond ONLY with this JSON, no prose, no code fences:
             </button>
           )}
         </div>
+        {/* === HOW YOUR SCORE WORKS (June 2026 per Jenni) ===
+            Quiet link surfacing the score explainer from Settings. Same
+            drawer is reachable from the cover delta line + kebab. */}
+        {typeof onOpenScoreExplainer === 'function' && (
+          <div className="mt-4 pt-4 border-t" style={{borderColor:'var(--line)'}}>
+            <button
+              type="button"
+              onClick={() => { setShowProfileModal(false); setTimeout(() => onOpenScoreExplainer(), 100); }}
+              className="w-full flex items-center justify-between gap-2 transition hover:opacity-75"
+              style={{background:'transparent', border:'none', cursor:'pointer', padding:'6px 2px'}}
+            >
+              <div className="flex items-center gap-2">
+                <Icon name="Info" size={13} style={{color:'var(--ink-soft)'}} />
+                <span className="text-[11px] tracking-[0.14em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>How your score works</span>
+              </div>
+              <Icon name="ArrowRight" size={11} style={{color:'var(--ink-soft)'}} />
+            </button>
+          </div>
+        )}
       </div>
     </Modal>
   );

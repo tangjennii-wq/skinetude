@@ -18,7 +18,7 @@ const CompareMetricInfographic = ({ before, after, ratingDelta = null, daysApart
       const improving = score > priorScore;
       if (improving) {
         dir = kind === 'pos' ? 'up' : 'down';
-        color = 'var(--sage)';
+        color = 'var(--accent-blue)';
       } else {
         dir = kind === 'pos' ? 'down' : 'up';
         color = 'var(--rose)';
@@ -35,14 +35,14 @@ const CompareMetricInfographic = ({ before, after, ratingDelta = null, daysApart
   // If neither snapshot exists, render a quiet placeholder so the layout still feels intentional.
   const hasAny = metricSpec.some(m => m.level);
   return (
-    <div className="rounded-[16px] px-4 py-4 md:px-5 md:py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
-      <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+    <div className="rounded-[12px] px-3 py-3 md:px-4 md:py-3.5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+      <div className="flex items-baseline justify-between mb-2 gap-3 flex-wrap">
         <div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Skin shift</div>
         {(daysApart != null || ratingDelta != null) && (
-          <div className="text-[10px] tracking-[0.18em] uppercase italic flex items-center gap-3" style={{color:'var(--ink-soft)'}}>
+          <div className="text-[10px] tracking-[0.18em] uppercase flex items-center gap-3" style={{color:'var(--ink-soft)'}}>
             {daysApart != null && <span>{daysApart} {daysApart === 1 ? 'day' : 'days'} apart</span>}
             {ratingDelta != null && (
-              <span style={{color: ratingDelta > 0 ? 'var(--sage)' : ratingDelta < 0 ? 'var(--rose)' : 'var(--ink-soft)'}}>
+              <span style={{color: ratingDelta > 0 ? 'var(--accent-blue)' : ratingDelta < 0 ? 'var(--rose)' : 'var(--ink-soft)'}}>
                 Rating {ratingDelta > 0 ? '+' : ''}{ratingDelta}
               </span>
             )}
@@ -54,7 +54,7 @@ const CompareMetricInfographic = ({ before, after, ratingDelta = null, daysApart
           {metricSpec.map(m => (
             <div key={m.key} className="text-center">
               <div className="text-[9px] tracking-[0.2em] uppercase mb-1" style={{color:'var(--ink-soft)'}}>{m.label}</div>
-              <div className="font-serif italic text-[18px] md:text-[20px] leading-tight" style={{color: m.level ? 'var(--ink)' : 'var(--ink-soft)'}}>
+              <div className="font-sans text-[16px] md:text-[18px] leading-tight" style={{color: m.level ? 'var(--ink)' : 'var(--ink-soft)'}}>
                 {m.level || '—'}
               </div>
               <div className="text-[10px] tracking-[0.05em] mt-0.5 flex items-center justify-center gap-0.5" style={{color: m.color}}>
@@ -65,7 +65,7 @@ const CompareMetricInfographic = ({ before, after, ratingDelta = null, daysApart
           ))}
         </div>
       ) : (
-        <p className="text-[11px] italic text-center py-2" style={{color:'var(--ink-soft)'}}>
+        <p className="text-[11px] text-center py-2" style={{color:'var(--ink-soft)'}}>
           No metric snapshots on these photos yet — Skin Reads will fill in once both photos have analyses.
         </p>
       )}

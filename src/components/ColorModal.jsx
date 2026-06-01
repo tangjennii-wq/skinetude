@@ -25,8 +25,7 @@ const ColorModal = ({
   user,
   uploadPhotoToStorage,
   modalScrollMemo,
-  openChat,
-}) => {
+  openChat}) => {
   const [form, setForm] = useState(colorProfile || { season: '', skinTone: '', undertone: '', eyeColor: '', hairColor: '', photo: null, aiAnalysis: null });
   const [analyzing, setAnalyzing] = useState(false);
   const fileRef = useRef();
@@ -140,7 +139,7 @@ CONFIDENCE: [high/medium/low — and brief reason like "lighting is even and nat
     <Modal onClose={() => { setShowColorModal(false); modalScrollMemo.current.color = 0; }} eyebrow="Atelier de Couleur" title="Color analysis profile">
       <span ref={scrollSentinelRef} aria-hidden="true" style={{display:'none'}} />
       <div className="space-y-5">
-        <div className="text-xs italic font-light p-3 rounded-md flex items-start gap-2" style={{background:'var(--cream-deep)', color:'var(--ink-soft)', border:'1px solid var(--line)'}}>
+        <div className="text-xs font-light p-3 rounded-md flex items-start gap-2" style={{background:'var(--cream-deep)', color:'var(--ink-soft)', border: '1px solid var(--line)'}}>
           <Icon name="Sparkles" size={12} />
           <span>Upload a natural-light photo and let the AI verify your color analysis before getting recommendations.</span>
         </div>
@@ -180,11 +179,11 @@ CONFIDENCE: [high/medium/low — and brief reason like "lighting is even and nat
 
               {/* Auto-analyzing state */}
               {analyzing && !form.aiAnalysis && (
-                <div className="p-4 rounded-md border flex items-center gap-3 pulse-soft" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
+                <div className="p-4 rounded-md border flex items-center gap-3 pulse-soft" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
                   <Icon name="Loader2" size={14} className="spin" />
                   <div>
                     <div className="text-[10px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>Analyzing your photo</div>
-                    <div className="text-xs font-light italic mt-0.5" style={{color:'var(--ink)'}}>Reading undertone, hair, eyes, and contrast…</div>
+                    <div className="text-xs font-light mt-0.5" style={{color:'var(--ink)'}}>Reading undertone, hair, eyes, and contrast…</div>
                   </div>
                 </div>
               )}
@@ -197,7 +196,7 @@ CONFIDENCE: [high/medium/low — and brief reason like "lighting is even and nat
               )}
 
               {form.aiAnalysis && (
-                <div className="p-4 rounded-md border space-y-3" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
+                <div className="p-4 rounded-md border space-y-3" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
                       <Icon name="Sparkles" size={12} />
@@ -205,7 +204,7 @@ CONFIDENCE: [high/medium/low — and brief reason like "lighting is even and nat
                     </div>
                     {form.aiAnalysis.confidence && (
                       <span className="text-[9px] tracking-[0.15em] uppercase" style={{
-                        color: form.aiAnalysis.confidence === 'high' ? 'var(--sage)' : form.aiAnalysis.confidence === 'medium' ? 'var(--ink-soft)' : '#a04555'
+                        color: form.aiAnalysis.confidence === 'high' ? 'var(--accent-blue)' : form.aiAnalysis.confidence === 'medium' ? 'var(--ink-soft)' : '#a04555'
                       }}>{form.aiAnalysis.confidence} confidence</span>
                     )}
                   </div>
@@ -214,16 +213,16 @@ CONFIDENCE: [high/medium/low — and brief reason like "lighting is even and nat
                     <div className="flex items-center justify-between gap-2 flex-wrap p-3 rounded" style={{background:'var(--cream)'}}>
                       <div>
                         <div className="text-[9px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>AI predicts</div>
-                        <div className="font-serif italic text-xl capitalize" style={{color:'var(--ink)'}}>{form.aiAnalysis.predictedSeason.replace(/-/g, ' ')}</div>
+                        <div className="font-sans text-xl capitalize" style={{color:'var(--ink)'}}>{form.aiAnalysis.predictedSeason.replace(/-/g, ' ')}</div>
                         {form.season && form.season !== form.aiAnalysis.predictedSeason && (
-                          <div className="text-[10px] mt-1 italic" style={{color:'#a04555'}}>≠ your selection: {form.season.replace(/-/g, ' ')}</div>
+                          <div className="text-[10px] mt-1" style={{color:'#a04555'}}>≠ your selection: {form.season.replace(/-/g, ' ')}</div>
                         )}
                         {form.season === form.aiAnalysis.predictedSeason && (
-                          <div className="text-[10px] mt-1 italic" style={{color:'var(--sage)'}}>✓ matches your selection</div>
+                          <div className="text-[10px] mt-1" style={{color:'var(--accent-blue)'}}>✓ matches your selection</div>
                         )}
                       </div>
                       {form.season !== form.aiAnalysis.predictedSeason && (
-                        <button type="button" onClick={acceptAISeason} className="text-[10px] tracking-[0.15em] uppercase italic underline" style={{color:'var(--ink)'}}>
+                        <button type="button" onClick={acceptAISeason} className="text-[10px] tracking-[0.15em] uppercase underline" style={{color:'var(--ink)'}}>
                           Use AI's prediction
                         </button>
                       )}
@@ -232,7 +231,7 @@ CONFIDENCE: [high/medium/low — and brief reason like "lighting is even and nat
 
                   <div className="text-xs leading-relaxed font-light whitespace-pre-wrap" style={{color:'var(--ink)'}}>{form.aiAnalysis.fullText}</div>
 
-                  <div className="flex items-center gap-3 pt-3 border-t flex-wrap" style={{borderColor:'var(--line)'}}>
+                  <div className="flex items-center gap-3 pt-3 border-t flex-wrap" style={{borderColor: 'var(--line)'}}>
                     <button type="button" onClick={() => openChat({
                       context: `Color analysis from photo:\n\n${form.aiAnalysis.fullText}`,
                       title: form.aiAnalysis.predictedSeason ? form.aiAnalysis.predictedSeason.replace(/-/g, ' ') : 'Color analysis',
@@ -246,11 +245,11 @@ CONFIDENCE: [high/medium/low — and brief reason like "lighting is even and nat
                         'What metals (gold/silver/rose) suit me?',
                         'Build a daily natural makeup look'
                       ]
-                    })} className="text-[10px] tracking-[0.15em] uppercase italic flex items-center gap-1" style={{color:'var(--ink)'}}>
+                    })} className="text-[10px] tracking-[0.15em] uppercase flex items-center gap-1" style={{color:'var(--ink)'}}>
                       <Icon name="MessageCircle" size={11} /> Ask follow-up
                     </button>
                     <span style={{color:'var(--ink-soft)'}}>·</span>
-                    <button type="button" onClick={() => analyzePhoto()} disabled={analyzing} className="text-[10px] tracking-[0.15em] uppercase italic" style={{color:'var(--ink-soft)'}}>
+                    <button type="button" onClick={() => analyzePhoto()} disabled={analyzing} className="text-[10px] tracking-[0.15em] uppercase" style={{color:'var(--ink-soft)'}}>
                       {analyzing ? 'Re-analyzing…' : '↻ Re-analyze'}
                     </button>
                   </div>
@@ -258,7 +257,7 @@ CONFIDENCE: [high/medium/low — and brief reason like "lighting is even and nat
               )}
             </div>
           ) : (
-            <button type="button" onClick={() => fileRef.current?.click()} className="w-full border border-dashed rounded-md py-5 flex flex-col items-center gap-2 transition" style={{borderColor:'var(--line)', color:'var(--ink-soft)'}}>
+            <button type="button" onClick={() => fileRef.current?.click()} className="w-full border border-dashed rounded-md py-5 flex flex-col items-center gap-2 transition" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>
               <Icon name="Image" size={20} />
               <span className="text-xs tracking-widest uppercase">Upload</span>
             </button>

@@ -15,10 +15,10 @@ const SplitHalfCompare = ({ before, after, onSwap, onClear }) => {
         {/* BEFORE — primary score is AI-derived; falls back to user rating only when no metricSnapshot exists */}
         <div className="relative aspect-[3/4] overflow-hidden" style={{background:'var(--cream-deep)'}}>
           <Photo item={before} alt="" className="w-full h-full object-cover"
-            renderFallback={() => <div className="w-full h-full flex items-center justify-center" style={{background:'var(--cream-deep)'}}><span className="font-serif italic text-5xl md:text-7xl" style={{color:'var(--ink-soft)'}}>{aiScoreOut10(before) || before.rating}</span></div>}
+            renderFallback={() => <div className="w-full h-full flex items-center justify-center" style={{background:'var(--cream-deep)'}}><span className="font-sans text-5xl md:text-7xl" style={{color:'var(--ink-soft)'}}>{aiScoreOut10(before) || before.rating}</span></div>}
           />
           <div className="absolute top-2 left-2 text-[9px] tracking-[0.15em] uppercase px-2 py-0.5 rounded-sm font-medium" style={{background:'rgba(245,240,232,0.92)', color:'var(--ink)'}}>Before · {fmt(before.date)}</div>
-          <div className="absolute bottom-2 left-2 font-serif italic text-base md:text-lg leading-none px-2 py-0.5 rounded-sm flex items-baseline gap-1" style={{background:'rgba(245,240,232,0.92)', color:'var(--accent)'}}>
+          <div className="absolute bottom-2 left-2 font-sans text-base md:text-lg leading-none px-2 py-0.5 rounded-sm flex items-baseline gap-1" style={{background:'rgba(245,240,232,0.92)', color:'var(--accent)'}}>
             {aiScoreOut10(before) && <span style={{fontSize:'10px'}}>✦</span>}
             {aiScoreOut10(before) || before.rating}<span className="text-[10px]" style={{color:'var(--ink-soft)'}}>/10</span>
           </div>
@@ -26,10 +26,10 @@ const SplitHalfCompare = ({ before, after, onSwap, onClear }) => {
         {/* AFTER */}
         <div className="relative aspect-[3/4] overflow-hidden" style={{background:'var(--cream-deep)'}}>
           <Photo item={after} alt="" className="w-full h-full object-cover"
-            renderFallback={() => <div className="w-full h-full flex items-center justify-center" style={{background:'var(--cream-deep)'}}><span className="font-serif italic text-5xl md:text-7xl" style={{color:'var(--ink-soft)'}}>{aiScoreOut10(after) || after.rating}</span></div>}
+            renderFallback={() => <div className="w-full h-full flex items-center justify-center" style={{background:'var(--cream-deep)'}}><span className="font-sans text-5xl md:text-7xl" style={{color:'var(--ink-soft)'}}>{aiScoreOut10(after) || after.rating}</span></div>}
           />
           <div className="absolute top-2 left-2 text-[9px] tracking-[0.15em] uppercase px-2 py-0.5 rounded-sm font-medium" style={{background:'var(--ink)', color:'var(--cream)'}}>After · {fmt(after.date)}</div>
-          <div className="absolute bottom-2 left-2 font-serif italic text-base md:text-lg leading-none px-2 py-0.5 rounded-sm flex items-baseline gap-1" style={{background:'rgba(245,240,232,0.92)', color:'var(--accent)'}}>
+          <div className="absolute bottom-2 left-2 font-sans text-base md:text-lg leading-none px-2 py-0.5 rounded-sm flex items-baseline gap-1" style={{background:'rgba(245,240,232,0.92)', color:'var(--accent)'}}>
             {aiScoreOut10(after) && <span style={{fontSize:'10px'}}>✦</span>}
             {aiScoreOut10(after) || after.rating}<span className="text-[10px]" style={{color:'var(--ink-soft)'}}>/10</span>
           </div>
@@ -39,12 +39,12 @@ const SplitHalfCompare = ({ before, after, onSwap, onClear }) => {
       {(onSwap || onClear) && (
         <div className="flex items-center justify-end gap-3 mt-2">
           {onSwap && (
-            <button onClick={onSwap} className="text-[10px] tracking-[0.15em] uppercase italic flex items-center gap-1" style={{color:'var(--ink)'}} title="Swap sides">
+            <button onClick={onSwap} className="text-[10px] tracking-[0.15em] uppercase flex items-center gap-1" style={{color:'var(--ink)'}} title="Swap sides">
               <Icon name="ArrowLeftRight" size={11} /> Swap
             </button>
           )}
           {onClear && (
-            <button onClick={onClear} className="text-[10px] tracking-[0.15em] uppercase italic flex items-center gap-1" style={{color:'var(--ink-soft)'}}>
+            <button onClick={onClear} className="text-[10px] tracking-[0.15em] uppercase flex items-center gap-1" style={{color:'var(--ink-soft)'}}>
               <Icon name="X" size={11} /> Clear
             </button>
           )}

@@ -37,8 +37,7 @@ const CompareView = ({
   compareAskMessages, setCompareAskMessages,
   handleCompareAsk,
   runComparePairAnalysisShared,
-  setShowPhotoImportQueue,
-}) => {
+  setShowPhotoImportQueue}) => {
   // === COMPARE TAB ===
   // Three sub-tabs (May 2026 — Ask retired, moved to Counsel):
   //   1. Quick    — auto today + user picks prior; quick-pick presets; AI inline
@@ -69,18 +68,92 @@ const CompareView = ({
     return cands[0].log;
   };
   const afterDate = afterLog ? new Date(afterLog.date) : null;
+  // Quick-pick presets trimmed 5 → 3 (May 2026 audit). The 6-month and
+  // 1-year chips almost never fire for a real user — even with a wide
+  // ±30/45-day window most accounts don't have a matching photo that
+  // far back, so they show up empty and clutter the strip. Keep 1w /
+  // 1m / 3m, which cover the windows where Compare is actually useful.
   const presets = afterDate ? [
     { label: '1 week ago', target: 7, window: 4 },
     { label: '1 month ago', target: 30, window: 10 },
     { label: '3 months ago', target: 90, window: 21 },
-    { label: '6 months ago', target: 180, window: 30 },
-    { label: '1 year ago', target: 365, window: 45 },
   ].map(p => ({ ...p, log: findClosestLog(new Date(afterDate.getTime() - p.target * 86400000), afterLog?.area, p.window) })).filter(p => p.log) : [];
 
   const compareKey = beforeLog && afterLog ? `${beforeLog.id}-${afterLog.id}` : null;
   const cachedAnalysis = compareKey ? compareTimeAnalysis[compareKey] : null;
 
   const fmt = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  // === ROUTINE DELTA (May 2026 audit) ===
+  // Compare's biggest missing piece per the audit: it didn't know
+  // about routine changes. Now it does — between the two photo
+  // dates, surface what was added, what was dropped, and any
+  // procedures in the window. Ties photo deltas to causal changes.
+  //
+  // Heuristics:
+  //   added   = product.startDate is in (beforeDate, afterDate]
+  //   dropped = product.endDate is in (beforeDate, afterDate]
+  //             OR product had ≥3 regimenLog appearances in the 14
+  //             days before beforeDate, but 0 in the 14 days before
+  //             afterDate (silent drop — user just stopped using it)
+  //   procs   = procedure.date is in [beforeDate, afterDate]
+  const buildRoutineDelta = (beforeISO, afterISO) => {
+    if (!beforeISO || !afterISO) return null;
+    const bT = new Date(beforeISO).getTime();
+    const aT = new Date(afterISO).getTime();
+    if (!(aT > bT)) return null;
+    const ms14 = 14 * 86400000;
+    const countUsesInWindow = (productId, fromT, toT) => {
+      let n = 0;
+      (regimenLogs || []).forEach(r => {
+        if (!r.date) return;
+        const t = new Date(r.date).getTime();
+        if (t < fromT || t > toT) return;
+        if ((r.amProducts || []).includes(productId)) n++;
+        if ((r.pmProducts || []).includes(productId)) n++;
+      });
+      return n;
+    };
+    const added = [];
+    const droppedExplicit = [];
+    const droppedSilent = [];
+    (products || []).forEach(p => {
+      const startT = p.startDate ? new Date(p.startDate).getTime() : null;
+      const endT = p.endDate ? new Date(p.endDate).getTime() : null;
+      if (startT && startT > bT && startT <= aT) {
+        added.push(p);
+      }
+      if (endT && endT > bT && endT <= aT) {
+        droppedExplicit.push(p);
+        return;
+      }
+      // Silent-drop check — only for products that existed on the
+      // shelf BEFORE the before-photo. Avoids flagging products that
+      // were added in-window but barely used as "dropped."
+      if (startT && startT < bT) {
+        const beforeWindowUses = countUsesInWindow(p.id, bT - ms14, bT);
+        const afterWindowUses = countUsesInWindow(p.id, aT - ms14, aT);
+        if (beforeWindowUses >= 3 && afterWindowUses === 0) {
+          droppedSilent.push(p);
+        }
+      }
+    });
+    const proceduresInWindow = (procedures || []).filter(p => {
+      if (!p.date) return false;
+      const t = new Date(p.date).getTime();
+      return t >= bT && t <= aT;
+    });
+    const isEmpty = added.length === 0
+      && droppedExplicit.length === 0
+      && droppedSilent.length === 0
+      && proceduresInWindow.length === 0;
+    return {
+      added,
+      dropped: [...droppedExplicit, ...droppedSilent],
+      droppedSilentIds: new Set(droppedSilent.map(p => p.id)),
+      procedures: proceduresInWindow,
+      isEmpty};
+  };
 
   // Run AI on the chosen pair (Time tab only — Product/Procedure use their own modals).
   const runTimeAnalysis = async () => {
@@ -94,6 +167,21 @@ const CompareView = ({
         const pd = new Date(p.date);
         return pd >= new Date(beforeLog.date) && pd <= new Date(afterLog.date);
       }).map(p => `${p.date}: ${p.name}`).join('\n') || 'none';
+      // === ROUTINE CHANGES BLOCK (May 2026 audit) ===
+      // Hand the AI an explicit list of what was added/dropped between
+      // the two photo dates. Lets the analysis tie photo deltas to
+      // causal product changes ("the new niacinamide is reading on the
+      // redness drop") instead of guessing from current routine alone.
+      const routineDelta = buildRoutineDelta(beforeLog.date, afterLog.date);
+      const formatDeltaList = (arr) => arr.length === 0 ? null : arr.map(p => {
+        const active = p.activeIngredients ? ` (${p.activeIngredients})` : '';
+        return `${p.name}${active}`;
+      }).join('; ');
+      const addedLine = routineDelta ? formatDeltaList(routineDelta.added) : null;
+      const droppedLine = routineDelta ? formatDeltaList(routineDelta.dropped) : null;
+      const routineChangesBlock = (!addedLine && !droppedLine)
+        ? 'No routine changes between these two dates.'
+        : `${addedLine ? `Added: ${addedLine}` : ''}${addedLine && droppedLine ? '\n' : ''}${droppedLine ? `Dropped: ${droppedLine}` : ''}`;
       const prompt = `Compare two skin journal entries from the same person, ${days} days apart.
 
 EARLIER (${beforeLog.date}, ${beforeLog.area}, rated ${beforeLog.rating}/10):
@@ -103,6 +191,9 @@ EARLIER (${beforeLog.date}, ${beforeLog.area}, rated ${beforeLog.rating}/10):
 LATER (${afterLog.date}, ${afterLog.area}, rated ${afterLog.rating}/10):
 - Concerns: ${(afterLog.concerns || []).join(', ') || 'none'}
 - Notes: ${afterLog.notes || 'none'}
+
+ROUTINE CHANGES IN THIS WINDOW (causal candidates — weight these heavily when explaining what's different):
+${routineChangesBlock}
 
 CURRENT ROUTINE (active use, not shelf):
 ${formatUsageForPrompt(usage30)}
@@ -217,8 +308,7 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
         photo: b64, photoPath: null,
         ratingExplanation: null, suggestedRating: null,
         usedProducts: [], usedTags: [slot === 'before' ? 'procedure-before' : 'procedure-after'],
-        aiAnalysis: null, analyzing: false,
-      };
+        aiAnalysis: null, analyzing: false};
       const updated = [...logs, newLog].sort((a, b) => new Date(b.date) - new Date(a.date));
       setLogs(updated);
       saveData('logs', updated);
@@ -260,10 +350,10 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
   const needsMorePhotos = photoLogs.length < 2;
 
   return (
-    <div className="space-y-5 md:space-y-7 md:max-w-md md:mx-auto pb-6">
+    <div className="space-y-3 md:space-y-7 md:max-w-md md:mx-auto pb-6">
       {/* === EDITORIAL HEADER ===
           Reuses the shared EditorialPageHeader so Compare reads identically
-          to Journal/Pearls/Counsel. Eyebrow + serif italic display + body. */}
+          to Journal/Pearls/Counsel. Eyebrow + serif display + body. */}
       <EditorialPageHeader
         eyebrow="Compare"
         title="Two moments, side by side."
@@ -273,9 +363,9 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
       {/* Sparse-photo guard — wrapped in EditorialCard with a subtle terracotta
           hairline so it reads as a soft prompt, not an alarm. */}
       {needsMorePhotos && (
-        <EditorialCard className="text-center" style={{borderColor:'var(--accent)'}}>
+        <EditorialCard className="text-center" style={{borderColor: 'var(--line)'}}>
           <div className="flex justify-center mb-3" style={{color:'var(--accent)'}}><Icon name="Camera" size={28} /></div>
-          <h3 className="font-serif italic text-[20px] md:text-[24px] leading-[1.1] mb-2" style={{color:'var(--ink)'}}>
+          <h3 className="font-sans text-[20px] md:text-[24px] leading-[1.1] mb-2" style={{color:'var(--ink)'}}>
             {photoLogs.length === 0 ? 'Log your first photo' : 'One more photo to begin'}
           </h3>
           <p className="text-[12px] leading-relaxed max-w-sm mx-auto mb-4" style={{color:'var(--ink-soft)'}}>
@@ -320,25 +410,74 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
         return (
         <div className="space-y-4">
           {!afterLog ? (
-            <EmptyState icon="Calendar" text="Log a photo to anchor the comparison." action={() => setShowCheckInChooser(true)} actionText="Add Photo" />
+            /* === ATELIER-STYLE EMPTY (May 29 2026 per Jenni) ===
+               Was the plain EmptyState (border + ink-fill button) —
+               replaced with the cream-deep editorial card pattern
+               used on the Atelier hero. Same dashed CHECK IN circle,
+               same conversational tone, same "Start your first
+               check-in" CTA wording. First-week users land on this
+               surface; we want it inviting, not "no data." */
+            <div
+              className="rounded-[20px] px-5 py-7 md:px-6 md:py-8 text-center"
+              style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}
+            >
+              <div
+                className="inline-flex flex-col items-center justify-center rounded-full mb-4"
+                style={{
+                  width: 120, height: 120,
+                  border: '2px dashed var(--line)',
+                  background: 'var(--cream)',
+                  color: 'var(--ink-soft)'}}
+              >
+                <Icon name="Camera" size={28} />
+                <div className="text-[10.5px] mt-2" style={{color:'var(--accent)', fontWeight:600, letterSpacing:'0.18em', textTransform:'uppercase'}}>
+                  Check in
+                </div>
+              </div>
+              <h2 className="font-sans text-[20px] md:text-[22px] leading-[1.15] mb-2" style={{color:'var(--ink)', letterSpacing:'-0.022em'}}>
+                Need two photos to compare.
+              </h2>
+              <p className="text-[13px] leading-snug font-light mb-5 mx-auto" style={{color:'var(--ink-soft)', maxWidth: 280}}>
+                Check in today, then again next week. We'll show you what moved.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowCheckInChooser(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full transition hover:opacity-90"
+                style={{
+                  background: 'var(--accent)',
+                  color: 'var(--cream)',
+                  border: '1px solid var(--accent)',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  boxShadow: '0 2px 6px rgba(229,60,45,0.18)',
+                  cursor: 'pointer'}}
+              >
+                <Icon name="Camera" size={12} strokeWidth={2.5} />
+                Start your first check-in
+                <Icon name="ArrowRight" size={11} />
+              </button>
+            </div>
           ) : (
             <>
               {/* Side-by-side photo grid — Before on left, After (today) on right.
                   Rounded-[20px] cream-deep wrappers per the new editorial language. */}
               <div className="grid grid-cols-2 gap-2.5 md:gap-3">
                 {/* BEFORE — empty until user picks */}
-                <div className="rounded-[18px] overflow-hidden" style={{border:'1px solid var(--line)', background:'var(--cream-deep)'}}>
+                <div className="rounded-[18px] overflow-hidden" style={{border: '1.5px solid var(--accent)', boxShadow: '0 1px 2px rgba(229,60,45,0.06), 0 8px 22px rgba(229,60,45,0.06)', background:'var(--cream-deep)'}}>
                   <div className="text-[10px] tracking-[0.28em] uppercase px-3 pt-3 pb-1.5" style={{color:'var(--ink-soft)'}}>Before</div>
                   {beforeLog ? (
                     <>
-                      <div className="aspect-square overflow-hidden" style={{background:'var(--cream-deep)'}}>
+                      <div className="aspect-[4/3] overflow-hidden" style={{background:'var(--cream-deep)'}}>
                         <Photo item={beforeLog} alt="" className="w-full h-full object-cover"
-                          renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-serif italic text-5xl" style={{color:'var(--ink-soft)'}}>{beforeLog.rating}</span></div>}
+                          renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-sans text-4xl" style={{color:'var(--ink-soft)'}}>{beforeLog.rating}</span></div>}
                         />
                       </div>
                       <div className="px-3 py-2.5 flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="font-serif italic text-base truncate" style={{color:'var(--ink)'}}>{fmt(beforeLog.date)}</div>
+                          <div className="font-sans text-base truncate" style={{color:'var(--ink)'}}>{fmt(beforeLog.date)}</div>
                           <div className="text-xs font-light truncate" style={{color:'var(--ink-soft)'}}>
                             {(beforeLog.area || 'full-face').replace(/-/g, ' ')}
                             {aiScoreOut10(beforeLog) ? <> · <span style={{color:'var(--accent)'}}>✦</span> {aiScoreOut10(beforeLog)}/10</> : ''}
@@ -354,31 +493,31 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                   ) : (
                     <button
                       onClick={() => setCompareTimePickerFor('before')}
-                      className="w-full aspect-square border-2 border-dashed flex flex-col items-center justify-center gap-2 transition hover:bg-[var(--cream-deep)]"
-                      style={{borderColor:'var(--line)'}}
+                      className="w-full aspect-square border-2 border-dashed flex flex-col items-center justify-center gap-2 px-2 transition hover:bg-[var(--cream-deep)]"
+                      style={{borderColor: 'var(--line)'}}
                     >
                       <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{background:'var(--accent)', color:'var(--cream)'}}>
                         <Icon name="Plus" size={20} />
                       </div>
-                      <span className="font-serif italic text-base" style={{color:'var(--ink)'}}>Pick a prior photo</span>
-                      <span className="text-[10px] tracking-[0.2em] uppercase italic" style={{color:'var(--ink-soft)'}}>or use a quick-pick below</span>
+                      <span className="font-sans text-[14px] md:text-base text-center leading-tight" style={{color:'var(--ink)'}}>Pick a prior photo</span>
+                      <span className="text-[9px] tracking-[0.14em] uppercase text-center leading-tight" style={{color:'var(--ink-soft)'}}>or quick-pick below</span>
                     </button>
                   )}
                 </div>
                 {/* AFTER — defaults to today's full-face but user can swap */}
-                <div className="rounded-[18px] overflow-hidden" style={{border:'1.5px solid var(--accent)', background:'var(--cream-deep)'}}>
+                <div className="rounded-[18px] overflow-hidden" style={{border: '1.5px solid var(--accent)', boxShadow: '0 1px 2px rgba(229,60,45,0.06), 0 8px 22px rgba(229,60,45,0.06)', background:'var(--cream-deep)'}}>
                   <div className="text-[10px] tracking-[0.28em] uppercase px-3 pt-3 pb-1.5 flex items-center gap-1.5" style={{color:'var(--accent)'}}>
                     <span className="w-1 h-1 rounded-full inline-block" style={{background:'var(--accent)'}} />
                     {compareTimeAfterId && afterLog?.id !== afterDefaultLog?.id ? 'After' : 'After · today'}
                   </div>
-                  <div className="aspect-square overflow-hidden" style={{background:'var(--cream-deep)'}}>
+                  <div className="aspect-[4/3] overflow-hidden" style={{background:'var(--cream-deep)'}}>
                     <Photo item={afterLog} alt="" className="w-full h-full object-cover"
-                      renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-serif italic text-5xl" style={{color:'var(--ink-soft)'}}>{afterLog.rating}</span></div>}
+                      renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-sans text-4xl" style={{color:'var(--ink-soft)'}}>{afterLog.rating}</span></div>}
                     />
                   </div>
                   <div className="px-3 py-2.5 flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="font-serif italic text-base truncate" style={{color:'var(--ink)'}}>{fmt(afterLog.date)}</div>
+                      <div className="font-sans text-base truncate" style={{color:'var(--ink)'}}>{fmt(afterLog.date)}</div>
                       <div className="text-xs font-light truncate" style={{color:'var(--ink-soft)'}}>
                         {(afterLog.area || 'full-face').replace(/-/g, ' ')}
                         {aiScoreOut10(afterLog) ? <> · <span style={{color:'var(--accent)'}}>✦</span> {aiScoreOut10(afterLog)}/10</> : ''}
@@ -406,12 +545,70 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                     ratingDelta={Number(afterLog.rating) - Number(beforeLog.rating)}
                     daysApart={Math.abs(Math.floor((new Date(afterLog.date) - new Date(beforeLog.date)) / 86400000))}
                   />
+                  {/* === ROUTINE DELTA CARD ===
+                      Bridges "here's the photo delta" → "here's the
+                      routine context" before the AI analysis runs.
+                      Compare used to be photo-only — this ties visible
+                      change to what the user actually changed. Quiet
+                      editorial card, eyebrow + up to three short rows.
+                      Hidden entirely if nothing changed AND no
+                      procedures sat in the window (keeps the section
+                      from feeling padded). */}
+                  {(() => {
+                    const delta = buildRoutineDelta(beforeLog.date, afterLog.date);
+                    if (!delta || delta.isEmpty) return null;
+                    const nameList = (arr, max = 3) => {
+                      if (arr.length === 0) return null;
+                      const shown = arr.slice(0, max).map(p => p.name).filter(Boolean);
+                      const extra = arr.length - shown.length;
+                      return extra > 0 ? `${shown.join(', ')} +${extra}` : shown.join(', ');
+                    };
+                    const addedText = nameList(delta.added);
+                    const droppedText = nameList(delta.dropped);
+                    const procText = delta.procedures.length === 0
+                      ? null
+                      : delta.procedures.length === 1
+                        ? `${delta.procedures[0].name} · ${new Date(delta.procedures[0].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                        : `${delta.procedures.length} treatments`;
+                    return (
+                      <EditorialCard>
+                        <div className="text-[10px] tracking-[0.3em] uppercase mb-3 flex items-center gap-2" style={{color:'var(--ink-soft)', fontWeight:600}}>
+                          <Icon name="GitBranch" size={11} style={{color:'var(--accent)'}} /> Between these photos
+                        </div>
+                        <div className="space-y-2">
+                          {addedText && (
+                            <div className="flex items-baseline gap-2.5 text-[13px] leading-snug" style={{color:'var(--ink)'}}>
+                              <span className="text-[9px] tracking-[0.22em] uppercase shrink-0 pt-[3px]" style={{color:'var(--sage, #6b8364)', fontWeight:600, minWidth:'52px'}}>Added</span>
+                              <span style={{fontWeight:400}}>{addedText}</span>
+                            </div>
+                          )}
+                          {droppedText && (
+                            <div className="flex items-baseline gap-2.5 text-[13px] leading-snug" style={{color:'var(--ink)'}}>
+                              <span className="text-[9px] tracking-[0.22em] uppercase shrink-0 pt-[3px]" style={{color:'var(--ink-soft)', fontWeight:600, minWidth:'52px'}}>Dropped</span>
+                              <span style={{fontWeight:400}}>
+                                {droppedText}
+                                {delta.droppedSilentIds.size > 0 && delta.dropped.some(p => delta.droppedSilentIds.has(p.id)) && (
+                                  <span className="text-[10px] ml-1.5" style={{color:'var(--ink-soft)'}}>· quietly</span>
+                                )}
+                              </span>
+                            </div>
+                          )}
+                          {procText && (
+                            <div className="flex items-baseline gap-2.5 text-[13px] leading-snug" style={{color:'var(--ink)'}}>
+                              <span className="text-[9px] tracking-[0.22em] uppercase shrink-0 pt-[3px]" style={{color:'var(--accent)', fontWeight:600, minWidth:'52px'}}>In-clinic</span>
+                              <span style={{fontWeight:400}}>{procText}</span>
+                            </div>
+                          )}
+                        </div>
+                      </EditorialCard>
+                    );
+                  })()}
                   {/* === SHARE BUTTON ===
                       Renders a 1080×1350 PNG of the Compare card and either
                       opens the native share sheet (mobile / Web Share API
                       with files) or downloads the file (desktop fallback).
                       Distribution unlock — user posts the artifact to their
-                      own socials, no Étude-side hosting needed. */}
+                      own socials, no Frida-side hosting needed. */}
                   <button
                     onClick={async () => {
                       try {
@@ -450,8 +647,7 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                           daysApart: Math.abs(Math.floor((new Date(afterLog.date) - new Date(beforeLog.date)) / 86400000)),
                           beforeDate: fmtDate(beforeLog.date),
                           afterDate: fmtDate(afterLog.date),
-                          metricDeltas,
-                        });
+                          metricDeltas});
                         canvas.toBlob(async (blob) => {
                           if (!blob) { toast('Could not generate image', 'error'); return; }
                           const filename = `etude-compare-${beforeLog.date}-to-${afterLog.date}.png`;
@@ -462,9 +658,8 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                             try {
                               await navigator.share({
                                 files: [new File([blob], filename, { type: 'image/png' })],
-                                title: 'Étude · Compare',
-                                text: 'My skin, side by side. via Étude',
-                              });
+                                title: 'Frida · Compare',
+                                text: 'My skin, side by side. via Frida'});
                               return;
                             } catch (shareErr) {
                               // User cancelled or share failed — fall through to download.
@@ -488,32 +683,37 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                       }
                     }}
                     className="w-full rounded-full px-4 py-2.5 text-[10.5px] tracking-[0.18em] uppercase flex items-center justify-center gap-1.5 transition hover:opacity-90 cursor-pointer border"
-                    style={{borderColor:'var(--accent)', color:'var(--accent)', background:'transparent', cursor:'pointer'}}
+                    style={{borderColor: 'var(--line)', color:'var(--accent)', background:'transparent', cursor:'pointer'}}
                     title="Generate a shareable PNG of this Compare"
                   >
                     <Icon name="Share2" size={11} /> Share this compare
                   </button>
                   <EditorialCard>
-                    <div className="text-[10px] tracking-[0.3em] uppercase mb-2 flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
-                      <Icon name="Sparkles" size={11} style={{color:'var(--accent)'}} /> Étude analysis
+                    <div className="text-[10px] tracking-[0.3em] uppercase mb-3 flex items-center gap-2" style={{color:'var(--accent)'}}>
+                      <Icon name="Sparkles" size={11} style={{color:'var(--accent)'}} /> Frida analysis
                     </div>
                     {cachedAnalysis ? (
                       <>
-                        <div className="text-sm md:text-base font-light leading-relaxed whitespace-pre-line" style={{color:'var(--ink)'}}>{withPearls(formatAnalysisText(cachedAnalysis), setOpenLesson)}</div>
-                        <button onClick={runTimeAnalysis} disabled={compareTimeAnalyzing} className="mt-3 text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1.5" style={{color:'var(--ink-soft)'}}>
+                        <TaggedAnalysisBullets
+                          text={formatAnalysisText(cachedAnalysis)}
+                          onOpen={setOpenLesson}
+                          IconComponent={Icon}
+                          withPearlsFn={withPearls}
+                        />
+                        <button onClick={runTimeAnalysis} disabled={compareTimeAnalyzing} className="mt-3 text-[10px] tracking-[0.2em] uppercase flex items-center gap-1.5" style={{color:'var(--ink-soft)'}}>
                           {compareTimeAnalyzing ? <><Icon name="Loader2" size={11} className="spin" /> Re-running</> : <>Refresh analysis</>}
                         </button>
                       </>
                     ) : compareTimeAnalyzing ? (
-                      <p className="font-serif italic text-sm flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
+                      <p className="font-sans text-sm flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
                         <Icon name="Loader2" size={13} className="spin" style={{color:'var(--accent)'}} /> Reading the difference between these two photos…
                       </p>
                     ) : !getApiKey() ? (
-                      <button onClick={() => setShowApiKeyModal(true)} className="text-[11px] tracking-[0.18em] uppercase italic flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
+                      <button onClick={() => setShowApiKeyModal(true)} className="text-[11px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
                         <Icon name="Key" size={11} /> Add API key to auto-analyze
                       </button>
                     ) : (
-                      <button onClick={runTimeAnalysis} disabled={compareTimeAnalyzing} className="text-[11px] tracking-[0.18em] uppercase italic flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
+                      <button onClick={runTimeAnalysis} disabled={compareTimeAnalyzing} className="text-[11px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
                         <Icon name="Sparkles" size={11} /> Analyze the difference
                       </button>
                     )}
@@ -537,15 +737,14 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                           style={{
                             borderColor: active ? 'var(--accent)' : 'var(--line)',
                             background: active ? 'var(--accent)' : 'var(--cream)',
-                            color: active ? 'var(--cream)' : 'var(--ink-soft)',
-                          }}
+                            color: active ? 'var(--cream)' : 'var(--ink-soft)'}}
                         >{p.label}</button>
                       );
                     })}
                     <button
                       onClick={() => setCompareTimePickerFor('before')}
-                      className="flex-shrink-0 px-3.5 py-2 rounded-full tracking-[0.18em] text-[10px] uppercase border italic transition whitespace-nowrap"
-                      style={{borderColor:'var(--line)', color:'var(--ink-soft)'}}
+                      className="flex-shrink-0 px-3.5 py-2 rounded-full tracking-[0.18em] text-[10px] uppercase border transition whitespace-nowrap"
+                      style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}
                     >Browse all <Icon name="ArrowRight" size={11} className="inline ml-1" /></button>
                   </div>
                 </div>
@@ -555,7 +754,7 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
               <div className="mb-5">
                 <div className="text-[10px] tracking-[0.25em] uppercase mb-2 flex items-baseline justify-between" style={{color:'var(--ink-soft)'}}>
                   <span>Calendar</span>
-                  <span className="text-[9px] italic normal-case tracking-normal">tap to set as before</span>
+                  <span className="text-[9px] normal-case tracking-normal">tap to set as before</span>
                 </div>
                 <MiniMonthCalendar
                   logs={photoLogs}
@@ -570,19 +769,60 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
         );
       })()}
 
-      {/* === PRODUCT SUB-TAB (May 2026 editorial rebuild) ===
-          Replaces the bare row list with:
-            1. Étude Insight card (3 trend metrics + summary)
-            2. By Product header with Sort:Recent
-            3. Rich rows: ingredient-icon card + product meta +
-               before/after thumbnails + status badge + AI insight
-          Each row is fully clickable, opens the existing
-          productCompare modal for the deeper read. Editorial-restrained
-          per Jenni: ivory bg, soft borders, terracotta accents, no
-          dashboards. */}
+      {/* === PRODUCT SUB-TAB (May 2026 editorial rebuild + audit pass) ===
+          One job: a list of products with a clickable row each. Header is
+          "By product" + Sort:Recent. Rows are ingredient-icon card +
+          product meta + before/after thumbs + readiness chip. The trend
+          summary card above the list was cut (audit) — it duplicated
+          Home Snapshot, Sunday Digest, and Insights trajectory. Each
+          row opens the productCompare modal for the deeper read. */}
       {compareSubTab === 'product' && (() => {
         if (productRows.length === 0) {
-          return <EmptyState icon="Package" text="Nothing logged means nothing learned. Start checking in." />;
+          return (
+            <div
+              className="rounded-[20px] px-5 py-7 md:px-6 md:py-8 text-center"
+              style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}
+            >
+              <div
+                className="inline-flex flex-col items-center justify-center rounded-full mb-4"
+                style={{
+                  width: 120, height: 120,
+                  border: '2px dashed var(--line)',
+                  background: 'var(--cream)',
+                  color: 'var(--ink-soft)'}}
+              >
+                <Icon name="Package" size={28} />
+                <div className="text-[10.5px] mt-2" style={{color:'var(--accent)', fontWeight:600, letterSpacing:'0.18em', textTransform:'uppercase'}}>
+                  Check in
+                </div>
+              </div>
+              <h2 className="font-sans text-[20px] md:text-[22px] leading-[1.15] mb-2" style={{color:'var(--ink)', letterSpacing:'-0.022em'}}>
+                Nothing logged, nothing learned.
+              </h2>
+              <p className="text-[13px] leading-snug font-light mb-5 mx-auto" style={{color:'var(--ink-soft)', maxWidth: 280}}>
+                A few weeks of check-ins and we'll show you which products are actually moving the needle.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowCheckInChooser(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full transition hover:opacity-90"
+                style={{
+                  background: 'var(--accent)',
+                  color: 'var(--cream)',
+                  border: '1px solid var(--accent)',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  boxShadow: '0 2px 6px rgba(229,60,45,0.18)',
+                  cursor: 'pointer'}}
+              >
+                <Icon name="Camera" size={12} strokeWidth={2.5} />
+                Start your first check-in
+                <Icon name="ArrowRight" size={11} />
+              </button>
+            </div>
+          );
         }
         // === Readiness classification per row ===
         // Used for the status badge + AI insight tone. Three states
@@ -597,291 +837,232 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
           }
           return 'building';
         };
-        // === AI insight copy keyed off category + readiness ===
-        // Heuristic prose so each row has substance without a per-row
-        // Claude call. The deeper analysis still happens inside the
-        // productCompare modal when the user taps in.
+        // === Per-row copy, keyed off category + readiness ===
+        // Voice: obsessed friend who happens to be a doctor. Direct,
+        // dry, brief, no derm-coded prose ("collecting baseline,"
+        // "tone shift detected" — that was the old copy). Deeper
+        // analysis lives inside the productCompare modal.
         const insightCopy = (anchors, product, readiness) => {
           const cat = (product.category || '').toLowerCase();
           if (readiness === 'tooEarly') {
             if (cat.includes('retinoid') || cat.includes('treatment')) {
-              return { headline: 'Too early to assess', text: 'Retinoid changes typically take 3–8 weeks.' };
+              return { headline: 'Give it a minute', text: 'Retinoids show their hand at 3–8 weeks.' };
             }
             if (cat.includes('exfoliant') || cat.includes('acid')) {
-              return { headline: 'Too early to assess', text: 'Acids show their hand after a few cycles of cell turnover.' };
+              return { headline: 'Give it a minute', text: 'Acids need a few turnover cycles before the verdict.' };
             }
-            return { headline: 'Collecting baseline', text: 'Not enough data yet to detect meaningful changes.' };
+            return { headline: 'Too soon to call', text: 'Not enough check-ins yet.' };
           }
           if (readiness === 'building') {
             if (cat.includes('moisturizer') || cat.includes('cream')) {
-              return { headline: 'Barrier looks stronger', text: 'Flaking decreased and comfort has improved.' };
+              return { headline: 'Barrier looks happier', text: 'Less flake, more comfort.' };
             }
             if (cat.includes('exfoliant') || cat.includes('acid') || cat.includes('bha') || cat.includes('aha')) {
-              return { headline: 'Texture trend emerging', text: 'Pores look clearer. Continue consistent use.' };
+              return { headline: 'Texture is moving', text: 'Pores look clearer. Keep at it.' };
             }
             if (cat.includes('serum') || cat.includes('ampoule') || cat.includes('peptide')) {
-              return { headline: 'Early hydration signals', text: 'Skin looks plumper. Need more time for full assessment.' };
+              return { headline: 'Plumper already', text: "Skin's filling out. Give it more time for the full read." };
             }
             if (cat.includes('toner') || cat.includes('essence') || cat.includes('mist')) {
-              return { headline: 'Surface calming', text: 'Hydration reads steady. Hold the routine.' };
+              return { headline: 'Quieter surface', text: "Hydration's steady. Don't change anything." };
             }
-            return { headline: 'Early signals', text: 'Trend is forming. Keep logging.' };
+            return { headline: "Something's moving", text: "Trend's forming. Keep checking in." };
           }
           // ready
           if (cat.includes('cleanser')) {
-            return { headline: 'Visible improvement', text: 'Redness is down and texture looks more even.' };
+            return { headline: 'Yeah, this is working', text: 'Less red, more even.' };
           }
           if (cat.includes('moisturizer') || cat.includes('cream')) {
-            return { headline: 'Barrier compounding', text: 'Hydration is holding and comfort is steady.' };
+            return { headline: 'Barrier is compounding', text: "Hydration holds, comfort's steady." };
           }
           if (cat.includes('retinoid') || cat.includes('treatment')) {
-            return { headline: 'Texture refining', text: 'Fine-line and tone evening visible across the window.' };
+            return { headline: 'Texture is refining', text: 'Fine lines softer, tone more even across the window.' };
           }
           if (cat.includes('serum') || cat.includes('ampoule')) {
-            return { headline: 'Tone shift detected', text: 'Pigment and brightness are trending up.' };
+            return { headline: 'Tone shifted', text: "Pigment's lifting, brightness up." };
           }
-          return { headline: 'Meaningful change', text: 'Tap to see the side-by-side read.' };
+          return { headline: 'Something real', text: 'Tap for the side-by-side.' };
         };
-        // === Étude Insight summary — 3 metrics from latest photo log ===
-        // Computed from each user's actual photoLogs metricSnapshot
-        // history. Compares the AVG of the latest 3 photos to the AVG
-        // of the 3 photos from ~2 weeks earlier. Tiny but real.
-        const buildSummaryMetrics = () => {
-          const photoLogsWithSnap = (logs || [])
-            .filter(l => l && l.metricSnapshot)
-            .sort((a, b) => new Date(b.date) - new Date(a.date));
-          if (photoLogsWithSnap.length < 4) return null;
-          const recent = photoLogsWithSnap.slice(0, 3);
-          const olderStart = Math.min(photoLogsWithSnap.length - 1, 10);
-          const older = photoLogsWithSnap.slice(olderStart - 2, olderStart + 1);
-          if (older.length === 0) return null;
-          const METRIC_SCORE = {
-            redness:    { Clear: 100, Low: 80, Mild: 55, Moderate: 30, High: 10 },
-            hydration:  { Plump: 100, Good: 80, Balanced: 55, Dry: 30, Parched: 10 },
-            barrier:    { Strong: 100, Steady: 80, Holding: 55, Compromised: 30, Stripped: 10 },
-          };
-          const tc = (w) => w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : null;
-          const avgFor = (group, key) => {
-            const vals = group.map(l => METRIC_SCORE[key][tc(l.metricSnapshot?.[key])]).filter(v => typeof v === 'number');
-            if (!vals.length) return null;
-            return vals.reduce((s, v) => s + v, 0) / vals.length;
-          };
-          const classify = (recentV, olderV) => {
-            if (recentV == null || olderV == null) return 'Stable';
-            const delta = recentV - olderV;
-            if (delta >= 8) return 'Improving';
-            if (delta <= -8) return 'Worsening';
-            return 'Stable';
-          };
-          return {
-            hydration: classify(avgFor(recent, 'hydration'), avgFor(older, 'hydration')),
-            barrier:   classify(avgFor(recent, 'barrier'),   avgFor(older, 'barrier')),
-            redness:   classify(avgFor(recent, 'redness'),   avgFor(older, 'redness')),
-          };
-        };
-        const summary = buildSummaryMetrics();
-        const allImproving = summary && summary.hydration === 'Improving' && summary.barrier === 'Improving';
-        const summaryHeadline = !summary
-          ? 'Log more photos to see your trend.'
-          : allImproving
-            ? 'Your skin is trending in the right direction.'
-            : Object.values(summary).filter(v => v === 'Improving').length >= 2
-              ? 'Mostly upward across the past two weeks.'
-              : Object.values(summary).some(v => v === 'Worsening')
-                ? 'Mixed signals this stretch.'
-                : 'Holding steady across your tracked axes.';
-        const summarySubline = !summary
-          ? 'Need at least 4 photos with metric snapshots for a trend read.'
-          : (summary.hydration === 'Improving' && summary.barrier === 'Improving')
-            ? 'Hydration and barrier comfort are improving.'
-            : 'Trend reads based on the last 3 photos vs ~2 weeks ago.';
-        const metricColor = (v) => v === 'Improving' ? 'var(--sage)' : v === 'Worsening' ? 'var(--rose)' : 'var(--ink-soft)';
-        const metricIcon = (v) => v === 'Improving' ? 'ArrowUpRight' : v === 'Worsening' ? 'ArrowDownRight' : 'Minus';
-        return (
-          <div className="space-y-5">
-            {/* === ÉTUDE INSIGHT CARD === stacked: headline on top, metrics row below */}
-            <section className="rounded-[20px] px-5 py-5 md:px-6 md:py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
-              <div className="flex items-start gap-3 mb-4">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{background:'var(--cream)', border:'1px solid var(--accent)', color:'var(--accent)'}}>
-                  <Icon name="Sparkles" size={14} />
+        // === FRIDA INSIGHT CARD REMOVED (May 2026 audit) ===
+        // The hydration / barrier / redness trend trio duplicated:
+        //   - Home Skin Snapshot "SINCE LAST" chips
+        //   - Journal Sunday Digest weekly recap
+        //   - Insights "Skin trajectory" card
+        // Card + buildSummaryMetrics helper + summary/headline/subline/
+        // metricColor/metricIcon vars all pruned. Compare's job is
+        // product- and photo-pair-level reads, not yet-another trend
+        // summary.
+
+        // === EXPANDABLE PRODUCT ROW (May 29 2026 per Jenni) ===
+        // Was: a single button → opens the ProductCompareModal directly.
+        // Now: tap toggles inline expansion → preview insight headline +
+        // insight body + "Full side-by-side →" button (opens the modal).
+        // Two-step gives the user the gist before committing to the
+        // deeper modal, and the chip is now visibly part of a tappable
+        // expand surface (rotates chevron) instead of static metadata.
+        const ProductCompareRow = ({ row, idx }) => {
+          // === HYBRID: row expands inline, photo opens modal (May 30 v3 per Jenni) ===
+          // Row click → toggle inline commentary (quick read).
+          // Photo tap → opens the full popup modal (expanded view).
+          // Best of both: peek without leaving the list, OR dive in.
+          const [expanded, setExpanded] = React.useState(false);
+          const { product, anchors } = row;
+          const readiness = classifyReadiness(anchors, product);
+          const insight = insightCopy(anchors, product, readiness);
+          const category = (product.category || 'product').replace(/-/g, ' ');
+          const iconName = getCategoryIcon(product.category);
+          const beforeLog = anchors.anchorPhotoLog;
+          const afterLog = anchors.latestPhotoLog;
+          const statusStyle = readiness === 'ready'
+            ? { bg: 'rgba(199, 231, 245, 0.42)', color: 'var(--accent-blue, #86CAE7)' }
+            : readiness === 'building'
+              ? { bg: 'rgba(201, 95, 58, 0.10)', color: 'var(--accent)' }
+              : { bg: 'rgba(78, 58, 44, 0.06)', color: 'var(--ink-soft)' };
+          const STATUS_LABEL = readiness === 'ready'
+            ? 'Ready' : readiness === 'building' ? 'Coming together' : 'Too soon';
+          const fullCtaLabel = readiness === 'ready'
+            ? 'Full side-by-side'
+            : readiness === 'building'
+              ? 'Preview side-by-side'
+              : 'Preview anyway';
+          return (
+            <div style={{ borderTop: idx === 0 ? 'none' : '1px solid var(--line)' }}>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setExpanded(v => !v)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(v => !v); } }}
+                className="w-full text-left transition hover:bg-[var(--cream)] flex items-center gap-3"
+                style={{ padding: '14px 16px', cursor: 'pointer' }}
+                aria-expanded={expanded}
+                title={expanded ? `Collapse ${product.name}` : `Quick read for ${product.name}`}
+              >
+                <div
+                  style={{
+                    width: 40, height: 40, borderRadius: 10,
+                    border: '1px solid var(--line)',
+                    background: '#FFFDFC',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--accent)', flexShrink: 0}}
+                >
+                  <Icon name={iconName} size={16} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[10px] tracking-[0.24em] uppercase mb-1" style={{color:'var(--accent)', fontWeight:600}}>Étude insight</div>
-                  <h3 className="font-serif italic text-[18px] md:text-[20px] leading-[1.2] mb-1.5" style={{color:'var(--ink)'}}>{summaryHeadline}</h3>
-                  <p className="text-[12px] leading-relaxed" style={{color:'var(--ink-soft)'}}>{summarySubline}</p>
+                  <div className="font-medium text-[13.5px] leading-tight truncate" style={{color:'var(--ink)'}}>
+                    {product.brand || product.name}
+                  </div>
+                  {product.brand && product.name && product.brand !== product.name && (
+                    <div className="text-[11.5px] leading-tight mt-0.5 truncate" style={{color:'var(--ink-soft)'}}>
+                      {product.name}
+                    </div>
+                  )}
+                  <div className="text-[9.5px] tracking-[0.16em] uppercase mt-1 flex items-center gap-1.5 flex-wrap" style={{color:'var(--ink-soft)'}}>
+                    <span>{category}</span>
+                    <span>·</span>
+                    <span>{anchors.photoCount}{anchors.photoCount === 1 ? ' photo' : ' photos'}</span>
+                    <span>·</span>
+                    <span
+                      className="px-1.5 py-0.5 rounded-full"
+                      style={{
+                        background: statusStyle.bg,
+                        color: statusStyle.color,
+                        fontWeight: 600,
+                        letterSpacing: '0.12em'}}
+                    >{STATUS_LABEL}</span>
+                  </div>
                 </div>
-              </div>
-              {summary && (
-                <>
-                  <div className="grid grid-cols-3 gap-3 pt-4 border-t" style={{borderColor:'var(--line)'}}>
-                    {[
-                      { key: 'hydration', label: 'Hydration', icon: 'Droplet' },
-                      { key: 'barrier', label: 'Barrier', icon: 'Shield' },
-                      { key: 'redness', label: 'Redness', icon: 'CircleDot' },
-                    ].map(m => (
-                      <div key={m.key} className="text-center">
-                        <div className="flex items-center justify-center gap-1 mb-1" style={{color:'var(--ink-soft)'}}>
-                          <Icon name={m.icon} size={11} />
-                          <span className="text-[9.5px] tracking-[0.18em] uppercase">{m.label}</span>
-                        </div>
-                        <div className="flex items-center justify-center gap-1">
-                          <Icon name={metricIcon(summary[m.key])} size={11} style={{color: metricColor(summary[m.key])}} />
-                          <span className="text-[12px] italic" style={{color: metricColor(summary[m.key])}}>{summary[m.key]}</span>
-                        </div>
+                {beforeLog && afterLog ? (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setProductCompareId(product.id); }}
+                    className="flex items-center gap-1 flex-shrink-0 rounded-lg transition hover:opacity-80"
+                    style={{cursor:'pointer'}}
+                    title="Open full side-by-side"
+                    aria-label={`Open full side-by-side for ${product.name}`}
+                  >
+                    <div style={{width: 36, height: 36, borderRadius: 8, overflow: 'hidden', background: 'var(--cream)', border: '1px solid var(--line)'}}>
+                      <Photo item={beforeLog} alt="" className="w-full h-full object-cover"
+                        renderFallback={() => <div className="w-full h-full flex items-center justify-center" style={{color:'var(--ink-soft)'}}><Icon name="Camera" size={12} /></div>}
+                      />
+                    </div>
+                    <Icon name="ArrowRight" size={11} style={{color:'var(--ink-soft)', flexShrink:0}} />
+                    <div style={{width: 36, height: 36, borderRadius: 8, overflow: 'hidden', background: 'var(--cream)', border: '1px solid var(--line)'}}>
+                      <Photo item={afterLog} alt="" className="w-full h-full object-cover"
+                        renderFallback={() => <div className="w-full h-full flex items-center justify-center" style={{color:'var(--ink-soft)'}}><Icon name="Camera" size={12} /></div>}
+                      />
+                    </div>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1 flex-shrink-0 opacity-50">
+                    {[0, 1].map(i => (
+                      <div key={i} style={{width: 36, height: 36, borderRadius: 8, background:'var(--cream)', border:'1px dashed var(--line)', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--ink-soft)'}}>
+                        <Icon name="Camera" size={11} />
                       </div>
                     ))}
                   </div>
-                  <button
-                    onClick={() => toast('Full summary coming soon', 'info')}
-                    className="mt-3 text-[10.5px] tracking-[0.18em] uppercase italic transition hover:opacity-70 inline-flex items-center gap-1"
-                    style={{color:'var(--accent)', cursor:'pointer'}}
-                  >
-                    See full summary <Icon name="ArrowRight" size={11} />
-                  </button>
-                </>
+                )}
+                <div className="flex-shrink-0" style={{color:'var(--ink-soft)'}}>
+                  <Icon name={expanded ? 'ChevronUp' : 'ChevronDown'} size={14} />
+                </div>
+              </div>
+              {expanded && (
+                <div className="px-4 pb-4 pt-1" style={{borderTop:'1px dashed var(--line)'}}>
+                  <div className="pt-3">
+                    <div className="font-sans text-[14px] leading-snug" style={{color:'var(--ink)'}}>
+                      {insight.headline}
+                    </div>
+                    <div className="text-[11.5px] mt-1 leading-snug" style={{color:'var(--ink-soft)'}}>
+                      {insight.text}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setProductCompareId(product.id); }}
+                      className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition hover:opacity-85"
+                      style={{
+                        background: readiness === 'ready' ? 'var(--accent)' : 'transparent',
+                        color: readiness === 'ready' ? 'var(--cream)' : 'var(--accent)',
+                        border: '1px solid var(--accent)',
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer'}}
+                    >
+                      <Icon name="Sparkles" size={11} />
+                      {fullCtaLabel}
+                      <Icon name="ArrowRight" size={11} />
+                    </button>
+                  </div>
+                </div>
               )}
-            </section>
+            </div>
+          );
+        };
 
+        return (
+          <div className="space-y-5">
             {/* === BY PRODUCT === header */}
             <div className="flex items-baseline justify-between gap-3 px-1">
               <div className="text-[10px] tracking-[0.28em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>By product</div>
-              <div className="text-[10px] tracking-[0.18em] uppercase italic" style={{color:'var(--ink-soft)'}}>Sort: Recent</div>
+              <div className="text-[10px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)'}}>Sort: Recent</div>
             </div>
 
             {/* === PRODUCT ROWS === */}
-            <div className="rounded-[20px] overflow-hidden" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
-              {productRows.map((row, idx) => {
-                const { product, anchors } = row;
-                const readiness = classifyReadiness(anchors, product);
-                const insight = insightCopy(anchors, product, readiness);
-                const weeks = anchors.daysActive >= 7 ? `${Math.round(anchors.daysActive / 7)}w` : `${anchors.daysActive}d`;
-                const category = (product.category || 'product').replace(/-/g, ' ');
-                const iconName = getCategoryIcon(product.category);
-                const useTimes = (product.useTimes || []).map(s => s.toUpperCase()).join(' / ') || 'AM / PM';
-                const fmtShort = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase() : '';
-                const beforeLog = anchors.anchorPhotoLog;
-                const afterLog = anchors.latestPhotoLog;
-                const statusStyle = readiness === 'ready'
-                  ? { bg: 'rgba(138, 155, 126, 0.14)', color: 'var(--sage, #6b8364)', text: 'READY TO COMPARE' }
-                  : readiness === 'building'
-                    ? { bg: 'rgba(201, 95, 58, 0.10)', color: 'var(--accent)', text: 'BUILDING EVIDENCE' }
-                    : { bg: 'rgba(78, 58, 44, 0.06)', color: 'var(--ink-soft)', text: 'TOO EARLY' };
-                const ctaText = readiness === 'ready'
-                  ? 'View comparison →'
-                  : readiness === 'building'
-                    ? '7+ more days'
-                    : 'Need 14+ days';
-                const ctaColor = readiness === 'ready' ? 'var(--accent)' : 'var(--ink-soft)';
-                // === COMPACT ROW LAYOUT (May 2026 v2) ===
-                // Was: stacked header + centered photos + analysis prose
-                // block. Read ~180px tall per product — three rows fit
-                // on screen and the "TOO EARLY · Collecting baseline ·
-                // NEED 14+ DAYS" stack was three lines of nothing for
-                // most products. New: single horizontal row, ~76px
-                // tall. Status collapses to a tiny chip inline with
-                // the meta. Full analysis lives in the modal that
-                // opens on click (already does — just dropping the
-                // duplicated preview prose from the card).
-                const STATUS_LABEL = readiness === 'ready'
-                  ? 'Ready'
-                  : readiness === 'building'
-                    ? 'Building'
-                    : 'Too early';
-                return (
-                  <button
-                    key={product.id}
-                    type="button"
-                    onClick={() => setProductCompareId(product.id)}
-                    className="w-full text-left transition hover:bg-[var(--cream)] cursor-pointer flex items-center gap-3"
-                    style={{
-                      borderTop: idx === 0 ? 'none' : '1px solid var(--line)',
-                      padding: '14px 16px',
-                      cursor: 'pointer',
-                    }}
-                    title={`Open comparison for ${product.name}`}
-                  >
-                    {/* Category icon tile */}
-                    <div
-                      style={{
-                        width: 40, height: 40, borderRadius: 10,
-                        border: '1px solid var(--line)',
-                        background: '#FFFDFC',
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        color: 'var(--accent)', flexShrink: 0,
-                      }}
-                    >
-                      <Icon name={iconName} size={16} />
-                    </div>
-
-                    {/* Text column — brand / name / meta + status chip */}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-[13.5px] leading-tight truncate" style={{color:'var(--ink)'}}>
-                        {product.brand || product.name}
-                      </div>
-                      {product.brand && product.name && product.brand !== product.name && (
-                        <div className="text-[11.5px] leading-tight mt-0.5 truncate" style={{color:'var(--ink-soft)'}}>
-                          {product.name}
-                        </div>
-                      )}
-                      <div className="text-[9.5px] tracking-[0.16em] uppercase mt-1 flex items-center gap-1.5 flex-wrap" style={{color:'var(--ink-soft)'}}>
-                        <span>{category}</span>
-                        <span>·</span>
-                        <span>{anchors.photoCount}{anchors.photoCount === 1 ? ' photo' : ' photos'}</span>
-                        <span>·</span>
-                        <span
-                          className="px-1.5 py-0.5 rounded-full"
-                          style={{
-                            background: statusStyle.bg,
-                            color: statusStyle.color,
-                            fontWeight: 600,
-                            letterSpacing: '0.12em',
-                          }}
-                        >{STATUS_LABEL}</span>
-                      </div>
-                    </div>
-
-                    {/* Mini photo pair — before → after, no date labels */}
-                    {beforeLog && afterLog ? (
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <div style={{width: 36, height: 36, borderRadius: 8, overflow: 'hidden', background: 'var(--cream)', border: '1px solid var(--line)'}}>
-                          <Photo item={beforeLog} alt="" className="w-full h-full object-cover"
-                            renderFallback={() => <div className="w-full h-full flex items-center justify-center" style={{color:'var(--ink-soft)'}}><Icon name="Camera" size={12} /></div>}
-                          />
-                        </div>
-                        <Icon name="ArrowRight" size={11} style={{color:'var(--ink-soft)', flexShrink:0}} />
-                        <div style={{width: 36, height: 36, borderRadius: 8, overflow: 'hidden', background: 'var(--cream)', border: '1.5px solid var(--accent)'}}>
-                          <Photo item={afterLog} alt="" className="w-full h-full object-cover"
-                            renderFallback={() => <div className="w-full h-full flex items-center justify-center" style={{color:'var(--ink-soft)'}}><Icon name="Camera" size={12} /></div>}
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1 flex-shrink-0 opacity-50">
-                        {[0, 1].map(i => (
-                          <div key={i} style={{width: 36, height: 36, borderRadius: 8, background:'var(--cream)', border:'1px dashed var(--line)', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--ink-soft)'}}>
-                            <Icon name="Camera" size={11} />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="flex-shrink-0" style={{color:'var(--ink-soft)'}}>
-                      <Icon name="ChevronRight" size={14} />
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="rounded-[20px] overflow-hidden" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+              {productRows.map((row, idx) => (
+                <ProductCompareRow key={row.product.id} row={row} idx={idx} />
+              ))}
             </div>
 
             {/* Footer — calibration note + how-comparisons-work link */}
             <div className="flex items-center justify-between gap-3 flex-wrap px-1 pt-1">
               <div className="flex items-center gap-1.5 text-[10.5px]" style={{color:'var(--ink-soft)'}}>
                 <Icon name="Sparkles" size={11} style={{color:'var(--accent)'}} />
-                <span className="italic">Consistent check-ins make comparisons more accurate.</span>
+                <span className="">Consistent check-ins make comparisons more accurate.</span>
               </div>
               <button
                 onClick={() => toast('How comparisons work — full doc coming soon', 'info')}
-                className="text-[10.5px] tracking-[0.16em] uppercase italic transition hover:opacity-70 inline-flex items-center gap-1"
+                className="text-[10.5px] tracking-[0.16em] uppercase transition hover:opacity-70 inline-flex items-center gap-1"
                 style={{color:'var(--accent)', cursor:'pointer'}}
               >
                 Learn how comparisons work <Icon name="ArrowRight" size={11} />
@@ -898,7 +1079,7 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
             /* Empty state — editorial card. */
             <EditorialCard className="text-center">
               <div className="flex justify-center mb-3" style={{color:'var(--accent)'}}><Icon name="Activity" size={28} /></div>
-              <h3 className="font-serif italic text-[20px] md:text-[24px] leading-[1.1] mb-2" style={{color:'var(--ink)'}}>No procedures logged yet.</h3>
+              <h3 className="font-sans text-[20px] md:text-[24px] leading-[1.1] mb-2" style={{color:'var(--ink)'}}>No procedures logged yet.</h3>
               <p className="text-[12px] leading-relaxed max-w-sm mx-auto mb-5" style={{color:'var(--ink-soft)'}}>
                 Log a treatment — laser, peel, microneedling, RF — and we'll pair it with the day-of photo and a 30-day follow-up automatically.
               </p>
@@ -943,15 +1124,15 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                   const beforeInputId = `proc-${procedure.id}-before`;
                   const afterInputId = `proc-${procedure.id}-after`;
                   return (
-                    <div key={procedure.id} className="rounded-[18px] overflow-hidden" style={{border:'1px solid var(--line)', background:'var(--cream-deep)'}}>
-                      <div className="px-4 py-3 border-b flex items-baseline justify-between gap-3 flex-wrap" style={{borderColor:'var(--line)'}}>
+                    <div key={procedure.id} className="rounded-[14px] overflow-hidden max-w-[560px] mx-auto" style={{border: '1px solid var(--line)', background:'var(--cream-deep)'}}>
+                      <div className="px-4 py-2.5 border-b flex items-baseline justify-between gap-3 flex-wrap" style={{borderColor: 'var(--line)'}}>
                         <div>
                           <div className="text-[10px] tracking-[0.25em] uppercase" style={{color:'var(--ink-soft)'}}>{procedure.type || 'procedure'}</div>
-                          <h3 className="font-serif italic text-lg md:text-xl leading-tight mt-0.5" style={{color:'var(--ink)'}}>{procedure.name}</h3>
+                          <h3 className="font-sans text-lg md:text-xl leading-tight mt-0.5" style={{color:'var(--ink)'}}>{procedure.name}</h3>
                         </div>
                         <div className="text-right">
                           <div className="text-[10px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{fmt(procedure.date)}</div>
-                          <div className="text-xs italic mt-0.5" style={{color:'var(--ink-soft)'}}>{daysSince === 0 ? 'today' : daysSince === 1 ? '1 day ago' : `${daysSince} days ago`}</div>
+                          <div className="text-xs mt-0.5" style={{color:'var(--ink-soft)'}}>{daysSince === 0 ? 'today' : daysSince === 1 ? '1 day ago' : `${daysSince} days ago`}</div>
                         </div>
                       </div>
                       {/* Cost-per-result strip — only when we have everything to do
@@ -962,37 +1143,37 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                           {procCost != null ? (
                             <span style={{color:'var(--ink)'}}>{fmtCurrency(procCost)}</span>
                           ) : (
-                            <span className="italic" style={{color:'var(--ink-soft)'}}>Cost not logged</span>
+                            <span className="" style={{color:'var(--ink-soft)'}}>Cost not logged</span>
                           )}
                           {aiDelta != null && (
-                            <span style={{color: aiDelta > 0 ? 'var(--sage)' : aiDelta < 0 ? 'var(--rose)' : 'var(--ink-soft)'}}>
+                            <span style={{color: aiDelta > 0 ? 'var(--accent-blue)' : aiDelta < 0 ? 'var(--rose)' : 'var(--ink-soft)'}}>
                               <span style={{color:'var(--accent)'}}>✦</span> {aiDelta > 0 ? '+' : ''}{aiDelta.toFixed(1)} pts
                             </span>
                           )}
                           {costPerPoint != null && aiDelta > 0 && (
-                            <span className="italic" style={{color:'var(--ink-soft)'}}>{fmtCurrency(costPerPoint)} / point</span>
+                            <span className="" style={{color:'var(--ink-soft)'}}>{fmtCurrency(costPerPoint)} / point</span>
                           )}
                           {costPerPoint != null && aiDelta < 0 && (
-                            <span className="italic" style={{color:'var(--rose)'}}>moved the wrong way</span>
+                            <span className="" style={{color:'var(--rose)'}}>moved the wrong way</span>
                           )}
                           {procCost != null && aiDelta == null && (
-                            <span className="italic" style={{color:'var(--ink-soft)'}}>log both photos to see the math</span>
+                            <span className="" style={{color:'var(--ink-soft)'}}>log both photos to see the math</span>
                           )}
                         </div>
                       )}
                       <div className="grid grid-cols-2 gap-0">
                         {/* === BEFORE — day-of-procedure === */}
-                        <div className="border-r" style={{borderColor:'var(--line)'}}>
+                        <div className="border-r" style={{borderColor: 'var(--line)'}}>
                           <div className="text-[10px] tracking-[0.25em] uppercase px-3 pt-2.5 pb-1" style={{color:'var(--ink-soft)'}}>Day of</div>
                           {before ? (
                             <>
-                              <div className="aspect-square overflow-hidden" style={{background:'var(--cream-deep)'}}>
+                              <div className="aspect-[4/3] overflow-hidden" style={{background:'var(--cream-deep)'}}>
                                 <Photo item={before} alt="" className="w-full h-full object-cover"
-                                  renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-serif italic text-5xl" style={{color:'var(--ink-soft)'}}>{aiScoreOut10(before) || before.rating}</span></div>}
+                                  renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-sans text-4xl" style={{color:'var(--ink-soft)'}}>{aiScoreOut10(before) || before.rating}</span></div>}
                                 />
                               </div>
                               <div className="px-3 py-2">
-                                <div className="font-serif italic text-sm md:text-base" style={{color:'var(--ink)'}}>{fmt(before.date)}</div>
+                                <div className="font-sans text-sm md:text-base" style={{color:'var(--ink)'}}>{fmt(before.date)}</div>
                                 <div className="text-xs font-light" style={{color:'var(--ink-soft)'}}>
                                   {(before.area || 'full-face').replace(/-/g, ' ')}
                                   {aiScoreOut10(before) ? <> · <span style={{color:'var(--accent)'}}>✦</span> {aiScoreOut10(before)}/10</> : (before.rating != null ? ` · ${before.rating}/10` : '')}
@@ -1001,10 +1182,10 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                             </>
                           ) : (
                             <>
-                              <label htmlFor={beforeInputId} className="block aspect-square cursor-pointer transition hover:bg-[var(--cream-deep)]" style={{background:'var(--cream-deep)'}}>
+                              <label htmlFor={beforeInputId} className="block aspect-[4/3] cursor-pointer transition hover:bg-[var(--cream-deep)]" style={{background:'var(--cream-deep)'}}>
                                 <div className="w-full h-full flex flex-col items-center justify-center gap-1.5" style={{color:'var(--ink-soft)'}}>
                                   <Icon name="Upload" size={18} />
-                                  <span className="text-[9px] tracking-[0.25em] uppercase">Upload day-of</span>
+                                  <span className="text-[9px] tracking-[0.18em] uppercase" style={{whiteSpace:'nowrap'}}>Day-of</span>
                                 </div>
                               </label>
                               <input
@@ -1019,8 +1200,8 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                                 }}
                               />
                               <div className="px-3 py-2">
-                                <div className="font-serif italic text-xs" style={{color:'var(--ink-soft)'}}>{fmt(procedure.date)}</div>
-                                <div className="text-[10px] italic" style={{color:'var(--ink-soft)'}}>no photo on this day</div>
+                                <div className="font-sans text-xs" style={{color:'var(--ink-soft)'}}>{fmt(procedure.date)}</div>
+                                <div className="text-[10px]" style={{color:'var(--ink-soft)'}}>no photo on this day</div>
                               </div>
                             </>
                           )}
@@ -1030,13 +1211,13 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                           <div className="text-[10px] tracking-[0.25em] uppercase px-3 pt-2.5 pb-1" style={{color:'var(--accent)'}}>Day 30</div>
                           {after ? (
                             <>
-                              <div className="aspect-square overflow-hidden" style={{background:'var(--cream-deep)'}}>
+                              <div className="aspect-[4/3] overflow-hidden" style={{background:'var(--cream-deep)'}}>
                                 <Photo item={after} alt="" className="w-full h-full object-cover"
-                                  renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-serif italic text-5xl" style={{color:'var(--ink-soft)'}}>{aiScoreOut10(after) || after.rating}</span></div>}
+                                  renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-sans text-4xl" style={{color:'var(--ink-soft)'}}>{aiScoreOut10(after) || after.rating}</span></div>}
                                 />
                               </div>
                               <div className="px-3 py-2">
-                                <div className="font-serif italic text-sm md:text-base" style={{color:'var(--ink)'}}>{fmt(after.date)}</div>
+                                <div className="font-sans text-sm md:text-base" style={{color:'var(--ink)'}}>{fmt(after.date)}</div>
                                 <div className="text-xs font-light" style={{color:'var(--ink-soft)'}}>
                                   {(after.area || 'full-face').replace(/-/g, ' ')}
                                   {aiScoreOut10(after) ? <> · <span style={{color:'var(--accent)'}}>✦</span> {aiScoreOut10(after)}/10</> : (after.rating != null ? ` · ${after.rating}/10` : '')}
@@ -1045,10 +1226,10 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                             </>
                           ) : (
                             <>
-                              <label htmlFor={afterInputId} className="block aspect-square cursor-pointer transition hover:bg-[var(--cream-deep)]" style={{background:'var(--cream-deep)'}}>
+                              <label htmlFor={afterInputId} className="block aspect-[4/3] cursor-pointer transition hover:bg-[var(--cream-deep)]" style={{background:'var(--cream-deep)'}}>
                                 <div className="w-full h-full flex flex-col items-center justify-center gap-1.5" style={{color:'var(--ink-soft)'}}>
                                   <Icon name="Upload" size={18} />
-                                  <span className="text-[9px] tracking-[0.25em] uppercase">Upload day-30</span>
+                                  <span className="text-[9px] tracking-[0.18em] uppercase" style={{whiteSpace:'nowrap'}}>Day-30</span>
                                 </div>
                               </label>
                               <input
@@ -1063,13 +1244,13 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                                 }}
                               />
                               <div className="px-3 py-2">
-                                <div className="font-serif italic text-xs" style={{color:'var(--ink-soft)'}}>
+                                <div className="font-sans text-xs" style={{color:'var(--ink-soft)'}}>
                                   {(() => {
                                     const d = new Date(new Date(procedure.date).getTime() + 30 * 86400000);
                                     return fmt(localDateISO(d));
                                   })()}
                                 </div>
-                                <div className="text-[10px] italic" style={{color:'var(--ink-soft)'}}>30-day follow-up · upload</div>
+                                <div className="text-[10px]" style={{color:'var(--ink-soft)'}}>30-day follow-up · upload</div>
                               </div>
                             </>
                           )}
@@ -1081,9 +1262,9 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                         const procKey = `${before.id}-${after.id}`;
                         const procCached = compareTimeAnalysis[procKey];
                         return (
-                          <div className="border-t" style={{borderColor:'var(--line)'}}>
+                          <div className="border-t" style={{borderColor: 'var(--line)'}}>
                             {/* Infographic — same metric quartet as Quick tab. */}
-                            <div className="px-4 py-3">
+                            <div className="px-4 py-2.5">
                               <CompareMetricInfographic
                                 before={before}
                                 after={after}
@@ -1093,30 +1274,35 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                             </div>
                             {/* AI analysis — auto-runs on first render via useEffect. */}
                             <div className="px-4 pb-4">
-                              <div className="text-[10px] tracking-[0.3em] uppercase mb-2 flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
-                                <Icon name="Sparkles" size={11} style={{color:'var(--accent)'}} /> Étude analysis
+                              <div className="text-[10px] tracking-[0.3em] uppercase mb-3 flex items-center gap-2" style={{color:'var(--accent)'}}>
+                                <Icon name="Sparkles" size={11} style={{color:'var(--accent)'}} /> Frida analysis
                               </div>
                               {procCached ? (
-                                <div className="text-sm font-light leading-relaxed whitespace-pre-line" style={{color:'var(--ink)'}}>{withPearls(formatAnalysisText(procCached), setOpenLesson)}</div>
+                                <TaggedAnalysisBullets
+                                  text={formatAnalysisText(procCached)}
+                                  onOpen={setOpenLesson}
+                                  IconComponent={Icon}
+                                  withPearlsFn={withPearls}
+                                />
                               ) : compareTimeAnalyzing ? (
-                                <p className="font-serif italic text-sm flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
+                                <p className="font-sans text-sm flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
                                   <Icon name="Loader2" size={13} className="spin" style={{color:'var(--accent)'}} /> Reading the difference…
                                 </p>
                               ) : !getApiKey() ? (
-                                <button onClick={() => setShowApiKeyModal(true)} className="text-[11px] tracking-[0.18em] uppercase italic flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
+                                <button onClick={() => setShowApiKeyModal(true)} className="text-[11px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
                                   <Icon name="Key" size={11} /> Add API key to auto-analyze
                                 </button>
                               ) : (
-                                <button onClick={() => runComparePairAnalysisShared(before, after)} className="text-[11px] tracking-[0.18em] uppercase italic flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
+                                <button onClick={() => runComparePairAnalysisShared(before, after)} className="text-[11px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
                                   <Icon name="Sparkles" size={11} /> Analyze this procedure
                                 </button>
                               )}
                             </div>
-                            <div className="px-4 py-3 border-t flex items-center justify-between gap-2" style={{borderColor:'var(--line)'}}>
-                              <div className="text-xs font-light italic" style={{color:'var(--ink-soft)'}}>{procedure.type || 'procedure'} · {procedure.name}</div>
+                            <div className="px-4 py-3 border-t flex items-center justify-between gap-2" style={{borderColor: 'var(--line)'}}>
+                              <div className="text-xs font-light" style={{color:'var(--ink-soft)'}}>{procedure.type || 'procedure'} · {procedure.name}</div>
                               <button
                                 onClick={() => enterCompare?.(before.id, after.id)}
-                                className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1.5 transition hover:opacity-70"
+                                className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1.5 transition hover:opacity-70"
                                 style={{color:'var(--accent)'}}
                               >Open full <Icon name="ArrowRight" size={11} /></button>
                             </div>

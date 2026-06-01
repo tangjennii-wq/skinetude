@@ -26,6 +26,7 @@ const OnboardingOverlay = ({
   userProfile, setUserProfile,
   userConcerns, setUserConcerns,
   products, setProducts,
+  homeDevices,
   logs,
   regimenLogs, setRegimenLogs,
   homeUploadInputRef,
@@ -89,8 +90,9 @@ const OnboardingOverlay = ({
     }
     // ≤4 → save inline as supplementary guided shots. The user
     // already has a baseline (hasPhoto branch is the only place
-    // this fires from), so these don't claim area:'full-face' —
-    // they're alternates the user can compare/cycle through later.
+    // this fires from). Tag area:'full-face' so they round-trip
+    // through Compare / PhotoTimeline / SkinLog consumers that
+    // call .area.replace(...) unguarded.
     try {
       const shots = await Promise.all(files.map(async (f) => {
         const dataUrl = await fileToBase64(f);
@@ -105,6 +107,7 @@ const OnboardingOverlay = ({
       const newLogs = shots.map((s, i) => ({
         id: baseTime + i,
         date: today,
+        area: 'full-face',
         photo: s.dataUrl,
         photoPath: null,
         concerns: [],
@@ -192,6 +195,49 @@ const OnboardingOverlay = ({
     { id: 'sensitivity',   label: 'Reduce sensitivity', icon: 'Heart' },
     { id: 'simplify',      label: 'Simplify routine', icon: 'Minus' },
   ];
+  const ONBOARDING_GOAL_TO_BUILD_CONCERN = {
+    'calm-redness': ['redness'],
+    brighten: ['hyperpigmentation', 'dullness'],
+    barrier: ['dryness', 'sensitivity'],
+    breakouts: ['breakouts'],
+    texture: ['texture'],
+    'age-gracefully': ['fine lines'],
+    sensitivity: ['sensitivity'],
+    simplify: [],
+  };
+  const onboardingBuildConcerns = () => Array.from(new Set(
+    (o.goals || []).flatMap(id => ONBOARDING_GOAL_TO_BUILD_CONCERN[id] || [])
+  ));
+  const onboardingBuildExperience = () => ({
+    essential: 'beginner',
+    balanced: 'medium',
+    advanced: 'advanced',
+  })[o.experienceLevel] || 'beginner';
+  const onboardingBuildTolerance = () => ({
+    very_sensitive: 'cautious',
+    occasionally_reactive: 'standard',
+    resilient: 'standard',
+    unsure: 'cautious',
+  })[o.skinTolerance] || 'cautious';
+  const onboardingFaceProducts = (sourceProducts = products) =>
+    (sourceProducts || []).filter(p => !p.endDate && !isBodyProduct(p));
+  const getOnboardingBuildPlan = (sourceProducts = products) => {
+    const face = onboardingFaceProducts(sourceProducts);
+    if (face.length === 0 || typeof generateBuildPlan !== 'function') return null;
+    try {
+      return generateBuildPlan({
+        products: face,
+        concerns: onboardingBuildConcerns(),
+        tolerance: onboardingBuildTolerance(),
+        selectedActives: [],
+        homeDevices: homeDevices || [],
+        experience: onboardingBuildExperience(),
+      });
+    } catch (e) {
+      console.warn('[onboarding] build plan failed:', e);
+      return null;
+    }
+  };
   const toggleGoal = (id) => {
     const exists = (o.goals || []).includes(id);
     set({ goals: exists ? o.goals.filter(g => g !== id) : [...(o.goals || []), id] });
@@ -257,10 +303,11 @@ const OnboardingOverlay = ({
 
   // === REVEAL PHASES ===
   // Plays in the reveal stage before the routine card morphs in.
+  // Honest descriptions of work actually happening — not theater.
   const REVEAL_PHASES = [
-    'Reading your sensitivity',
+    'Reading sensitivity',
     'Pairing with your shelf',
-    'Drafting your routine',
+    'Spacing the actives',
   ];
 
   // === ACTIONS ===
@@ -289,6 +336,18 @@ const OnboardingOverlay = ({
           ...(userProfile.currentRx || []),
           ...((o.currentRxOrHistory || []).filter(x => x !== 'None')),
         ])),
+        // === AGE (May 30 2026) ===
+        // Number captured on the context card. Persisted on
+        // userProfile.age so ProfileModal + Insights can read it
+        // without going through onboardingState. Preserves any
+        // previously saved value if the user skipped this round.
+        age: (typeof o.age === 'number' && Number.isFinite(o.age)) ? o.age : (userProfile.age || null),
+        // === EXPERIENCE LEVEL MIRROR (May 30 2026) ===
+        // We mirror onboardingState.experienceLevel onto userProfile
+        // so the Insights "Lessons" filter has a single source of
+        // truth post-onboarding. onboardingState still owns the
+        // value during the flow itself.
+        experienceLevel: o.experienceLevel || userProfile.experienceLevel || '',
       };
       if (o.timeZone) newProfile.environment = { ...(userProfile.environment || {}), timeZone: o.timeZone };
       setUserProfile(newProfile);
@@ -304,58 +363,68 @@ const OnboardingOverlay = ({
       // Persist onboardingState to cloud as well so the "done"
       // signal follows the user across devices.
       saveData('onboardingState', { ...o, stage: 'done' }).catch(() => {});
-      // === SEED TODAY'S REGIMEN (May 2026 — F14 friend-demo handoff) ===
-      // If user added shelf products during onboarding, seed today's
-      // regimenLog with their non-body face products split by useTimes.
-      // Default to both slots when useTimes is unset.
+      // === SEED TODAY'S REGIMEN (May 2026) ===
+      // Use the same capped, category-aware planner as Regimen Build.
+      // The old onboarding path slotted every face product into AM/PM,
+      // which made brand-new accounts start with a bloated routine.
       try {
         const todayKey = localDateISO();
-        const activeFace = (products || []).filter(p => !p.endDate && !isBodyProduct(p));
-        // Category-aware slot inference.
-        const inSlot = (p, slot) => {
-          const ut = (p.useTimes || []).map(t => String(t).toLowerCase());
-          if (ut.length > 0) return ut.includes(slot);
-          const cat = String(p.category || '').toLowerCase();
-          if (/sunscreen|spf|sun(?!flower)/.test(cat)) return slot === 'am';
-          if (/retinoid|retinol|aha|bha|acid|exfoliant|treatment/.test(cat)) return slot === 'pm';
-          return true;
-        };
-        if (activeFace.length > 0) {
-          // Commit useTimes + cadence to products so the shelf is the
-          // single source of truth for today + the pattern-derived
-          // routine the cover/Regimen Today/Build all read from.
-          const activeFaceIds = new Set(activeFace.map(p => p.id));
+        const todayDow = new Date().getDay();
+        const activeFace = onboardingFaceProducts(products);
+        const buildPlan = getOnboardingBuildPlan(products);
+        if (activeFace.length > 0 && buildPlan) {
+          const productAmDays = new Map();
+          const productPmDays = new Map();
+          for (let d = 0; d < 7; d++) {
+            ((buildPlan.am || {})[d] || []).forEach(id => {
+              if (!productAmDays.has(id)) productAmDays.set(id, new Set());
+              productAmDays.get(id).add(d);
+            });
+            ((buildPlan.pm || {})[d] || []).forEach(id => {
+              if (!productPmDays.has(id)) productPmDays.set(id, new Set());
+              productPmDays.get(id).add(d);
+            });
+          }
+          const faceIds = new Set(activeFace.map(p => p.id));
+          const inPlanIds = new Set([...productAmDays.keys(), ...productPmDays.keys()]);
           const updatedProducts = (products || []).map(p => {
-            if (!activeFaceIds.has(p.id)) return p;
-            const inferred = { am: inSlot(p, 'am'), pm: inSlot(p, 'pm') };
+            if (!faceIds.has(p.id)) return p;
+            if (!inPlanIds.has(p.id)) {
+              return sanitizeProductForSave({ ...p, cadence: undefined, useTimes: [], routineManaged: false });
+            }
+            const amDays = productAmDays.get(p.id) || new Set();
+            const pmDays = productPmDays.get(p.id) || new Set();
             const nextUseTimes = [];
-            if (inferred.am) nextUseTimes.push('am');
-            if (inferred.pm) nextUseTimes.push('pm');
-            const hasCadence = p.cadence && Array.isArray(p.cadence.days) && p.cadence.days.length > 0;
-            const nextCadence = hasCadence ? p.cadence : { days: [0,1,2,3,4,5,6], frequency: 7 };
+            if (amDays.size > 0) nextUseTimes.push('am');
+            if (pmDays.size > 0) nextUseTimes.push('pm');
+            const allDays = Array.from(new Set([...amDays, ...pmDays])).sort((a, b) => a - b);
             return sanitizeProductForSave({
               ...p,
+              cadence: { days: allDays, frequency: allDays.length },
               useTimes: nextUseTimes,
-              cadence: nextCadence,
+              routineManaged: true,
             });
           });
           setProducts(updatedProducts);
           saveData('products', updatedProducts).catch(() => {});
-          // Seed (or REFRESH) today's regimenLog. Overwrite planned
-          // products to match the freshly-committed shelf; preserve
-          // any user-entered done/skipped/extras/notes from a prior
-          // log on the same date so re-onboarding doesn't wipe a
-          // partial check-in.
+          const todayAmIds = ((buildPlan.am || {})[todayDow] || []).filter(Boolean);
+          const todayPmIds = ((buildPlan.pm || {})[todayDow] || []).filter(Boolean);
           const existingLog = (regimenLogs || []).find(r => r.date === todayKey);
-          const amIds = activeFace.filter(p => inSlot(p, 'am')).map(p => p.id);
-          const pmIds = activeFace.filter(p => inSlot(p, 'pm')).map(p => p.id);
           const nextLog = existingLog
-            ? { ...existingLog, amProducts: amIds, pmProducts: pmIds }
+            ? {
+                ...existingLog,
+                amProducts: todayAmIds,
+                pmProducts: todayPmIds,
+                amDone: (existingLog.amDone || []).filter(id => todayAmIds.includes(id)),
+                pmDone: (existingLog.pmDone || []).filter(id => todayPmIds.includes(id)),
+                amSkipped: (existingLog.amSkipped || []).filter(id => todayAmIds.includes(id)),
+                pmSkipped: (existingLog.pmSkipped || []).filter(id => todayPmIds.includes(id)),
+              }
             : {
                 id: Date.now(),
                 date: todayKey,
-                amProducts: amIds,
-                pmProducts: pmIds,
+                amProducts: todayAmIds,
+                pmProducts: todayPmIds,
                 amDone: [], pmDone: [],
                 amSkipped: [], pmSkipped: [],
                 amExtras: [], pmExtras: [],
@@ -370,14 +439,11 @@ const OnboardingOverlay = ({
           setRegimenLogs(newList);
           saveData('regimenLogs', newList).catch(() => {});
         }
-        // Bump the cover refresh token so any cover-side derived
-        // routine recomputes.
         setCoverRoutineRebuildToken(t => t + 1);
       } catch (e) {
-        // Seed is nice-to-have. If it throws, swallow.
         console.warn('[onboarding] commit + seed regimen failed:', e);
       }
-      toast('First draft saved. We’ll refine as you check in.', 'success');
+      toast('First draft saved. We sharpen it as you check in.', 'success');
     } catch (e) {
       console.error('[onboarding finish]', e);
       set({ stage: 'done' });
@@ -489,16 +555,16 @@ const OnboardingOverlay = ({
           {/* === STEP 1 — WELCOME === */}
           {o.stage === 'welcome' && (
             <div className="text-center">
-              <div className="text-[10px] tracking-[0.22em] uppercase mb-2" style={{color:'var(--ink-soft)', fontWeight:500}}>Welcome to</div>
-              <h1 className="font-serif text-[44px] leading-[1] mb-5" style={{color:'var(--accent)', letterSpacing:'-0.02em'}}>étude</h1>
+              <div className="text-[10px] tracking-[0.22em] uppercase mb-2" style={{color:'var(--ink-soft)', fontWeight:600}}>Welcome to</div>
+              <h1 className="font-sans text-[44px] leading-[1] mb-5" style={{color:'var(--accent)', letterSpacing:'-0.02em'}}>Frida</h1>
               <div className="inline-flex items-center justify-center w-8 h-8 mb-5">
                 <Icon name="Sparkles" size={18} style={{color:'var(--ink-soft)'}} />
               </div>
               <p className="text-[13px] leading-relaxed max-w-[360px] mx-auto" style={{color:'var(--ink)'}}>
-                Built by two best friends — both doctors — who are always helping each other with their skin care routine.
+                Created by two best friends who met in med school — both obsessed with skincare.
               </p>
-              <p className="font-serif text-[15px] leading-relaxed mt-4 max-w-[360px] mx-auto" style={{color:'var(--ink)'}}>
-                Let's optimize the skin you're in.
+              <p className="font-sans text-[15px] leading-relaxed mt-4 max-w-[360px] mx-auto" style={{color:'var(--ink)'}}>
+                Let's read your skin.
               </p>
               <div className="mt-7 space-y-2.5">
                 <button
@@ -528,13 +594,13 @@ const OnboardingOverlay = ({
             return (
               <div>
                 <div className="text-[10px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--accent)', fontWeight:600}}>2 · Skin Snapshot</div>
-                <h2 className="font-serif text-[28px] leading-tight mb-2" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>
-                  {!hasPhoto ? 'Your skin story starts here.' : 'Photo saved.'}
+                <h2 className="font-sans text-[28px] leading-tight mb-2" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>
+                  {!hasPhoto ? 'Snap a starting selfie.' : 'Got it.'}
                 </h2>
                 <p className="text-[12.5px] leading-snug mb-5" style={{color:'var(--ink-soft)'}}>
                   {!hasPhoto
-                    ? 'Bare face, natural light. This becomes your first journal entry.'
-                    : 'Next we’ll read it — needs an AI key on the next step.'}
+                    ? 'Bare face, natural light. Becomes your first journal entry.'
+                    : 'We\'ll read it on the next step.'}
                 </p>
 
                 {/* === PLACEHOLDER / CAPTURED PHOTO === */}
@@ -565,11 +631,36 @@ const OnboardingOverlay = ({
                   }}
                 >
                   {hasPhoto && o.photoDataUrl ? (
-                    <img src={o.photoDataUrl} alt="" style={{width:'100%', height:'100%', objectFit:'cover'}} />
+                    <>
+                      <img src={o.photoDataUrl} alt="" style={{width:'100%', height:'100%', objectFit:'cover'}} />
+                      {o.photoLoading && (
+                        // Loading caption while FileReader finishes the base64
+                        // dataUrl in the background. The blob preview is
+                        // already on screen — this just acknowledges the
+                        // save is in progress so the user doesn't feel
+                        // stuck.
+                        <div
+                          className="absolute bottom-3 left-1/2 rounded-full px-3 py-1 flex items-center gap-1.5"
+                          style={{
+                            transform: 'translateX(-50%)',
+                            background: 'rgba(28,25,23,0.55)',
+                            color: 'rgba(255,251,244,1)',
+                            backdropFilter: 'blur(4px)',
+                            fontSize: 9,
+                            fontWeight: 600,
+                            letterSpacing: '0.14em',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          <Icon name="Loader2" size={9} className="spin" />
+                          <span>Reading</span>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <>
                       <Icon name="Camera" size={32} style={{color:'var(--ink-soft)'}} />
-                      <span className="mt-2" style={{color:'var(--accent)', fontSize: 10, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase'}}>Take selfie</span>
+                      <span className="mt-2" style={{color:'var(--accent)', fontSize: 10, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase'}}>Tap to capture</span>
                     </>
                   )}
                 </div>
@@ -587,7 +678,7 @@ const OnboardingOverlay = ({
                           }
                         }}
                         className="w-full rounded-[12px] py-3 px-4 flex items-center justify-center gap-2 transition hover:bg-[var(--cream)]"
-                        style={{background:'var(--cream)', color:'var(--ink)', border:'1px solid var(--line)', fontWeight:600, fontSize:12, letterSpacing:'0.06em', cursor:'pointer'}}
+                        style={{background:'var(--cream)', color:'var(--ink)', border: '1px solid var(--line)', fontWeight:600, fontSize:12, letterSpacing:'0.06em', cursor:'pointer'}}
                       >
                         <Icon name="Upload" size={13} />
                         <span>Upload photos</span>
@@ -614,7 +705,7 @@ const OnboardingOverlay = ({
                             <div
                               key={s.id}
                               className="rounded-md overflow-hidden"
-                              style={{width:48, height:48, border:'1px solid var(--line)'}}
+                              style={{width:48, height:48, border: '1px solid var(--line)'}}
                               title={s.angle || ''}
                             >
                               <img src={s.photo || s.photoDataUrl} alt={s.angle || ''} style={{width:'100%', height:'100%', objectFit:'cover'}} />
@@ -626,39 +717,38 @@ const OnboardingOverlay = ({
                     <button
                       type="button"
                       onClick={advance}
-                      className="w-full rounded-full py-3 px-5 transition hover:opacity-90 mb-2"
+                      className="w-full rounded-full py-3 px-5 transition hover:opacity-90 mb-3"
                       style={{background:'var(--accent)', color:'var(--cream)', border:'1px solid var(--accent)', fontWeight:600, fontSize:12, letterSpacing:'0.18em', cursor:'pointer', textTransform:'uppercase'}}
                     >Continue</button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        set({ photoSource: 'guided' });
-                        setCameraDestination('onboarding');
-                        setGuidedCaptureCtx({ intent: 'onboarding_baseline' });
-                        setShowGuidedCaptureModal(true);
-                      }}
-                      className="w-full rounded-[12px] py-2.5 px-4 transition hover:bg-[var(--cream)] flex items-center justify-center gap-2 mb-2"
-                      style={{background:'transparent', color:'var(--ink)', border:'1px solid var(--line)', fontWeight:600, fontSize:11, letterSpacing:'0.12em', cursor:'pointer', textTransform:'uppercase'}}
-                    >
-                      <Icon name="RotateCcw" size={12} />
-                      <span>Retake photo set</span>
-                    </button>
-                    {/* === UPLOAD FROM LIBRARY (May 2026 v2) ===
-                        Lets returning users add supplementary photos
-                        (e.g. before/after shots from camera roll)
-                        without leaving onboarding. ≤4 files save
-                        inline; >4 routes to PhotoImportQueue (bulk
-                        select/label/save) so user labels in one pass
-                        instead of one-by-one in this step. */}
-                    <button
-                      type="button"
-                      onClick={() => uploadMoreRef.current && uploadMoreRef.current.click()}
-                      className="w-full rounded-[12px] py-2.5 px-4 transition hover:bg-[var(--cream)] flex items-center justify-center gap-2"
-                      style={{background:'transparent', color:'var(--ink)', border:'1px solid var(--line)', fontWeight:600, fontSize:11, letterSpacing:'0.12em', cursor:'pointer', textTransform:'uppercase'}}
-                    >
-                      <Icon name="Upload" size={12} />
-                      <span>Upload from library</span>
-                    </button>
+                    {/* === SECONDARY ACTIONS (May 2026 — smoothing pass) ===
+                        Retake + Upload paired side-by-side so the post-photo
+                        view doesn't read as three stacked CTAs. Both are
+                        edge cases — keep them visually quiet. */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          set({ photoSource: 'guided' });
+                          setCameraDestination('onboarding');
+                          setGuidedCaptureCtx({ intent: 'onboarding_baseline' });
+                          setShowGuidedCaptureModal(true);
+                        }}
+                        className="rounded-[12px] py-2.5 px-3 transition hover:bg-[var(--cream)] flex items-center justify-center gap-1.5"
+                        style={{background:'transparent', color:'var(--ink-soft)', border: '1px solid var(--line)', fontWeight:600, fontSize:10.5, letterSpacing:'0.1em', cursor:'pointer', textTransform:'uppercase'}}
+                      >
+                        <Icon name="RotateCcw" size={11} />
+                        <span>Retake</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => uploadMoreRef.current && uploadMoreRef.current.click()}
+                        className="rounded-[12px] py-2.5 px-3 transition hover:bg-[var(--cream)] flex items-center justify-center gap-1.5"
+                        style={{background:'transparent', color:'var(--ink-soft)', border: '1px solid var(--line)', fontWeight:600, fontSize:10.5, letterSpacing:'0.1em', cursor:'pointer', textTransform:'uppercase'}}
+                      >
+                        <Icon name="Upload" size={11} />
+                        <span>Upload</span>
+                      </button>
+                    </div>
                     <input
                       ref={uploadMoreRef}
                       type="file"
@@ -705,15 +795,15 @@ const OnboardingOverlay = ({
             return (
               <div>
                 <div className="text-[10px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--accent)', fontWeight:600}}>3 · Your AI Key</div>
-                <h2 className="font-serif text-[28px] leading-tight mb-2" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>
-                  {chips && chips.length > 0 ? 'First read.' : (isAnalyzing ? 'Reading your skin…' : 'Want a read on what we see?')}
+                <h2 className="font-sans text-[28px] leading-tight mb-2" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>
+                  {chips && chips.length > 0 ? 'First read.' : (isAnalyzing ? 'Reading your skin…' : 'Want our read on it?')}
                 </h2>
                 <p className="text-[12.5px] leading-snug mb-4" style={{color:'var(--ink-soft)'}}>
                   {chips && chips.length > 0
-                    ? 'Here’s what we see in your photo.'
+                    ? 'What we see, in six words.'
                     : (isAnalyzing
-                      ? 'A moment. You can keep going — this finishes in the background.'
-                      : 'Drop your Anthropic key and we’ll read the photo you just took. Skip for now and AI stays quiet until you add one later.')}
+                      ? 'Keep going — this finishes in the background.'
+                      : 'Paste an Anthropic key and we\'ll read the photo you just took. Skip and AI stays quiet until you add one.')}
                 </p>
 
                 {/* Key input — only shown until a key is saved + read is firing/done */}
@@ -741,7 +831,7 @@ const OnboardingOverlay = ({
                       </p>
                     )}
                     <p className="text-[10.5px] mb-4 leading-snug" style={{color:'var(--ink-soft)'}}>
-                      Get one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="underline" style={{color:'var(--accent)'}}>console.anthropic.com</a>. Stored locally — never sent anywhere except Anthropic.
+                      Get one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="underline" style={{color:'var(--accent)'}}>console.anthropic.com</a>. Stays on your device. Only Anthropic ever sees it.
                     </p>
                     <button
                       type="button"
@@ -811,8 +901,8 @@ const OnboardingOverlay = ({
           {o.stage === 'about' && (
             <div>
               <div className="text-[10px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--accent)', fontWeight:600}}>4 · About Your Skin</div>
-              <h2 className="font-serif text-[28px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>Two quick questions.</h2>
-              <p className="text-[12px] leading-snug mb-5" style={{color:'var(--ink-soft)'}}>Both optional. Skip what doesn’t fit.</p>
+              <h2 className="font-sans text-[28px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>Two quick ones.</h2>
+              <p className="text-[12px] leading-snug mb-5" style={{color:'var(--ink-soft)'}}>Both optional. Pick what fits.</p>
 
               {/* Goals row — MULTI-SELECT → soft-tinted selected.
                   Selected gets a 10% plum wash + 26% plum border so the
@@ -898,8 +988,43 @@ const OnboardingOverlay = ({
           {o.stage === 'context' && (
             <div>
               <div className="text-[10px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--accent)', fontWeight:600}}>5 · A Bit of Context</div>
-              <h2 className="font-serif text-[28px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>Anything we should know?</h2>
-              <p className="text-[12px] leading-snug mb-5" style={{color:'var(--ink-soft)'}}>All optional. Helps us tune the routine.</p>
+              <h2 className="font-sans text-[28px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>Anything we should know?</h2>
+              <p className="text-[12px] leading-snug mb-5" style={{color:'var(--ink-soft)'}}>All optional. Sharper routine if you share.</p>
+
+              {/* === AGE INPUT (May 30 2026 — Agent D-v3) ===
+                  Optional number field. Stored on onboardingState.age
+                  and mirrored into userProfile.age in finishOnboarding
+                  so it follows the user post-onboarding. Plain numeric
+                  input (vs. year-of-birth or band picker) — fewest
+                  taps, no per-region calendar drift, easy to skip. */}
+              <p className="text-[14px] mb-2" style={{color:'var(--ink)', fontWeight:750, letterSpacing:'-0.01em', lineHeight:1.25}}>How old are you?</p>
+              <div className="mb-5">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min="13"
+                  max="100"
+                  step="1"
+                  value={o.age == null ? '' : o.age}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === '') { set({ age: null }); return; }
+                    const n = parseInt(raw, 10);
+                    if (Number.isFinite(n) && n >= 0 && n <= 120) set({ age: n });
+                  }}
+                  placeholder="e.g. 34"
+                  className="w-full rounded-full px-4 py-2.5 transition focus:outline-none"
+                  style={{
+                    background:'var(--cream)',
+                    border:'1px solid var(--line)',
+                    color:'var(--ink)',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    letterSpacing:'-0.005em',
+                  }}
+                />
+                <p className="text-[10px] mt-1.5" style={{color:'var(--ink-soft)'}}>Tells us how to read sun damage, collagen, and hormonal patterns. Skip if you'd rather not.</p>
+              </div>
 
               {/* Experience row — SINGLE-SELECT.
                   Same soft selected treatment as the other chips. */}
@@ -1003,20 +1128,20 @@ const OnboardingOverlay = ({
             return (
             <div>
               <div className="text-[10px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--accent)', fontWeight:600}}>6 · Build Your Shelf</div>
-              <h2 className="font-serif text-[28px] leading-tight mb-2" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>Let's start with a few products.</h2>
+              <h2 className="font-sans text-[28px] leading-tight mb-2" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>What's on your shelf?</h2>
               {shelfCount > 0 ? (
                 <div className="flex items-center gap-2 mb-5 rounded-[10px] px-3 py-2"
-                  style={{background:'rgba(138, 155, 126, 0.10)', border:'1px solid rgba(138, 155, 126, 0.32)'}}
+                  style={{background:'rgba(199, 231, 245, 0.42)', border:'1px solid rgba(134, 202, 231, 0.46)'}}
                 >
-                  <Icon name="CheckCircle" size={14} style={{color:'var(--sage)'}} />
+                  <Icon name="CheckCircle" size={14} style={{color:'var(--accent-blue)'}} />
                   <span className="text-[12px] leading-snug" style={{color:'var(--ink)'}}>
-                    <span style={{fontWeight:600}}>{shelfCount} product{shelfCount === 1 ? '' : 's'} saved.</span>
+                    <span style={{fontWeight:600}}>{shelfCount} product{shelfCount === 1 ? '' : 's'} in.</span>
                     <span style={{color:'var(--ink-soft)'}}> Add more or continue.</span>
                   </span>
                 </div>
               ) : (
                 <p className="text-[12.5px] leading-snug mb-5" style={{color:'var(--ink-soft)'}}>
-                  Add products you currently use so we can personalize your routine.
+                  Drop in what you're using. We'll build the routine around it.
                 </p>
               )}
               <div className="space-y-2 mb-3">
@@ -1028,7 +1153,7 @@ const OnboardingOverlay = ({
                     setShowProductModal && setShowProductModal(true);
                   }}
                   className="w-full rounded-[12px] py-3 px-4 flex items-center gap-3 transition hover:bg-[var(--cream)]"
-                  style={{background:'var(--cream)', color:'var(--ink)', border:'1px solid var(--line)', fontWeight:600, fontSize:12, cursor:'pointer'}}
+                  style={{background:'var(--cream)', color:'var(--ink)', border: '1px solid var(--line)', fontWeight:600, fontSize:12, cursor:'pointer'}}
                 >
                   <Icon name="Camera" size={14} style={{color:'var(--ink-soft)'}} />
                   <span>Scan product</span>
@@ -1042,7 +1167,7 @@ const OnboardingOverlay = ({
                     setShowProductModal && setShowProductModal(true);
                   }}
                   className="w-full rounded-[12px] py-3 px-4 flex items-center gap-3 transition hover:bg-[var(--cream)]"
-                  style={{background:'var(--cream)', color:'var(--ink)', border:'1px solid var(--line)', fontWeight:600, fontSize:12, cursor:'pointer'}}
+                  style={{background:'var(--cream)', color:'var(--ink)', border: '1px solid var(--line)', fontWeight:600, fontSize:12, cursor:'pointer'}}
                 >
                   <Icon name="Search" size={14} style={{color:'var(--ink-soft)'}} />
                   <span>Search by name</span>
@@ -1056,7 +1181,7 @@ const OnboardingOverlay = ({
                     setShowProductModal && setShowProductModal(true);
                   }}
                   className="w-full rounded-[12px] py-3 px-4 flex items-center gap-3 transition hover:bg-[var(--cream)]"
-                  style={{background:'var(--cream)', color:'var(--ink)', border:'1px solid var(--line)', fontWeight:600, fontSize:12, cursor:'pointer'}}
+                  style={{background:'var(--cream)', color:'var(--ink)', border: '1px solid var(--line)', fontWeight:600, fontSize:12, cursor:'pointer'}}
                 >
                   <Icon name="Sparkles" size={14} style={{color:'var(--ink-soft)'}} />
                   <span>Search by brand</span>
@@ -1075,7 +1200,7 @@ const OnboardingOverlay = ({
                   type="button"
                   onClick={() => { set({ productEntryMethod: 'later' }); advance(); }}
                   className="w-full rounded-full py-3 px-5 transition hover:bg-[var(--cream)] mt-2"
-                  style={{background:'transparent', color:'var(--ink-soft)', border:'1px solid var(--line)', fontWeight:600, fontSize:11, letterSpacing:'0.18em', cursor:'pointer', textTransform:'uppercase'}}
+                  style={{background:'transparent', color:'var(--ink-soft)', border: '1px solid var(--line)', fontWeight:600, fontSize:11, letterSpacing:'0.18em', cursor:'pointer', textTransform:'uppercase'}}
                 >Add later</button>
               )}
             </div>
@@ -1105,46 +1230,38 @@ const OnboardingOverlay = ({
                 />
               );
             }
-            // sub === 'routine' — derive preview from shelf when personalized.
+            // sub === 'routine' — preview the same capped plan that finish
+            // commits, so onboarding does not promise a bloated all-shelf routine.
             const routineKind = o.generatedRoutineType || 'foundational';
-            const inferSlot = (p) => {
-              const ut = (p.useTimes || []).map(t => String(t).toLowerCase());
-              if (ut.length > 0) {
-                return { am: ut.includes('am'), pm: ut.includes('pm') };
-              }
-              const cat = String(p.category || '').toLowerCase();
-              if (/sunscreen|spf|sun(?!flower)/.test(cat)) return { am: true, pm: false };
-              if (/retinoid|retinol|aha|bha|acid|exfoliant|treatment/.test(cat)) return { am: false, pm: true };
-              return { am: true, pm: true };
-            };
-            const activeFace = (products || []).filter(p => !p.endDate && !isBodyProduct(p));
+            const activeFace = onboardingFaceProducts(products);
+            const buildPlan = getOnboardingBuildPlan(products);
+            const productById = new Map(activeFace.map(p => [p.id, p]));
+            const previewDow = new Date().getDay();
             let r;
-            if (routineKind === 'personalized' && activeFace.length > 0) {
-              const amProducts = activeFace.filter(p => inferSlot(p).am).map(p => ({
+            if (routineKind === 'personalized' && activeFace.length > 0 && buildPlan) {
+              const toPreview = (ids) => (ids || []).map(id => productById.get(id)).filter(Boolean).map(p => ({
                 name: p.name || p.brand || 'Product',
                 sub: p.brand || p.category || '',
               }));
-              const pmProducts = activeFace.filter(p => inferSlot(p).pm).map(p => ({
-                name: p.name || p.brand || 'Product',
-                sub: p.brand || p.category || '',
-              }));
-              r = { am: amProducts, pm: pmProducts };
+              r = {
+                am: toPreview((buildPlan.am || {})[previewDow]),
+                pm: toPreview((buildPlan.pm || {})[previewDow]),
+              };
             } else {
               r = o.generatedRoutine || FOUNDATIONAL;
             }
             return (
               <div>
                 <div className="text-[10px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--accent)', fontWeight:600}}>7 · Your First Regimen</div>
-                <h2 className="font-serif text-[28px] leading-tight mb-2" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>Your first regimen is built.</h2>
-                <p className="text-[12.5px] leading-snug mb-1" style={{color:'var(--ink-soft)'}}>
+                <h2 className="font-sans text-[28px] leading-tight mb-2" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>
+                  {routineKind === 'personalized' ? 'Here\'s your draft.' : 'A starter to build on.'}
+                </h2>
+                <p className="text-[12px] leading-snug mb-5" style={{color:'var(--ink-soft)'}}>
                   {routineKind === 'personalized'
-                    ? 'Regimen saved from your shelf.'
-                    : 'Starter preview — add products to make this real.'}
+                    ? <>Built from your shelf. Refine anytime in <span style={{color:'var(--accent)', fontWeight:600}}>Regimen</span>.</>
+                    : <>Add products and we'll personalize. Lives in <span style={{color:'var(--accent)', fontWeight:600}}>Regimen</span>.</>}
                 </p>
-                <p className="text-[11px] leading-snug mb-5" style={{color:'var(--ink-soft)'}}>
-                  First draft. Rebuild or refine anytime from the <span style={{color:'var(--accent)', fontWeight:600}}>Regimen</span> tab — we’ll learn as you check in.
-                </p>
-                <div className="rounded-[14px] p-4 mb-4" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
+                <div className="rounded-[14px] p-4 mb-4" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <div className="text-[9px] tracking-[0.24em] uppercase mb-2" style={{color:'var(--accent)', fontWeight:600}}>AM</div>
@@ -1175,7 +1292,7 @@ const OnboardingOverlay = ({
                   onClick={finishOnboarding}
                   className="w-full rounded-full py-3 px-5 transition hover:opacity-90 mb-2"
                   style={{background:'var(--accent)', color:'var(--cream)', border:'1px solid var(--accent)', fontWeight:600, fontSize:12, letterSpacing:'0.18em', cursor:'pointer', textTransform:'uppercase'}}
-                >Let's get started</button>
+                >Take me in</button>
                 {/* Secondary: send the user straight to Regimen so they know
                     that's the canonical surface for ongoing rebuilds. The old
                     "Add products to personalize" pointed at the product modal,
@@ -1187,7 +1304,7 @@ const OnboardingOverlay = ({
                   className="w-full text-center transition hover:opacity-70 py-2 flex items-center justify-center gap-1"
                   style={{color:'var(--accent)', fontWeight:600, fontSize:11, cursor:'pointer'}}
                 >
-                  <span>Rebuild anytime in Regimen</span>
+                  <span>Open Regimen to tweak</span>
                   <Icon name="ArrowRight" size={11} />
                 </button>
               </div>
@@ -1197,7 +1314,7 @@ const OnboardingOverlay = ({
 
         {/* === SAFETY STRIP (bottom, all steps) === */}
         <div className="mt-5 text-center text-[10px] leading-snug max-w-[420px] mx-auto" style={{color:'var(--ink-soft)'}}>
-          Your photos and information stay private. You can always refine later.
+          Photos and info stay yours. Edit any of this later.
         </div>
       </div>
     </div>

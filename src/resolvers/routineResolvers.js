@@ -69,7 +69,7 @@ const isBodyProduct = (p) => {
 // symbols exist at module scope by the time resolveTodayRitual is
 // invoked — which they do (sidecar runs entirely before any
 // component calls resolveTodayRitual).
-const resolveTodayRitual = ({ products, regimenLogs, date }) => {
+const resolveTodayRitual = ({ products, regimenLogs, date, acceptedPlan = null }) => {
   const empty = {
     source: 'empty', am: [], pm: [],
     amExtras: [], pmExtras: [],
@@ -79,6 +79,28 @@ const resolveTodayRitual = ({ products, regimenLogs, date }) => {
   if (!date) return empty;
   const active = Array.isArray(products) ? products.filter(p => !p.endDate) : [];
   const log = Array.isArray(regimenLogs) ? regimenLogs.find(r => r.date === date) : null;
+  const resolvePlanForDate = (plan) => {
+    if (!plan || !date) return null;
+    let dow;
+    try { dow = new Date(date + 'T00:00:00').getDay(); }
+    catch { dow = new Date().getDay(); }
+    const resolveByIds = (ids = []) => ids
+      .map(id => active.find(p => p.id === id))
+      .filter(Boolean);
+    const amCap = capWithOverflow(resolveByIds((plan.am || {})[dow] || []));
+    const pmCap = capWithOverflow(resolveByIds((plan.pm || {})[dow] || []));
+    if (amCap.list.length === 0 && pmCap.list.length === 0) return null;
+    return {
+      source: 'accepted-plan',
+      am: amCap.list,
+      pm: pmCap.list,
+      amExtras: [], pmExtras: [],
+      amOverflow: amCap.overflow,
+      pmOverflow: pmCap.overflow,
+      amHidden: amCap.hidden,
+      pmHidden: pmCap.hidden,
+    };
+  };
   const capWithOverflow = (arr) => {
     const filtered = (arr || []).filter(p => p && !isBodyProduct(p));
     // Dedupe by id.
@@ -102,8 +124,15 @@ const resolveTodayRitual = ({ products, regimenLogs, date }) => {
     const resolveByIds = (ids = []) => ids
       .map(id => active.find(p => p.id === id))
       .filter(Boolean);
-    const amCap = capWithOverflow(resolveByIds(log.amProducts || []));
-    const pmCap = capWithOverflow(resolveByIds(log.pmProducts || []));
+    const amRaw = resolveByIds(log.amProducts || []);
+    const pmRaw = resolveByIds(log.pmProducts || []);
+    // Log means log. A same-day one-off product may intentionally sit
+    // outside the built weekly pattern, especially from "Used something
+    // else? → From shelf." Do not narrow oversized logs back to managed
+    // routine products or fall back to the plan; cap with overflow so the
+    // add remains visible and inspectable.
+    const amCap = capWithOverflow(amRaw);
+    const pmCap = capWithOverflow(pmRaw);
     return {
       source: log.submitted ? 'submitted-log' : 'in-progress-log',
       am: amCap.list,
@@ -116,6 +145,8 @@ const resolveTodayRitual = ({ products, regimenLogs, date }) => {
       pmHidden: pmCap.hidden,
     };
   }
+  const planResolved = resolvePlanForDate(acceptedPlan);
+  if (planResolved) return planResolved;
   // === PAST-DAY EMPTY GUARD (May 2026 per Jenni) ===
   // For dates before today, refuse to fall back to the shelf pattern. The
   // pattern represents what's PLANNED, not what HAPPENED — surfacing it on

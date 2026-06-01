@@ -16,6 +16,10 @@ const RegimenBuildView = ({
   regimenView, setRegimenView,
   postAcceptDay, setPostAcceptDay,
   homeDevices, setHomeDevices,
+  sensitivities,
+  userProfile,
+  cycleData,
+  hormonalContext,
   userConcerns, setUserConcerns,
   setEditingProductId,
   setProductForm,
@@ -59,23 +63,37 @@ const RegimenBuildView = ({
   setRefineSheetOpen,
   setStartOverConfirmOpen,
   toggleBuildEditExpand,
-  toggleProposalDay,
-}) => {
+  toggleProposalDay}) => {
   return (() => {
   // === BUILD WIZARD (sequential, May 2026) ===
-  // Six sequential steps → one final weekly plan. Each step
+  // Seven sequential steps → one final weekly plan. Each step
   // owns its own screen; Back / Continue navigate between them.
   // The final plan view shows a compact summary of selections
   // (only what was picked, not the full library) and an
   // explicit Accept / Rebuild path.
-  //   Step 1: Concerns
-  //   Step 2: Actives the user wants to use
-  //   Step 3: Tolerance for irritating actives
-  //   Step 4: Budget
-  //   Step 5: Home devices (May 2026 — derm pass)
-  //   Step 6: Anchor basics check
-  //   → Plan view (after Step 5)
+  //   Step 1: Action goal (May 2026 — adds direction to the plan)
+  //   Step 2: Concerns
+  //   Step 3: Actives the user wants to use
+  //   Step 4: Tolerance for irritating actives
+  //   Step 5: Budget
+  //   Step 6: Home devices (May 2026 — derm pass)
+  //   Step 7: Anchor basics check
+  //   → Plan view (after final step)
   const dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  // Single-select action goal: anchors the rest of the wizard
+  // and biases scheduling toward the user's primary intent.
+  const ACTION_GOALS = [
+    { id: 'BARRIER',    label: 'Barrier',     sub: 'Repair sensitive, reactive skin' },
+    { id: 'CALM',       label: 'Calm',        sub: 'Quiet redness and inflammation' },
+    { id: 'HYDRATION',  label: 'Hydration',   sub: 'Lock in moisture, prevent flakiness' },
+    { id: 'PIGMENT',    label: 'Pigment',     sub: 'Even tone, reduce dark spots' },
+    { id: 'PIH',        label: 'Dark spots (PIH)', sub: 'Post-inflammatory hyperpigmentation — azelaic, tranexamic, tinted SPF' },
+    { id: 'TEXTURE',    label: 'Texture',     sub: 'Smooth roughness and bumps' },
+    { id: 'ACNE',       label: 'Acne',        sub: 'Adapalene + BPO + niacinamide for active breakouts' },
+    { id: 'AGING',      label: 'Photoaging',  sub: 'Vit C, retinoid, peptides — anti-trend evidence stack' },
+    { id: 'ROSACEA',    label: 'Rosacea / flush', sub: 'Azelaic + barrier + mineral SPF' },
+    { id: 'SEBORRHEIC', label: 'Oily / breakout-prone', sub: 'BHA + niacinamide + gel cream' },
+  ];
   const COMMON_CONCERNS = ['pigmentation', 'acne', 'texture', 'fine lines', 'sensitivity', 'dryness', 'dullness', 'redness', 'oiliness', 'aging'];
   // 15 most common actives, mapped to family IDs the generator
   // understands. Some families have multiple representative
@@ -97,6 +115,38 @@ const RegimenBuildView = ({
     { id: 'centella',    label: 'Centella' },
     { id: 'bakuchiol',   label: 'Bakuchiol' },
   ];
+  const BASIC_RECOMMENDATIONS = {
+    cleanser: [
+      { brand: 'CeraVe', name: 'Hydrating Cleanser', priceLevel: 1, note: 'gentle cream cleanse' },
+      { brand: 'La Roche-Posay', name: 'Toleriane Hydrating Cleanser', priceLevel: 2, note: 'barrier-safe daily wash' },
+      { brand: 'Vanicream', name: 'Gentle Facial Cleanser', priceLevel: 1, note: 'plain, low-drama' },
+    ],
+    moisturizer: [
+      { brand: 'Vanicream', name: 'Daily Facial Moisturizer', priceLevel: 1, note: 'light barrier support' },
+      { brand: 'La Roche-Posay', name: 'Toleriane Double Repair', priceLevel: 2, note: 'ceramide + niacinamide' },
+      { brand: 'Aveeno', name: 'Calm + Restore Oat Gel', priceLevel: 2, note: 'light, calming gel' },
+    ],
+    spf: [
+      { brand: 'Vanicream', name: 'Mineral Facial SPF 30', priceLevel: 1, note: 'sensitive-skin mineral' },
+      { brand: 'Beauty of Joseon', name: 'Relief Sun SPF50+', priceLevel: 2, note: 'soft, everyday finish' },
+      { brand: 'La Roche-Posay', name: 'Anthelios Melt-In Milk SPF 60', priceLevel: 2, note: 'classic high protection' },
+    ]};
+  const priceMarks = (level) => String.fromCharCode(36).repeat(Math.max(1, Math.min(3, Number(level) || 1)));
+  const getBasicsBuckets = () => {
+    const active = (products || []).filter(p => !p.endDate);
+    return {
+      cleanser: active.filter(p => normalizeProductCategory(p.category) === 'cleanser'),
+      moisturizer: active.filter(p => normalizeProductCategory(p.category) === 'moisturizer'),
+      spf: active.filter(p => normalizeProductCategory(p.category) === 'spf')};
+  };
+  const getMissingBasics = () => {
+    const buckets = getBasicsBuckets();
+    return [
+      { id: 'cleanser', label: 'Cleanser', list: buckets.cleanser },
+      { id: 'moisturizer', label: 'Moisturizer', list: buckets.moisturizer },
+      { id: 'spf', label: 'SPF', list: buckets.spf },
+    ].filter(row => row.list.length === 0);
+  };
   const toggleActive = (id) => {
     setBuildSelectedActives(prev => {
       const next = new Set(prev);
@@ -136,19 +186,97 @@ const RegimenBuildView = ({
       selectedActives: overrides.selectedActives !== undefined ? overrides.selectedActives : Array.from(buildSelectedActives),
       homeDevices: overrides.homeDevices || homeDevices || [],
       experience: overrides.experience || buildExperience || 'medium',
-    });
+      actionGoal: overrides.actionGoal || (buildAnswers && buildAnswers.actionGoal) || null,
+      // Optional safety-filter inputs — filters silently no-op when
+      // these are missing (props not yet threaded from App).
+      userProfile: overrides.userProfile || (typeof userProfile !== 'undefined' ? userProfile : null),
+      sensitivities: overrides.sensitivities || (typeof sensitivities !== 'undefined' ? sensitivities : null),
+      cycleData: overrides.cycleData || (typeof cycleData !== 'undefined' ? cycleData : null)});
     setBuildPlan(plan);
     setBuildPlanAccepted(false);
   };
+  const missingBasics = getMissingBasics();
+  const needsBasicsStep = missingBasics.length > 0;
+  // +1 vs prior: new Step 1 (Action goal) shifts everything by one.
+  const finalBuildStep = needsBasicsStep ? 7 : 6;
+  useEffect(() => {
+    if (!buildPlan && buildMode === 'guided' && buildStep > finalBuildStep) {
+      setBuildStep(finalBuildStep);
+    }
+  }, [buildPlan, buildMode, buildStep, finalBuildStep, setBuildStep]);
+
+  // === ROUTINE PREVIEW MODAL (May 30 2026 per Jenni) ===
+  // Build + Refine pages stay clean — the final routine renders in a
+  // modal. Two ways to open it:
+  //   1. Always-visible "See full routine" button (top of the page)
+  //   2. Quiet "Plan updated · view routine" banner that fades in for
+  //      ~7s after buildPlan changes from a refinement or rebuild.
+  // Detection uses a slot+day signature so day/time tweaks count as
+  // updates but the very first plan generation doesn't (avoids a
+  // confusing banner during the initial wizard flow).
+  const [routinePreviewOpen, setRoutinePreviewOpen] = useState(false);
+  const [planJustUpdated, setPlanJustUpdated] = useState(false);
+  const planSigRef = useRef(null);
+  useEffect(() => {
+    const sig = (() => {
+      if (!buildPlan) return '';
+      // === T4 FIX (May 2026) ===
+      // Old sig was slotted-only — basics-only refines (no slotted
+      // actives) had an empty sig forever, so the "Plan updated"
+      // banner never fired after basics changes. Now we include
+      // missingBasics count + per-day AM/PM ID lists so any change
+      // to the plan surface flips the signature.
+      const slottedSig = Array.isArray(buildPlan.slotted)
+        ? buildPlan.slotted.map(s => `${s.product && s.product.id}|${s.am?1:0}|${s.pm?1:0}|${(s.days||[]).join(',')}`).join(';')
+        : '';
+      const mb = Array.isArray(buildPlan.missingBasics) ? buildPlan.missingBasics.length : 0;
+      const amSig = Array.from({ length: 7 }, (_, d) => ((buildPlan.am || {})[d] || []).join(',')).join('|');
+      const pmSig = Array.from({ length: 7 }, (_, d) => ((buildPlan.pm || {})[d] || []).join(',')).join('|');
+      return `slot:${slottedSig}#mb:${mb}#am:${amSig}#pm:${pmSig}`;
+    })();
+    // Bug #10 fix (May 2026): gate the "Plan updated" banner on
+    // buildPlanAccepted. Every runGenerator() flips the sig, so the
+    // banner used to fire on initial wizard generation too (e.g. user
+    // hits Back, re-finishes). Now: silently track the sig while the
+    // plan is unaccepted, only fire the banner AFTER acceptance when
+    // a subsequent change lands.
+    if (!buildPlanAccepted) {
+      planSigRef.current = sig;
+      return;
+    }
+    if (planSigRef.current !== null && planSigRef.current !== sig && sig) {
+      setPlanJustUpdated(true);
+      const t = setTimeout(() => setPlanJustUpdated(false), 7000);
+      planSigRef.current = sig;
+      return () => clearTimeout(t);
+    }
+    planSigRef.current = sig;
+  }, [buildPlan, buildPlanAccepted]);
+
   const goNext = () => {
-    if (buildStep < 6) setBuildStep(s => s + 1);
+    if (buildStep < finalBuildStep) setBuildStep(s => s + 1);
     else runGenerator();
   };
   const goBack = () => setBuildStep(s => Math.max(1, s - 1));
   const rebuildFromStart = () => {
+    // === T1 FIX (May 2026) ===
+    // Was: silent clear. Now: route through the App-scope
+    // startOverConfirmOpen modal so the user gets an explicit
+    // confirmation dialog before the plan is wiped. That modal
+    // owns the clearing path AND fires a toast on commit, so
+    // we just open it here. Fallback to window.confirm if the
+    // prop setter isn't threaded (shouldn't happen, defensive).
+    if (typeof setStartOverConfirmOpen === 'function') {
+      setStartOverConfirmOpen(true);
+      return;
+    }
+    if (typeof window !== 'undefined' && window.confirm && !window.confirm('Clear your current plan and start fresh?')) {
+      return;
+    }
     setBuildPlan(null);
     setBuildPlanAccepted(false);
     setBuildStep(1);
+    try { toast('Plan cleared — start fresh', 'info'); } catch {}
   };
   // === Rebuild cadence helpers (May 2026) ===
   // Three flavors of "rebuild" once a plan has been accepted:
@@ -175,10 +303,9 @@ const RegimenBuildView = ({
       tolerance: buildAnswers.tolerance,
       selectedActives: Array.isArray(buildAnswers.actives) ? buildAnswers.actives : [],
       homeDevices: Array.isArray(buildAnswers.devices) ? buildAnswers.devices : (homeDevices || []),
-      experience: buildAnswers.experience || 'medium',
-    });
+      experience: buildAnswers.experience || 'medium'});
     setBuildPlanAccepted(false);
-    toast('Rhythm refreshed — review and accept.', 'info');
+    toast('Routine refreshed — review and accept.', 'info');
   };
   const tweakAnswers = () => {
     if (buildAnswers) applyAnswersToWizardState(buildAnswers);
@@ -262,7 +389,7 @@ const RegimenBuildView = ({
           ...p,
           cadence: undefined,
           useTimes: [],
-        });
+          routineManaged: false});
       }
       const amDays = productAmDays.get(p.id) || new Set();
       const pmDays = productPmDays.get(p.id) || new Set();
@@ -274,10 +401,27 @@ const RegimenBuildView = ({
         ...p,
         cadence: { days: allDays, frequency: allDays.length },
         useTimes: nextUseTimes,
-      });
+        routineManaged: true});
     });
     setProducts(updated);
-    saveData('products', updated);
+    // === T2 FIX (May 2026) ===
+    // Wrap each saveData in its own try/catch so a single
+    // persistence rejection no longer corrupts the rest of the
+    // accept flow (shelf vs today vs answers used to silently
+    // diverge if the middle write failed). Each branch surfaces
+    // the same toast and logs the error.
+    try {
+      const productsResult = saveData('products', updated);
+      if (productsResult && typeof productsResult.catch === 'function') {
+        productsResult.catch(err => {
+          console.warn('[acceptPlan saveData(products) failed]', err);
+          toast("Plan saved — couldn't refresh today's log, try once more", 'error');
+        });
+      }
+    } catch (err) {
+      console.warn('[acceptPlan saveData(products) threw]', err);
+      toast("Plan saved — couldn't refresh today's log, try once more", 'error');
+    }
     // === REFRESH TODAY'S REGIMENLOG FROM NEW PLAN (May 2026) ===
     // Symptom Jenni reported: rebuilding via Refine updated the
     // shelf cadence but Home cover kept showing the OLD products
@@ -306,8 +450,7 @@ const RegimenBuildView = ({
             amDone: (existingLog.amDone || []).filter(id => todayAmIds.includes(id)),
             pmDone: (existingLog.pmDone || []).filter(id => todayPmIds.includes(id)),
             amSkipped: (existingLog.amSkipped || []).filter(id => todayAmIds.includes(id)),
-            pmSkipped: (existingLog.pmSkipped || []).filter(id => todayPmIds.includes(id)),
-          }
+            pmSkipped: (existingLog.pmSkipped || []).filter(id => todayPmIds.includes(id))}
         : {
             id: Date.now(),
             date: todayKey,
@@ -318,21 +461,30 @@ const RegimenBuildView = ({
             amExtras: [], pmExtras: [],
             devices: [], sleep: '', supplements: [],
             notes: '',
-            submitted: false,
-          };
+            submitted: false};
       const newRegimenLogs = existingLog
         ? (regimenLogs || []).map(r => r.date === todayKey ? nextLog : r)
         : [nextLog, ...(regimenLogs || [])];
       setRegimenLogs(newRegimenLogs);
-      saveData('regimenLogs', newRegimenLogs).catch(() => {});
+      // T2: surface a toast on regimenLogs persistence failure so
+      // the user knows today's log may be stale even though the
+      // shelf write landed.
+      saveData('regimenLogs', newRegimenLogs).catch(err => {
+        console.warn('[acceptPlan saveData(regimenLogs) failed]', err);
+        toast("Plan saved — couldn't refresh today's log, try once more", 'error');
+      });
     } catch (e) {
       console.warn('[acceptPlan today-log refresh failed]', e);
+      toast("Plan saved — couldn't refresh today's log, try once more", 'error');
     }
     // === Save wizard answers (May 2026 — rebuild cadence) ===
     // Persist the inputs that produced this plan so Refresh (1-tap
     // rebuild) and Tweak (pre-filled wizard) can replay later
     // without re-asking. lastBuiltAt drives the 4-week soft prompt.
     const newAnswers = {
+      // Preserve actionGoal from prior wizard pass so the new Step 1
+      // selection survives accept + future Refresh.
+      actionGoal: (buildAnswers && buildAnswers.actionGoal) || null,
       concerns: Array.isArray(userConcerns) ? userConcerns : [],
       actives: Array.from(buildSelectedActives || []),
       tolerance: buildTolerance,
@@ -341,9 +493,21 @@ const RegimenBuildView = ({
       devices: Array.isArray(homeDevices) ? homeDevices : [],
       lastBuiltAt: new Date().toISOString(),
       buildCount: ((buildAnswers && buildAnswers.buildCount) || 0) + 1,
-    };
+      acceptedPlan: buildPlan};
     setBuildAnswers(newAnswers);
-    saveData('buildAnswers', newAnswers);
+    // T2: same defensive try/catch for buildAnswers persistence.
+    try {
+      const answersResult = saveData('buildAnswers', newAnswers);
+      if (answersResult && typeof answersResult.catch === 'function') {
+        answersResult.catch(err => {
+          console.warn('[acceptPlan saveData(buildAnswers) failed]', err);
+          toast("Plan saved — couldn't refresh today's log, try once more", 'error');
+        });
+      }
+    } catch (err) {
+      console.warn('[acceptPlan saveData(buildAnswers) threw]', err);
+      toast("Plan saved — couldn't refresh today's log, try once more", 'error');
+    }
     // Reset the soft-prompt dismissal — we just built; the
     // nudge shouldn't reappear until the rhythm ages again.
     setBuildRefreshNudgeDismissed(false);
@@ -352,28 +516,59 @@ const RegimenBuildView = ({
     setCoverRoutineRebuildToken(t => t + 1);
   };
   // === Edit handlers (mutate buildPlan in place) ===
-  // Let the user fine-tune the AI's suggestion BEFORE accepting.
-  // The buildPlan state is the source of truth until acceptPlan
-  // commits it to product.cadence + useTimes.
+  // May 2026 refine-commit fix: small tweaks (day / slot toggles)
+  // now auto-save AND auto-accept so the change goes live instantly.
+  // Full rebuilds (rebuildFromStart) still require an explicit
+  // "Accept this plan" tap — that boundary remains intact.
+  const persistRefinedPlan = async (nextBuildPlan) => {
+    if (!nextBuildPlan) return;
+    // Bug #4 fix (May 2026): the old impl silently swallowed saveData
+    // failures yet still toasted '✓ Saved' and flipped accepted=true,
+    // misleading the user that a refine landed. Mirror acceptPlan's
+    // structured logging and bail before accepting on failure.
+    const nextAnswers = { ...(buildAnswers || {}), acceptedPlan: nextBuildPlan };
+    setBuildAnswers(nextAnswers);
+    try {
+      await saveData('buildAnswers', nextAnswers);
+    } catch (e) {
+      console.warn('[persistRefinedPlan]', e);
+      try { toast('Refine save failed — try again', 'error'); } catch {}
+      return;
+    }
+    setBuildPlanAccepted(true);
+    try { toast('✓ Saved', 'success'); } catch {}
+  };
   const togglePlanDay = (productId, dayIdx) => {
-    setBuildPlan(prev => prev ? {
-      ...prev,
-      slotted: prev.slotted.map(s => {
-        if (s.product.id !== productId) return s;
-        const has = s.days.includes(dayIdx);
-        const days = has ? s.days.filter(d => d !== dayIdx) : [...s.days, dayIdx].sort();
-        return { ...s, days };
-      }),
-    } : prev);
+    setBuildPlan(prev => {
+      if (!prev) return prev;
+      const next = {
+        ...prev,
+        slotted: prev.slotted.map(s => {
+          // Bug #17 fix (May 2026): optional chain on s.product —
+          // malformed plans from older saves can have slots missing
+          // their product reference, which would otherwise throw.
+          if (s.product?.id !== productId) return s;
+          const has = s.days.includes(dayIdx);
+          const days = has ? s.days.filter(d => d !== dayIdx) : [...s.days, dayIdx].sort();
+          return { ...s, days };
+        })};
+      persistRefinedPlan(next);
+      return next;
+    });
   };
   const togglePlanSlot = (productId, slotKey) => {
-    setBuildPlan(prev => prev ? {
-      ...prev,
-      slotted: prev.slotted.map(s => {
-        if (s.product.id !== productId) return s;
-        return { ...s, [slotKey]: !s[slotKey] };
-      }),
-    } : prev);
+    setBuildPlan(prev => {
+      if (!prev) return prev;
+      const next = {
+        ...prev,
+        slotted: prev.slotted.map(s => {
+          // Bug #17 fix (May 2026): optional chain on s.product.
+          if (s.product?.id !== productId) return s;
+          return { ...s, [slotKey]: !s[slotKey] };
+        })};
+      persistRefinedPlan(next);
+      return next;
+    });
   };
   const tolOptions = [
     { id: 'cautious', label: 'Cautious', sub: 'Start low and slow' },
@@ -385,6 +580,44 @@ const RegimenBuildView = ({
   );
   return (
     <div className="space-y-4">
+      {/* === ROUTINE PREVIEW SUMMONERS (May 30 2026 per Jenni) ===
+          Persistent button at the top of the Build/Refine page so the
+          final routine is always one tap away without cluttering the
+          page itself. Banner below appears for ~7s when buildPlan
+          changes from a refinement, with a "view routine" CTA. */}
+      {buildPlan && (
+        <div className="flex items-center justify-between gap-3 rounded-[12px] border px-3.5 py-2.5" style={{ background: 'var(--cream-deep)', borderColor: 'var(--line)' }}>
+          <div className="min-w-0">
+            <div className="text-[9.5px] tracking-[0.24em] uppercase" style={{ color: 'var(--ink-soft)', fontWeight: 700 }}>Current plan</div>
+            <div className="text-[11.5px] mt-0.5 truncate" style={{ color: 'var(--ink)' }}>{buildPlan.slotted && buildPlan.slotted.length ? `${buildPlan.slotted.length} product${buildPlan.slotted.length === 1 ? '' : 's'} scheduled` : 'Basics-only plan'}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRoutinePreviewOpen(true)}
+            className="text-[9.5px] tracking-[0.2em] uppercase px-3 py-2 rounded-full whitespace-nowrap flex-shrink-0 transition"
+            style={{ background: 'var(--ink)', color: 'var(--cream)', fontWeight: 700 }}
+          >
+            See full routine →
+          </button>
+        </div>
+      )}
+      {planJustUpdated && buildPlan && (
+        <div className="flex items-center justify-between gap-3 rounded-[12px] px-3.5 py-2.5" style={{ background: 'rgba(199,231,245,0.42)', border: '1px solid rgba(47,111,136,0.32)' }}>
+          <div className="min-w-0 flex items-center gap-2">
+            <Icon name="Check" size={12} style={{ color: 'var(--accent-sage-dark)' }} />
+            <span className="text-[11.5px]" style={{ color: 'var(--ink)' }}>Plan updated.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setRoutinePreviewOpen(true); setPlanJustUpdated(false); }}
+            className="text-[9.5px] tracking-[0.2em] uppercase whitespace-nowrap flex-shrink-0"
+            style={{ color: 'var(--accent-sage-dark)', fontWeight: 700 }}
+          >
+            View routine →
+          </button>
+        </div>
+      )}
+
       {/* === HERO ===
           First-time copy ("Build your week" + wizard pitch) only
           appears when the user has nothing built yet. Post-build
@@ -396,11 +629,11 @@ const RegimenBuildView = ({
           <div className="text-[9.5px] tracking-[0.32em] uppercase mb-1.5" style={{color:'var(--ink-soft)'}}>Build</div>
           <h2 className="text-[26px] leading-[1.05] mb-1" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.022em'}}>Shape your weekly routine.</h2>
           <p className="text-[12.5px] leading-relaxed max-w-[520px]" style={{color:'var(--ink-soft)'}}>
-            Tell Étude what you're working on, the actives you want to use, your patience, your budget — and we'll lay out a cadence that respects how your skin actually responds.
+            Tell Frida what you're working on, the actives you want to use, your patience, your budget — and we'll lay out a cadence that respects how your skin actually responds.
           </p>
           {!buildPlan && buildMode === 'guided' && (
             <div className="mt-3 flex items-center gap-1.5">
-              {[1,2,3,4,5,6].map(n => (
+              {Array.from({ length: finalBuildStep }, (_, i) => i + 1).map(n => (
                 <div key={n} className="h-[3px] flex-1 rounded-full" style={{background: n <= buildStep ? 'var(--accent)' : 'var(--line)'}} />
               ))}
             </div>
@@ -424,18 +657,22 @@ const RegimenBuildView = ({
                full ProfileModal wizard behind it.
             3. Fresh Start — prominent CTA with confirmation.
           Pre-build users keep the wizard (block below). */}
-      {!buildPlan && buildMode === 'choose' && userHasBuiltPattern(products) && (() => {
+      {userHasBuiltPattern(products) && (buildPlanAccepted || !buildPlan) && (() => {
         const quickRefinements = [
-          { id: 'irritation', label: 'Reduce Irritation', icon: 'Leaf',     prompt: 'My skin is irritated and I want to dial back. What in my current routine could be triggering it, and what would you swap or pause?' },
-          { id: 'glow',       label: 'Increase Glow',     icon: 'Sparkles', prompt: 'I want more glow. Where can I tighten my current routine to push radiance — actives, timing, or layering?' },
-          { id: 'recovery',   label: 'Add Recovery',      icon: 'Moon',     prompt: 'I need more recovery nights. Look at my rotation and suggest where to space actives further apart or add barrier-only evenings.' },
-          { id: 'barrier',    label: 'Strengthen Barrier',icon: 'Shield',   prompt: 'My barrier feels compromised. Audit my routine and propose changes to reinforce ceramides, lipids, and reduce barrier stressors.' },
-          { id: 'simplify',   label: 'Simplify Routine',  icon: 'Minus',    prompt: 'My routine feels heavy. What can I remove or consolidate without losing the effects I care about?' },
-          { id: 'travel',     label: 'Prepare for Travel',icon: 'Plane',    prompt: 'I am traveling soon. Propose a pared-down version of my routine that holds the line — what stays, what goes, what changes about cadence.' },
-          // Moved from Section 2 Evolve (May 2026 v2 per Jenni) — climate
-          // was always an AI-prompt sheet, not a profile update. Living in
-          // Quick Refinements matches its actual shape.
-          { id: 'climate',    label: 'Climate / Season',  icon: 'Sun',      prompt: 'My climate or season has shifted. Walk me through how to adjust my routine — hydration, occlusives, SPF intensity, actives — for the change.' },
+          { id: 'hydration',  label: 'Hydration',         icon: 'Droplets', prompt: 'My skin feels dry or dehydrated. Refine my current routine for more hydration without making it heavy.' },
+          { id: 'barrier',    label: 'Barrier',           icon: 'Shield',   prompt: 'My barrier feels compromised. Audit my routine and propose changes to reinforce ceramides, lipids, and reduce barrier stressors.' },
+          { id: 'irritation', label: 'Redness',           icon: 'Leaf',     prompt: 'My skin is irritated, red, or reactive. What should I pause, space out, or swap in my current routine?' },
+          { id: 'acne',       label: 'Acne',              icon: 'Target',   prompt: 'I am breaking out. Refine my routine for acne control without over-stripping my barrier.' },
+          { id: 'pigment',    label: 'Pigment',           icon: 'Sun',      prompt: 'I want to focus on hyperpigmentation and dark marks. Refine my routine for pigment support and SPF discipline.' },
+          { id: 'texture',    label: 'Texture',           icon: 'Sparkles', prompt: 'My texture feels uneven. Refine my active cadence for smoother skin without stacking too much irritation.' },
+          { id: 'simplify',   label: 'Simplify',          icon: 'Minus',    prompt: 'My routine feels heavy. What can I remove or consolidate without losing the effects I care about?' },
+        ];
+        const planRows = [
+          { id: 'travel', icon: 'Plane', title: 'Trip / travel week', sub: 'Pack-light routine, climate shift, fewer steps', prompt: 'I am traveling soon. Build a temporary week from my current routine: what to pack, what to pause, and how cadence should change.' },
+          { id: 'event', icon: 'CalendarHeart', title: 'Event prep', sub: 'Wedding, shoot, date, presentation, photos', prompt: 'I have an event coming up. Build a temporary prep week from my current routine that favors calm, glow, and low risk.' },
+          { id: 'sick', icon: 'Thermometer', title: 'Sick / low-energy week', sub: 'Minimum viable routine while recovering', prompt: 'I am sick or low-energy. Build the simplest temporary routine that protects my skin while I recover.' },
+          { id: 'routine-change', icon: 'RefreshCw', title: 'Routine change', sub: 'New schedule, gym, sleep, work, climate', prompt: 'My daily routine changed. Adapt my current skincare week to the new schedule without rebuilding everything from scratch.' },
+          { id: 'procedure-plan', icon: 'Sparkles', title: 'Procedure recovery', sub: 'Peel, facial, microneedling, laser', prompt: 'I have a procedure or recovery window. Build a temporary week that avoids irritation and supports repair.' },
         ];
         const openRefineSheet = (intent) => {
           setRefineIntent(intent);
@@ -447,8 +684,7 @@ const RegimenBuildView = ({
             icon: 'Plus',
             title: 'Add a product',
             sub: 'Introduce a new product to your routine',
-            onClick: () => { setEditingProductId(null); setProductForm(null); setShowProductModal(true); },
-          },
+            onClick: () => { setEditingProductId(null); setProductForm(null); setShowProductModal(true); }},
           {
             id: 'add-device',
             icon: 'Cpu',
@@ -459,8 +695,7 @@ const RegimenBuildView = ({
             // etc.) or chooses Custom to free-type. Each picker
             // option pre-fills ProductModal with the device name
             // + device tag + manual entry mode.
-            onClick: () => setAddDeviceSheet(true),
-          },
+            onClick: () => setAddDeviceSheet(true)},
           {
             id: 'add-rx',
             icon: 'FileText',
@@ -469,8 +704,7 @@ const RegimenBuildView = ({
             // Curated Rx picker (May 2026 per Jenni): tretinoin,
             // spironolactone, accutane, etc. Custom routes to
             // manual ProductModal entry with prescription tag.
-            onClick: () => setAddRxSheet(true),
-          },
+            onClick: () => setAddRxSheet(true)},
           {
             id: 'add-procedure',
             icon: 'Sparkles',
@@ -483,8 +717,7 @@ const RegimenBuildView = ({
               // this closes that gap (Jenni, May 2026).
               if (typeof setEditingProcedureId === 'function') setEditingProcedureId(null);
               if (typeof setShowProcedureModal === 'function') setShowProcedureModal(true);
-            },
-          },
+            }},
           {
             // === CONSOLIDATED PROFILE TILE (May 2026 v2 per Jenni) ===
             // Replaces three deep-link tiles (Update goals → step 3,
@@ -499,8 +732,7 @@ const RegimenBuildView = ({
             icon: 'UserCog',
             title: 'Update your skin profile',
             sub: 'Goals, sensitivity, conditions — change anytime',
-            onClick: () => { setProfileWizardStep(0); setShowProfileModal(true); },
-          },
+            onClick: () => { setProfileWizardStep(0); setShowProfileModal(true); }},
         ];
         return (
           <div className="space-y-5">
@@ -533,8 +765,7 @@ const RegimenBuildView = ({
               className="rounded-[16px] px-5 py-4"
               style={{
                 background: 'linear-gradient(135deg, rgba(192, 95, 60, 0.12) 0%, rgba(192, 95, 60, 0.04) 100%)',
-                border: '1px solid rgba(192, 95, 60, 0.22)',
-              }}
+                border: '1px solid rgba(192, 95, 60, 0.22)'}}
             >
               <div className="flex items-center gap-4">
                 <span className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center" style={{background:'rgba(192, 95, 60, 0.16)', border:'1px solid rgba(192, 95, 60, 0.22)'}}>
@@ -560,12 +791,52 @@ const RegimenBuildView = ({
               </p>
             </section>
 
+            {missingBasics.length > 0 && (
+              <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+                <div className="text-[9px] tracking-[0.32em] uppercase mb-1.5" style={{color:'var(--accent)', fontWeight:600}}>Basics gap</div>
+                <p className="text-[12.5px] mb-4" style={{color:'var(--ink)', fontWeight:500}}>
+                  Add these later after you buy them. We’ll keep planning around what’s actually on your shelf.
+                </p>
+                <div className="space-y-2">
+                  {missingBasics.map(row => (
+                    <div key={row.id} className="rounded-[12px] px-3.5 py-3" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <div className="flex items-center gap-2">
+                          <Icon name="AlertCircle" size={13} style={{color:'var(--accent)'}} />
+                          <span className="text-[12.5px]" style={{color:'var(--ink)', fontWeight:600}}>{row.label} missing</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setEditingProductId(null); setProductForm({ category: row.label }); setShowProductModal(true); }}
+                          className="text-[10px] tracking-[0.18em] uppercase transition hover:opacity-70"
+                          style={{color:'var(--accent)', fontWeight:600, cursor:'pointer'}}
+                        >
+                          Add when bought
+                        </button>
+                      </div>
+                      <div className="space-y-1">
+                        {(BASIC_RECOMMENDATIONS[row.id] || []).map(rec => (
+                          <div key={`${row.id}-${rec.brand}-${rec.name}`} className="flex items-baseline justify-between gap-3 text-[11px]">
+                            <span className="min-w-0">
+                              <span style={{color:'var(--ink)', fontWeight:600}}>{rec.brand}</span>
+                              <span style={{color:'var(--ink-soft)'}}> {rec.name} · {rec.note}</span>
+                            </span>
+                            <span className="flex-shrink-0 tracking-[0.16em]" style={{color:'var(--accent)', fontWeight:700}}>{priceMarks(rec.priceLevel)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* === QUICK REFINEMENTS ===
                 Single-row horizontal scroll on BOTH mobile and desktop
                 (May 2026 per Jenni). 7 intents fit one row; users scroll
                 horizontally rather than wrapping to multiple rows. Tile
                 width is fixed (~108px) so spacing reads consistent. */}
-            <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+            <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
               <div className="text-[9px] tracking-[0.32em] uppercase mb-1.5" style={{color:'var(--accent)', fontWeight:600}}>Quick Refinements</div>
               <p className="text-[12.5px] mb-4" style={{color:'var(--ink)', fontWeight:500}}>Small changes. Stronger results.</p>
               <div
@@ -577,13 +848,12 @@ const RegimenBuildView = ({
                     key={qr.id}
                     type="button"
                     onClick={() => openRefineSheet(qr)}
-                    className="flex-shrink-0 rounded-[12px] px-2.5 py-3.5 flex flex-col items-center justify-between gap-2 transition hover:bg-[var(--cream)] hover:border-[var(--accent-soft)]"
-                    style={{background:'var(--cream)', border:'1px solid var(--line)', cursor:'pointer', minHeight:118, width:108, scrollSnapAlign:'start'}}
+                    className="flex-shrink-0 rounded-[10px] px-2 py-2.5 flex flex-col items-center justify-center gap-1.5 transition hover:bg-[var(--cream)] hover:border-[var(--accent-soft)]"
+                    style={{background:'var(--cream)', border: '1px solid var(--line)', cursor:'pointer', minHeight:82, width:82, scrollSnapAlign:'start'}}
                     title={qr.label}
                   >
-                    <Icon name={qr.icon} size={18} style={{color:'var(--ink-soft)'}} />
-                    <div className="text-[10.5px] leading-tight text-center" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.005em'}}>{qr.label}</div>
-                    <Icon name="ArrowRight" size={10} style={{color:'var(--ink-soft)'}} />
+                    <Icon name={qr.icon} size={15} style={{color:'var(--ink-soft)'}} />
+                    <div className="text-[9.5px] leading-tight text-center" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.005em'}}>{qr.label}</div>
                   </button>
                 ))}
               </div>
@@ -599,14 +869,14 @@ const RegimenBuildView = ({
                 </button>
               </div>
               {refineMoreOptions && (
-                <div className="mt-3 pt-3 border-t text-[11.5px] leading-snug" style={{borderColor:'var(--line)', color:'var(--ink-soft)'}}>
+                <div className="mt-3 pt-3 border-t text-[11.5px] leading-snug" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>
                   More intents land here — tone up acid days, reset retinol pace, switch to fragrance-free, prep for a procedure. Tell us what you want next and we'll add it.
                 </div>
               )}
             </section>
 
             {/* === EVOLVE YOUR ROUTINE === */}
-            <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+            <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
               <div className="text-[9px] tracking-[0.32em] uppercase mb-1.5" style={{color:'var(--accent)', fontWeight:600}}>Evolve Your Routine</div>
               <p className="text-[12.5px] mb-4" style={{color:'var(--ink)', fontWeight:500}}>Add new tools, update inputs, and adjust your regimen.</p>
               <div className="space-y-1">
@@ -616,9 +886,35 @@ const RegimenBuildView = ({
                     type="button"
                     onClick={row.onClick}
                     className="w-full text-left rounded-[12px] px-4 py-3.5 flex items-center gap-3 transition hover:bg-[var(--cream)]"
-                    style={{background:'var(--cream)', border:'1px solid var(--line)', cursor:'pointer'}}
+                    style={{background:'var(--cream)', border: '1px solid var(--line)', cursor:'pointer'}}
                   >
-                    <span className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+                    <span className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+                      <Icon name={row.icon} size={14} style={{color:'var(--ink-soft)'}} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] leading-tight" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.01em'}}>{row.title}</span>
+                      <span className="block text-[11px] mt-0.5 leading-snug" style={{color:'var(--ink-soft)'}}>{row.sub}</span>
+                    </span>
+                    <Icon name="ChevronRight" size={14} style={{color:'var(--ink-soft)', flexShrink:0}} />
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* === PLAN FOR SOMETHING === */}
+            <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+              <div className="text-[9px] tracking-[0.32em] uppercase mb-1.5" style={{color:'var(--accent)', fontWeight:600}}>Plan for something</div>
+              <p className="text-[12.5px] mb-4" style={{color:'var(--ink)', fontWeight:500}}>Temporary weeks for real life, without wrecking your standing routine.</p>
+              <div className="space-y-1">
+                {planRows.map(row => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => openRefineSheet({ id: row.id, label: row.title, icon: row.icon, prompt: row.prompt })}
+                    className="w-full text-left rounded-[12px] px-4 py-3.5 flex items-center gap-3 transition hover:bg-[var(--cream)]"
+                    style={{background:'var(--cream)', border: '1px solid var(--line)', cursor:'pointer'}}
+                  >
+                    <span className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
                       <Icon name={row.icon} size={14} style={{color:'var(--ink-soft)'}} />
                     </span>
                     <span className="min-w-0 flex-1">
@@ -651,7 +947,7 @@ const RegimenBuildView = ({
         });
         return (
           <section className="space-y-3">
-            <div className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+            <div className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
               <div className="flex items-baseline justify-between gap-3 mb-1.5">
                 <div className="text-[9px] tracking-[0.32em] uppercase" style={{color:'var(--accent)', fontWeight:600}}>Your routine</div>
                 {lastBuiltLabel && (
@@ -673,10 +969,10 @@ const RegimenBuildView = ({
               {showRefreshNudge && !buildRefreshNudgeDismissed && (
                 <div
                   className="mb-3 rounded-[12px] px-3 py-2.5 flex items-center justify-between gap-3"
-                  style={{background:'var(--cream)', border:'1px solid var(--line)'}}
+                  style={{background:'var(--cream)', border: '1px solid var(--line)'}}
                 >
                   <p className="text-[11px] leading-tight" style={{color:'var(--ink)'}}>
-                    Rhythm is {lastBuiltLabel}. Worth a look — skin shifts.
+                    Routine is {lastBuiltLabel}. Worth a look — skin shifts.
                   </p>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button
@@ -772,13 +1068,13 @@ const RegimenBuildView = ({
                   return 'Daily';
                 };
                 return (
-                  <div className="mt-3 pt-3 border-t" style={{borderColor:'var(--line)'}}>
+                  <div className="mt-3 pt-3 border-t" style={{borderColor: 'var(--line)'}}>
                     <div className="flex items-baseline justify-between mb-2">
                       <div className="text-[9px] tracking-[0.26em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>Week at a glance</div>
                       <button
                         type="button"
                         onClick={() => setRegimenView('occasions')}
-                        className="text-[9px] tracking-[0.18em] uppercase italic transition hover:opacity-70"
+                        className="text-[9px] tracking-[0.18em] uppercase transition hover:opacity-70"
                         style={{color:'var(--ink-soft)', cursor:'pointer'}}
                       >
                         View rotation →
@@ -804,8 +1100,7 @@ const RegimenBuildView = ({
                                 background: isSelected ? 'var(--accent)' : (isToday ? 'var(--cream)' : 'transparent'),
                                 color: isSelected ? 'var(--cream)' : 'var(--ink)',
                                 border: '1px solid ' + (isSelected || isToday ? 'var(--accent)' : 'var(--line)'),
-                                fontWeight: 600,
-                              }}
+                                fontWeight: 600}}
                             >{letter}</span>
                             <span
                               className="w-1 h-1 rounded-full"
@@ -821,7 +1116,7 @@ const RegimenBuildView = ({
                       const focusLbl = focusForDay(persistentSummaryDay);
                       const isTodaySelected = persistentSummaryDay === todayDow;
                       return (
-                        <div className="mt-2 rounded-[12px] px-3 py-2.5" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
+                        <div className="mt-2 rounded-[12px] px-3 py-2.5" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
                           <div className="flex items-baseline justify-between mb-1.5">
                             <div>
                               <span className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>{dayLongLabels[persistentSummaryDay]}{isTodaySelected ? ' · today' : ''}</span>
@@ -840,7 +1135,7 @@ const RegimenBuildView = ({
                                 <Icon name="Sun" size={9} /> AM
                               </div>
                               {am.length === 0 ? (
-                                <div className="text-[10.5px] italic" style={{color:'var(--ink-soft)', opacity:0.6}}>—</div>
+                                <div className="text-[10.5px]" style={{color:'var(--ink-soft)', opacity:0.6}}>—</div>
                               ) : am.map(p => (
                                 <div key={p.id} className="text-[11px] leading-tight mb-0.5 truncate" style={{color:'var(--ink)', fontWeight:500}}>{p.name}</div>
                               ))}
@@ -850,7 +1145,7 @@ const RegimenBuildView = ({
                                 <Icon name="Moon" size={9} /> PM
                               </div>
                               {pm.length === 0 ? (
-                                <div className="text-[10.5px] italic" style={{color:'var(--ink-soft)', opacity:0.6}}>—</div>
+                                <div className="text-[10.5px]" style={{color:'var(--ink-soft)', opacity:0.6}}>—</div>
                               ) : pm.map(p => (
                                 <div key={p.id} className="text-[11px] leading-tight mb-0.5 truncate" style={{color:'var(--ink)', fontWeight:500}}>{p.name}</div>
                               ))}
@@ -938,7 +1233,7 @@ const RegimenBuildView = ({
                   {buildRebuildSheetOpen && (
                     <div
                       className="rounded-[16px] p-1"
-                      style={{background:'var(--cream)', border:'1px solid var(--line)'}}
+                      style={{background:'var(--cream)', border: '1px solid var(--line)'}}
                     >
                       <div className="flex items-baseline justify-between px-4 pt-3 pb-2">
                         <div className="text-[9px] tracking-[0.26em] uppercase" style={{color:'var(--accent)', fontWeight:600}}>How to rebuild</div>
@@ -998,14 +1293,13 @@ const RegimenBuildView = ({
                 className="rounded-[18px] p-4 space-y-3"
                 style={{
                   background:'var(--cream)',
-                  border:'1px solid var(--line)',
-                }}
+                  border: '1px solid var(--line)'}}
               >
                 <div className="flex items-center justify-between">
                   <div className="text-[9.5px] tracking-[0.24em] uppercase" style={{color:'var(--accent)', fontWeight:600}}>
                     {buildAddStage === 'chooser' && 'Add a product'}
                     {buildAddStage === 'shelf-pick' && 'From your shelf'}
-                    {buildAddStage === 'propose' && 'Étude suggests'}
+                    {buildAddStage === 'propose' && 'Frida suggests'}
                   </div>
                   <button
                     onClick={() => { setBuildAddSheet(false); setBuildAddStage('chooser'); setBuildAddProposal(null); setBuildAddQueue([]); }}
@@ -1032,14 +1326,14 @@ const RegimenBuildView = ({
                           type="button"
                           onClick={() => { setBuildAddStage('shelf-pick'); }}
                           className="w-full text-left p-3.5 rounded-[12px] transition hover:bg-[var(--cream-deep)]"
-                          style={{background:'var(--cream-deep)', border:'1px solid var(--line)', cursor:'pointer'}}
+                          style={{background:'var(--cream-deep)', border: '1px solid var(--line)', cursor:'pointer'}}
                         >
                           <div className="flex items-baseline justify-between">
                             <span className="text-[13px]" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.01em'}}>From your shelf</span>
                             <span className="text-[9px] tracking-[0.2em] uppercase" style={{color:'var(--accent)', fontWeight:600}}>{unscheduledCount} not in plan</span>
                           </div>
                           <div className="text-[11px] mt-0.5" style={{color:'var(--ink-soft)'}}>
-                            Activate something you already own. Étude will suggest a cadence.
+                            Activate something you already own. Frida will suggest a cadence.
                           </div>
                         </button>
                       )}
@@ -1054,7 +1348,7 @@ const RegimenBuildView = ({
                           setShowProductModal(true);
                         }}
                         className="w-full text-left p-3.5 rounded-[12px] transition hover:bg-[var(--cream-deep)]"
-                        style={{background:'var(--cream-deep)', border:'1px solid var(--line)', cursor:'pointer'}}
+                        style={{background:'var(--cream-deep)', border: '1px solid var(--line)', cursor:'pointer'}}
                       >
                         <div className="text-[13px]" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.01em'}}>New product</div>
                         <div className="text-[11px] mt-0.5" style={{color:'var(--ink-soft)'}}>
@@ -1095,7 +1389,7 @@ const RegimenBuildView = ({
                               setBuildAddStage('propose');
                             }}
                             className="w-full p-3 rounded-[12px] border text-left transition hover:bg-[var(--cream-deep)] flex items-center gap-3"
-                            style={{borderColor:'var(--line)', background:'var(--cream-deep)', cursor:'pointer'}}
+                            style={{borderColor: 'var(--line)', background:'var(--cream-deep)', cursor:'pointer'}}
                             type="button"
                           >
                             <div className="flex-1 min-w-0">
@@ -1155,7 +1449,7 @@ const RegimenBuildView = ({
           summary above takes the entry surface and the mode
           picker is hidden. */}
       {!buildPlan && buildMode === 'choose' && !userHasBuiltPattern(products) && (
-        <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+        <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
           <div className="text-[9px] tracking-[0.32em] uppercase mb-2" style={{color:'var(--accent)', fontWeight:600}}>Step 1</div>
           <h3 className="text-[16px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.012em'}}>How do you want to build?</h3>
           <p className="text-[11.5px] mb-3" style={{color:'var(--ink-soft)'}}>Either path ends at the same weekly plan — pick whichever fits.</p>
@@ -1163,9 +1457,9 @@ const RegimenBuildView = ({
             <button
               onClick={() => { setBuildMode('guided'); setBuildStep(1); }}
               className="w-full text-left rounded-[12px] px-4 py-3 transition flex items-start gap-3"
-              style={{background:'var(--cream)', border:'1px solid var(--line)', cursor:'pointer'}}
+              style={{background:'var(--cream)', border: '1px solid var(--line)', cursor:'pointer'}}
             >
-              <span className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5" style={{background:'var(--cream-deep)', color:'var(--accent)', border:'1px solid var(--line)'}}>
+              <span className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5" style={{background:'var(--cream-deep)', color:'var(--accent)', border: '1px solid var(--line)'}}>
                 <Icon name="Sparkles" size={13} />
               </span>
               <div className="flex-1 min-w-0">
@@ -1176,9 +1470,9 @@ const RegimenBuildView = ({
             <button
               onClick={() => { setBuildMode('expert'); }}
               className="w-full text-left rounded-[12px] px-4 py-3 transition flex items-start gap-3"
-              style={{background:'var(--cream)', border:'1px solid var(--line)', cursor:'pointer'}}
+              style={{background:'var(--cream)', border: '1px solid var(--line)', cursor:'pointer'}}
             >
-              <span className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5" style={{background:'var(--cream-deep)', color:'var(--accent)', border:'1px solid var(--line)'}}>
+              <span className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5" style={{background:'var(--cream-deep)', color:'var(--accent)', border: '1px solid var(--line)'}}>
                 <Icon name="Calendar" size={13} />
               </span>
               <div className="flex-1 min-w-0">
@@ -1232,13 +1526,13 @@ const RegimenBuildView = ({
         };
         return (
           <section className="space-y-3">
-            <div className="rounded-[16px] px-5 py-4" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+            <div className="rounded-[16px] px-5 py-4" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
               <div className="text-[9px] tracking-[0.32em] uppercase mb-1.5" style={{color:'var(--accent)', fontWeight:600}}>Expert mode</div>
               <h3 className="text-[16px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.012em'}}>Set your week, product by product.</h3>
               <p className="text-[11.5px]" style={{color:'var(--ink-soft)'}}>Toggle AM/PM and tap the days you'll use it. Saves as you go.</p>
             </div>
             {activeShelf.length === 0 ? (
-              <div className="rounded-[16px] px-5 py-6 text-center" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+              <div className="rounded-[16px] px-5 py-6 text-center" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
                 <p className="text-[12px]" style={{color:'var(--ink-soft)'}}>No products on your shelf yet. Add some, then come back.</p>
                 <button
                   onClick={() => setShowProductModal(true)}
@@ -1262,7 +1556,7 @@ const RegimenBuildView = ({
                   const dayCodes = days.length === 7 ? 'Daily' : days.length === 0 ? '—' : days.map(d => dayShortLabels[d]).join('·');
                   const slotTag = inAM && inPM ? 'AM · PM' : inAM ? 'AM' : inPM ? 'PM' : '—';
                   return (
-                    <div key={p.id} className="rounded-[12px] overflow-hidden" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
+                    <div key={p.id} className="rounded-[12px] overflow-hidden" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
                       <button
                         type="button"
                         onClick={() => toggleBuildEditExpand(p.id)}
@@ -1280,7 +1574,7 @@ const RegimenBuildView = ({
                         <Icon name="ChevronDown" size={12} style={{color:'var(--ink-soft)', transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition:'transform 0.18s', flexShrink:0}} />
                       </button>
                       {expanded && (
-                        <div className="px-4 pb-3 pt-1 border-t" style={{borderColor:'var(--line)'}}>
+                        <div className="px-4 pb-3 pt-1 border-t" style={{borderColor: 'var(--line)'}}>
                           {/* Single row: AM/PM toggles + day circles */}
                           <div className="flex items-center gap-2 mt-2 flex-wrap">
                             <div className="flex items-center gap-1">
@@ -1292,8 +1586,7 @@ const RegimenBuildView = ({
                                   color: inAM ? 'var(--cream)' : 'var(--ink-soft)',
                                   border: '1px solid ' + (inAM ? 'var(--accent)' : 'var(--line)'),
                                   fontWeight: 600,
-                                  cursor: 'pointer',
-                                }}
+                                  cursor: 'pointer'}}
                               >AM</button>
                               <button
                                 onClick={() => toggleProductSlot(p.id, 'pm')}
@@ -1303,8 +1596,7 @@ const RegimenBuildView = ({
                                   color: inPM ? 'var(--cream)' : 'var(--ink-soft)',
                                   border: '1px solid ' + (inPM ? 'var(--accent)' : 'var(--line)'),
                                   fontWeight: 600,
-                                  cursor: 'pointer',
-                                }}
+                                  cursor: 'pointer'}}
                               >PM</button>
                             </div>
                             <div className="flex gap-1">
@@ -1320,8 +1612,7 @@ const RegimenBuildView = ({
                                       color: on ? 'var(--cream)' : 'var(--ink-soft)',
                                       border: '1px solid ' + (on ? 'var(--accent)' : 'var(--line)'),
                                       fontWeight: 600,
-                                      cursor: 'pointer',
-                                    }}
+                                      cursor: 'pointer'}}
                                   >{dayShortLabels[d]}</button>
                                 );
                               })}
@@ -1339,7 +1630,7 @@ const RegimenBuildView = ({
                 Dashed "Add a product" handles new products via
                 ProductModal. "Pick from shelf · N inactives" only
                 renders when there are shelf items with no specific
-                cadence — opens the shelf-pick sheet so Étude can
+                cadence — opens the shelf-pick sheet so Frida can
                 propose a slot for them. */}
             {activeShelf.length > 0 && !buildAddSheet && (() => {
               // Inactives = active shelf products without a non-default cadence
@@ -1358,7 +1649,7 @@ const RegimenBuildView = ({
                       setShowProductModal(true);
                     }}
                     className="w-full p-3 rounded-[14px] border-2 border-dashed transition flex items-center justify-center gap-2 hover:bg-[var(--cream-deep)]"
-                    style={{borderColor:'var(--accent)', background:'transparent', color:'var(--accent)', cursor:'pointer', fontWeight:600}}
+                    style={{borderColor: 'var(--line)', background:'transparent', color:'var(--accent)', cursor:'pointer', fontWeight:600}}
                     type="button"
                   >
                     <Icon name="Plus" size={14} />
@@ -1369,7 +1660,7 @@ const RegimenBuildView = ({
                       onClick={() => { setBuildAddSheet(true); setBuildAddStage('shelf-pick'); setBuildAddProposal(null); setBuildAddQueue([]); }}
                       className="w-full pill-btn secondary"
                       type="button"
-                      title="Activate a shelf product into your weekly plan — Étude will suggest a cadence"
+                      title="Activate a shelf product into your weekly plan — Frida will suggest a cadence"
                     >
                       <Icon name="Package" size={13} style={{marginRight:6}} />
                       Pick from shelf · {inactivesCount} {inactivesCount === 1 ? 'not in plan' : 'not in plan'}
@@ -1414,10 +1705,54 @@ const RegimenBuildView = ({
           </section>
         );
       })()}
-      {/* === STEP 1: CONCERNS === */}
+      {/* === STEP 1: ACTION GOAL (May 2026 — new first step) ===
+          Single-select primary intent. Anchors the rest of the
+          wizard and lets the generator bias scheduling toward the
+          chosen direction. Persisted on buildAnswers.actionGoal so
+          returning users land pre-selected. */}
       {!buildPlan && buildMode === 'guided' && buildStep === 1 && (
-      <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+      <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
         {stepEyebrow(1)}
+        <h3 className="text-[16px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.012em'}}>Where do you want this to head?</h3>
+        <p className="text-[11.5px] mb-3" style={{color:'var(--ink-soft)'}}>Pick the single direction that matters most. We'll bias the plan that way.</p>
+        <div className="space-y-2">
+          {ACTION_GOALS.map(opt => {
+            const isActive = (buildAnswers && buildAnswers.actionGoal) === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setBuildAnswers({ ...(buildAnswers || {}), actionGoal: opt.id })}
+                className="w-full text-left rounded-[12px] px-4 py-3 transition flex items-start gap-3"
+                style={{
+                  background: 'var(--cream)',
+                  border: '1px solid ' + (isActive ? 'var(--accent)' : 'var(--line)'),
+                  cursor: 'pointer'}}
+                aria-pressed={isActive}
+              >
+                <span
+                  className="flex-shrink-0 w-4 h-4 rounded-full mt-0.5 flex items-center justify-center"
+                  style={{
+                    background: isActive ? 'var(--accent)' : 'transparent',
+                    border: '1px solid ' + (isActive ? 'var(--accent)' : 'var(--line)')}}
+                >
+                  {isActive && <span className="w-1.5 h-1.5 rounded-full" style={{background:'var(--cream)'}} />}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] leading-tight" style={{color:'var(--ink)', fontWeight:isActive?600:500}}>{opt.label}</div>
+                  <div className="text-[11px] mt-0.5" style={{color:'var(--ink-soft)'}}>{opt.sub}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[10.5px] mt-3" style={{color:'var(--ink-soft)'}}>One goal up front keeps the rest of the questions focused.</p>
+      </section>
+      )}
+      {/* === STEP 2: CONCERNS === */}
+      {!buildPlan && buildMode === 'guided' && buildStep === 2 && (
+      <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+        {stepEyebrow(2)}
         <h3 className="text-[16px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.012em'}}>What's bothering you?</h3>
         <p className="text-[11.5px] mb-3" style={{color:'var(--ink-soft)'}}>Pick anything that resonates. We'll skew the plan toward these.</p>
         <div className="flex flex-wrap gap-1.5">
@@ -1434,8 +1769,7 @@ const RegimenBuildView = ({
                   color: isActive ? 'var(--cream)' : 'var(--ink)',
                   border: '1px solid ' + (isActive ? 'var(--accent)' : 'var(--line)'),
                   fontWeight: isActive ? 500 : 400,
-                  cursor: 'pointer',
-                }}
+                  cursor: 'pointer'}}
               >{c}</button>
             );
           })}
@@ -1450,8 +1784,7 @@ const RegimenBuildView = ({
                 color: 'var(--cream)',
                 border: '1px solid var(--accent)',
                 fontWeight: 500,
-                cursor: 'pointer',
-              }}
+                cursor: 'pointer'}}
             >
               {c}
               <Icon name="X" size={9} style={{opacity:0.7}} />
@@ -1488,10 +1821,10 @@ const RegimenBuildView = ({
         </div>
       </section>
       )}
-      {/* === STEP 2: ACTIVES YOU WANT TO USE === */}
-      {!buildPlan && buildMode === 'guided' && buildStep === 2 && (
-      <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
-        {stepEyebrow(2)}
+      {/* === STEP 3: ACTIVES YOU WANT TO USE === */}
+      {!buildPlan && buildMode === 'guided' && buildStep === 3 && (
+      <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+        {stepEyebrow(3)}
         <h3 className="text-[16px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.012em'}}>Actives you want to use.</h3>
         <p className="text-[11.5px] mb-3" style={{color:'var(--ink-soft)'}}>Pick what you actually want in your plan. We'll schedule them around conflicts.</p>
         <div className="flex flex-wrap gap-1.5">
@@ -1507,8 +1840,7 @@ const RegimenBuildView = ({
                   color: isActive ? 'var(--cream)' : 'var(--ink)',
                   border: '1px solid ' + (isActive ? 'var(--accent)' : 'var(--line)'),
                   fontWeight: isActive ? 500 : 400,
-                  cursor: 'pointer',
-                }}
+                  cursor: 'pointer'}}
               >{a.label}</button>
             );
           })}
@@ -1516,13 +1848,13 @@ const RegimenBuildView = ({
         <p className="text-[10.5px] mt-3" style={{color:'var(--ink-soft)'}}>Skip this and we'll pick for you from your shelf.</p>
       </section>
       )}
-      {/* === STEP 3: TOLERANCE + EXPERIENCE (May 2026 paired) ===
+      {/* === STEP 4: TOLERANCE + EXPERIENCE (May 2026 paired) ===
           Two related questions on one screen: how irritating
           can the plan get, and how many steps. Both inform
           the cap logic in generateBuildPlan. */}
-      {!buildPlan && buildMode === 'guided' && buildStep === 3 && (
-      <section className="rounded-[16px] px-5 py-5 space-y-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
-        {stepEyebrow(3)}
+      {!buildPlan && buildMode === 'guided' && buildStep === 4 && (
+      <section className="rounded-[16px] px-5 py-5 space-y-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+        {stepEyebrow(4)}
         {/* Question 1: Tolerance */}
         <div>
           <h3 className="text-[16px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.012em'}}>Your tolerance for actives.</h3>
@@ -1538,15 +1870,13 @@ const RegimenBuildView = ({
                   style={{
                     background: 'var(--cream)',
                     border: '1px solid ' + (isActive ? 'var(--accent)' : 'var(--line)'),
-                    cursor: 'pointer',
-                  }}
+                    cursor: 'pointer'}}
                 >
                   <span
                     className="flex-shrink-0 w-4 h-4 rounded-full mt-0.5 flex items-center justify-center"
                     style={{
                       background: isActive ? 'var(--accent)' : 'transparent',
-                      border: '1px solid ' + (isActive ? 'var(--accent)' : 'var(--line)'),
-                    }}
+                      border: '1px solid ' + (isActive ? 'var(--accent)' : 'var(--line)')}}
                   >
                     {isActive && <span className="w-1.5 h-1.5 rounded-full" style={{background:'var(--cream)'}} />}
                   </span>
@@ -1582,15 +1912,13 @@ const RegimenBuildView = ({
                   style={{
                     background: 'var(--cream)',
                     border: '1px solid ' + (isActive ? 'var(--accent)' : 'var(--line)'),
-                    cursor: 'pointer',
-                  }}
+                    cursor: 'pointer'}}
                 >
                   <span
                     className="flex-shrink-0 w-4 h-4 rounded-full mt-0.5 flex items-center justify-center"
                     style={{
                       background: isActive ? 'var(--accent)' : 'transparent',
-                      border: '1px solid ' + (isActive ? 'var(--accent)' : 'var(--line)'),
-                    }}
+                      border: '1px solid ' + (isActive ? 'var(--accent)' : 'var(--line)')}}
                   >
                     {isActive && <span className="w-1.5 h-1.5 rounded-full" style={{background:'var(--cream)'}} />}
                   </span>
@@ -1605,10 +1933,10 @@ const RegimenBuildView = ({
         </div>
       </section>
       )}
-      {/* === STEP 4: BUDGET === */}
-      {!buildPlan && buildMode === 'guided' && buildStep === 4 && (
-      <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
-        {stepEyebrow(4)}
+      {/* === STEP 5: BUDGET === */}
+      {!buildPlan && buildMode === 'guided' && buildStep === 5 && (
+      <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+        {stepEyebrow(5)}
         <h3 className="text-[16px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.012em'}}>What's your budget?</h3>
         <p className="text-[11.5px] mb-3" style={{color:'var(--ink-soft)'}}>Shapes which products we'd suggest if your shelf is missing pieces. Doesn't affect what you already own.</p>
         {(() => {
@@ -1630,15 +1958,13 @@ const RegimenBuildView = ({
                     style={{
                       background: 'var(--cream)',
                       border: '1px solid ' + (isActive ? 'var(--accent)' : 'var(--line)'),
-                      cursor: 'pointer',
-                    }}
+                      cursor: 'pointer'}}
                   >
                     <span
                       className="flex-shrink-0 w-4 h-4 rounded-full mt-0.5 flex items-center justify-center"
                       style={{
                         background: isActive ? 'var(--accent)' : 'transparent',
-                        border: '1px solid ' + (isActive ? 'var(--accent)' : 'var(--line)'),
-                      }}
+                        border: '1px solid ' + (isActive ? 'var(--accent)' : 'var(--line)')}}
                     >
                       {isActive && <span className="w-1.5 h-1.5 rounded-full" style={{background:'var(--cream)'}} />}
                     </span>
@@ -1654,13 +1980,13 @@ const RegimenBuildView = ({
         })()}
       </section>
       )}
-      {/* === STEP 5: HOME DEVICES (May 2026 — derm pass) ===
+      {/* === STEP 6: HOME DEVICES (May 2026 — derm pass) ===
           Captures LED masks, microneedling, microcurrent, etc.
           Stored on user.homeDevices. Routine generation will use
           these in a future pass (microneedling = recovery night
           after, LED = daily-safe, etc.). For now: data capture
           only. */}
-      {!buildPlan && buildMode === 'guided' && buildStep === 5 && (() => {
+      {!buildPlan && buildMode === 'guided' && buildStep === 6 && (() => {
         const COMMON_DEVICES = [
           { id: 'led-mask',       label: 'Red light therapy mask',     sub: 'Full-face LED · daily-safe' },
           { id: 'led-eye',        label: 'Red light eye mask',         sub: 'Eye-area LED · daily-safe' },
@@ -1679,8 +2005,8 @@ const RegimenBuildView = ({
           saveData('homeDevices', next);
         };
         return (
-          <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
-            {stepEyebrow(5)}
+          <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+            {stepEyebrow(6)}
             <h3 className="text-[16px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.012em'}}>Any home devices?</h3>
             <p className="text-[11.5px] mb-3" style={{color:'var(--ink-soft)'}}>LED, microneedling, microcurrent, dermaplane — we'll factor them into your week. Skip if none.</p>
             <div className="space-y-1.5">
@@ -1695,16 +2021,14 @@ const RegimenBuildView = ({
                     style={{
                       background: on ? 'var(--cream)' : 'transparent',
                       border: '1px solid ' + (on ? 'var(--accent)' : 'var(--line)'),
-                      cursor: 'pointer',
-                    }}
+                      cursor: 'pointer'}}
                     aria-pressed={on}
                   >
                     <span
                       className="w-4 h-4 rounded-full flex-shrink-0 mt-0.5 flex items-center justify-center transition"
                       style={{
                         background: on ? 'var(--accent)' : 'transparent',
-                        border: '1.5px solid ' + (on ? 'var(--accent)' : 'var(--line)'),
-                      }}
+                        border: '1.5px solid ' + (on ? 'var(--accent)' : 'var(--line)')}}
                     >
                       {on && <Icon name="Check" size={9} style={{color:'var(--cream)'}} />}
                     </span>
@@ -1722,73 +2046,46 @@ const RegimenBuildView = ({
           </section>
         );
       })()}
-      {/* === STEP 6: ANCHOR BASICS CHECK === */}
-      {!buildPlan && buildMode === 'guided' && buildStep === 6 && (
-      <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
-        {stepEyebrow(6)}
-        <h3 className="text-[16px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.012em'}}>The basics, on shelf?</h3>
-        <p className="text-[11.5px] mb-3" style={{color:'var(--ink-soft)'}}>Cleanser, moisturizer, SPF. Without these, no routine is complete.</p>
+      {/* === STEP 7: ANCHOR BASICS CHECK === */}
+      {!buildPlan && buildMode === 'guided' && buildStep === 7 && needsBasicsStep && (
+      <section className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+        {stepEyebrow(7)}
+        <h3 className="text-[16px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.012em'}}>Missing a basic.</h3>
+        <p className="text-[11.5px] mb-3" style={{color:'var(--ink-soft)'}}>We’ll build around what you own now. If you buy one later, come back and add it.</p>
         {(() => {
-          const active = (products || []).filter(p => !p.endDate);
-          const cleansers    = active.filter(p => normalizeProductCategory(p.category) === 'cleanser');
-          const moisturizers = active.filter(p => normalizeProductCategory(p.category) === 'moisturizer');
-          const spfs         = active.filter(p => normalizeProductCategory(p.category) === 'spf');
-          const isOilC = (p) => /\b(oil|balm|butter|melt)\b/i.test(`${p.name || ''} ${p.mainIngredients || ''}`);
-          // Sort cleansers oil/balm first for double-cleanse order display
-          const orderedCleansers = [...cleansers].sort((a, b) => (isOilC(a) ? 0 : 1) - (isOilC(b) ? 0 : 1));
-          // Per-product slot tag — "AM" / "PM" / "AM·PM" — read from useTimes.
-          const slotTag = (p, defaultBoth = true) => {
-            const useTimes = Array.isArray(p.useTimes) ? p.useTimes.map(s => String(s).toUpperCase()) : [];
-            const hasAM = useTimes.includes('AM');
-            const hasPM = useTimes.includes('PM');
-            if (hasAM && hasPM) return 'AM · PM';
-            if (hasAM) return 'AM';
-            if (hasPM) return 'PM';
-            return defaultBoth ? 'AM · PM' : 'AM';
-          };
-          const renderCategory = (label, list, defaultBoth = true, hint = null) => (
-            <div className="rounded-[10px] px-3 py-2.5" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
+          const renderCategory = (row) => (
+            <div className="rounded-[10px] px-3 py-2.5" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
               <div className="flex items-center justify-between gap-3 mb-1">
                 <div className="flex items-center gap-2">
-                  <Icon name={list.length > 0 ? 'Check' : 'X'} size={12} style={{color: list.length > 0 ? 'var(--sage)' : 'var(--rose)'}} />
-                  <span className="text-[12.5px]" style={{color:'var(--ink)', fontWeight:500}}>{label}</span>
-                  {list.length > 1 && (
-                    <span className="text-[9.5px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)', fontWeight:500}}>· {list.length}</span>
-                  )}
+                  <Icon name="AlertCircle" size={12} style={{color:'var(--accent)'}} />
+                  <span className="text-[12.5px]" style={{color:'var(--ink)', fontWeight:600}}>{row.label}</span>
                 </div>
                 <button
-                  onClick={() => setShowProductModal(true)}
+                  type="button"
+                  onClick={() => { setEditingProductId(null); setProductForm({ category: row.label }); setShowProductModal(true); }}
                   className="text-[10px] tracking-[0.18em] uppercase flex-shrink-0 hover:opacity-80"
                   style={{color:'var(--accent)', fontWeight:600, cursor:'pointer'}}
-                >+ Add</button>
+                >Add later</button>
               </div>
-              {/* List of each product in this category, with its AM/PM tag */}
-              {list.length > 0 ? (
-                <div className="space-y-0.5 pl-[18px]">
-                  {list.map((p, i) => (
-                    <div key={p.id} className="flex items-center justify-between gap-3 text-[11px]">
-                      <span className="truncate" style={{color:'var(--ink-soft)'}}>
-                        {list.length > 1 && label === 'Cleanser' && isOilC(p) && <span style={{color:'var(--accent)'}}>· step 1 </span>}
-                        {list.length > 1 && label === 'Cleanser' && !isOilC(p) && i > 0 && <span style={{color:'var(--accent)'}}>· step 2 </span>}
-                        {p.name}
-                      </span>
-                      <span className="text-[9.5px] tracking-[0.18em] uppercase flex-shrink-0" style={{color:'var(--ink-soft)', fontWeight:600}}>{slotTag(p, defaultBoth)}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-[10.5px] pl-[18px]" style={{color:'var(--rose)'}}>None yet — add one.</div>
-              )}
-              {hint && list.length > 1 && (
-                <div className="text-[10px] pl-[18px] mt-1.5" style={{color:'var(--ink-soft)'}}>{hint}</div>
-              )}
+              <div className="space-y-1 pl-[18px] pt-1">
+                {(BASIC_RECOMMENDATIONS[row.id] || []).map(rec => (
+                  <div key={`${row.id}-${rec.brand}-${rec.name}`} className="flex items-baseline justify-between gap-3 text-[11px]">
+                    <span className="min-w-0">
+                      <span style={{color:'var(--ink)', fontWeight:600}}>{rec.brand}</span>
+                      <span style={{color:'var(--ink-soft)'}}> {rec.name} · {rec.note}</span>
+                    </span>
+                    <span className="text-[9.5px] tracking-[0.16em] uppercase flex-shrink-0" style={{color:'var(--accent)', fontWeight:700}}>{priceMarks(rec.priceLevel)}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] pl-[18px] mt-2" style={{color:'var(--ink-soft)'}}>
+                Buy whenever; add it here when it’s physically on your shelf.
+              </p>
             </div>
           );
           return (
             <div className="space-y-1.5">
-              {renderCategory('Cleanser', orderedCleansers, true, 'Two cleansers PM = double-cleanse. Oil first, foam/cream second.')}
-              {renderCategory('Moisturizer', moisturizers, true, 'Tip: light AM, rich PM works for most.')}
-              {renderCategory('SPF', spfs, false, null)}
+              {missingBasics.map(renderCategory)}
             </div>
           );
         })()}
@@ -1815,7 +2112,7 @@ const RegimenBuildView = ({
               type="button"
               style={{minWidth:'180px'}}
             >
-              {buildStep === 6 ? (
+              {buildStep === finalBuildStep ? (
                 <>
                   <Icon name="Sparkles" size={14} style={{marginRight:6}} />
                   Shape my routine
@@ -1830,7 +2127,7 @@ const RegimenBuildView = ({
           </section>
           {/* Skip-to-build link — always available except on
               the final step (where Continue IS the build). */}
-          {buildStep < 6 && (
+          {buildStep < finalBuildStep && (
             <div className="flex justify-center pt-1">
               <button
                 type="button"
@@ -1854,10 +2151,10 @@ const RegimenBuildView = ({
           actions. Rebuild routes back to Step 1 with selections
           preserved (state isn't cleared), so the user can edit
           one piece without re-doing the whole wizard. */}
-      {buildPlan && (
+      {buildPlan && !buildPlanAccepted && (
         <section className="space-y-4">
           {/* Selections summary — only what was picked */}
-          <div className="rounded-[16px] px-5 py-4" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+          <div className="rounded-[16px] px-5 py-4" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
             <div className="text-[9px] tracking-[0.32em] uppercase mb-3" style={{color:'var(--ink-soft)', fontWeight:600}}>Your inputs</div>
             <div className="space-y-2">
               {/* Concerns */}
@@ -1887,14 +2184,14 @@ const RegimenBuildView = ({
             </div>
           </div>
           {/* Plan output */}
-          <div className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border:'1px solid var(--line)'}}>
+          <div className="rounded-[16px] px-5 py-5" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
             <div className="flex items-baseline justify-between mb-3">
               <div>
                 <div className="text-[9px] tracking-[0.32em] uppercase mb-1" style={{color:'var(--accent)', fontWeight:600}}>Your weekly plan</div>
                 <h3 className="text-[20px] leading-tight" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.012em'}}>Your week.</h3>
               </div>
               {buildPlanAccepted && (
-                <div className="text-[9.5px] tracking-[0.22em] uppercase px-2 py-1 rounded-full" style={{background:'var(--sage)', color:'var(--cream)', fontWeight:600}}>Accepted</div>
+                <div className="text-[9.5px] tracking-[0.22em] uppercase px-2 py-1 rounded-full" style={{background:'var(--accent-blue)', color:'var(--ink)', fontWeight:600}}>Accepted</div>
               )}
             </div>
             {/* === WEEK AT A GLANCE (May 2026 redesign per Jenni) ===
@@ -1947,7 +2244,7 @@ const RegimenBuildView = ({
                 return { am, pm };
               };
               return (
-                <div className="mb-4 pb-4 border-b" style={{borderColor:'var(--line)'}}>
+                <div className="mb-4 pb-4 border-b" style={{borderColor: 'var(--line)'}}>
                   <div className="text-[9px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--ink-soft)', fontWeight:600}}>Week at a glance</div>
                   <div className="grid grid-cols-7 gap-1">
                     {dayLetters.map((letter, d) => {
@@ -1969,8 +2266,7 @@ const RegimenBuildView = ({
                               background: isSelected ? 'var(--accent)' : (isToday ? 'var(--cream)' : 'transparent'),
                               color: isSelected ? 'var(--cream)' : 'var(--ink)',
                               border: '1px solid ' + (isSelected || isToday ? 'var(--accent)' : 'var(--line)'),
-                              fontWeight: 600,
-                            }}
+                              fontWeight: 600}}
                           >{letter}</span>
                           <span className="text-[8px] tracking-[0.04em] uppercase leading-tight text-center" style={{color: hasActive ? 'var(--accent)' : 'var(--ink-soft)', opacity: hasActive ? 0.8 : 0.5, fontWeight:500, minHeight:'9px'}}>
                             {focus === 'Daily' ? '·' : focus}
@@ -1983,7 +2279,7 @@ const RegimenBuildView = ({
                     const { am, pm } = productsForDay(postAcceptDay);
                     const focusLbl = getDayFocusLocal(postAcceptDay);
                     return (
-                      <div className="mt-2 rounded-[12px] px-3 py-2.5" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
+                      <div className="mt-2 rounded-[12px] px-3 py-2.5" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
                         <div className="flex items-baseline justify-between mb-1.5">
                           <div>
                             <span className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>{dayFullLabels[postAcceptDay]}{postAcceptDay === todayDow ? ' · today' : ''}</span>
@@ -2037,7 +2333,7 @@ const RegimenBuildView = ({
                   const dayCodes = s.days.length === 7 ? 'Daily' : s.days.length === 0 ? '—' : s.days.map(d => dayShortLabels[d]).join('·');
                   const slotTag = s.am && s.pm ? 'AM · PM' : s.am ? 'AM' : s.pm ? 'PM' : '—';
                   return (
-                    <div key={i} className="rounded-[12px] overflow-hidden" style={{background:'var(--cream)', border:'1px solid var(--line)'}}>
+                    <div key={i} className="rounded-[12px] overflow-hidden" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
                       <button
                         type="button"
                         onClick={() => buildPlanAccepted ? null : toggleBuildEditExpand(s.product.id)}
@@ -2064,7 +2360,7 @@ const RegimenBuildView = ({
                         // row header, no need to repeat them.
                         const rationale = (s.explanation || '').split(/\s—\s/).slice(1).join(' — ') || s.explanation || '';
                         return (
-                          <div className="px-4 pb-3 pt-1 border-t" style={{borderColor:'var(--line)'}}>
+                          <div className="px-4 pb-3 pt-1 border-t" style={{borderColor: 'var(--line)'}}>
                             {/* One row: AM/PM toggles + day circles */}
                             <div className="flex items-center gap-2 mt-2 flex-wrap">
                               <div className="flex items-center gap-1">
@@ -2076,8 +2372,7 @@ const RegimenBuildView = ({
                                     color: s.am ? 'var(--cream)' : 'var(--ink-soft)',
                                     border: '1px solid ' + (s.am ? 'var(--accent)' : 'var(--line)'),
                                     fontWeight: 600,
-                                    cursor: 'pointer',
-                                  }}
+                                    cursor: 'pointer'}}
                                 >AM</button>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); togglePlanSlot(s.product.id, 'pm'); }}
@@ -2087,8 +2382,7 @@ const RegimenBuildView = ({
                                     color: s.pm ? 'var(--cream)' : 'var(--ink-soft)',
                                     border: '1px solid ' + (s.pm ? 'var(--accent)' : 'var(--line)'),
                                     fontWeight: 600,
-                                    cursor: 'pointer',
-                                  }}
+                                    cursor: 'pointer'}}
                                 >PM</button>
                               </div>
                               <div className="flex gap-1">
@@ -2104,8 +2398,7 @@ const RegimenBuildView = ({
                                         color: on ? 'var(--cream)' : 'var(--ink-soft)',
                                         border: '1px solid ' + (on ? 'var(--accent)' : 'var(--line)'),
                                         fontWeight: 600,
-                                        cursor: 'pointer',
-                                      }}
+                                        cursor: 'pointer'}}
                                     >{dayShortLabels[d]}</button>
                                   );
                                 })}
@@ -2125,36 +2418,92 @@ const RegimenBuildView = ({
             ) : (
               <p className="text-[12px] mb-4" style={{color:'var(--ink-soft)'}}>No actives on your shelf yet — your basics are still scheduled. Add a few products and rebuild.</p>
             )}
+            {/* === ADVISORIES (May 2026 — clinical pass) ===
+                Soft user-facing notes from generateBuildPlan: cycle-aware
+                retinoid sting, tolerance auto-preset, under-18 protocol,
+                post-menopausal guidance. Distinct from the hard skipped
+                list below and from missing-basics — these don't change
+                scheduling, they just keep the user informed. */}
+            {buildPlan.advisories && buildPlan.advisories.length > 0 && (
+              <div className="rounded-[12px] border p-3 mb-3" style={{ background: 'var(--surface-info)', borderColor: 'rgba(47,111,136,0.32)' }}>
+                <div className="text-[9px] tracking-[0.28em] uppercase mb-1.5" style={{ color: 'var(--accent-sage-dark)', fontWeight: 700 }}>Notes</div>
+                {buildPlan.advisories.map((a, i) => (
+                  <div key={i} className="text-[11.5px] leading-snug mb-1" style={{ color: 'var(--ink)' }}>
+                    <strong style={{ color: 'var(--accent-sage-dark)' }}>{(a.kind || '').toUpperCase().replace(/-/g, ' ')}:</strong> {a.message}
+                  </div>
+                ))}
+              </div>
+            )}
             {buildPlan.missingBasics.length > 0 && (
               <p className="text-[11.5px] mb-3 px-3 py-2 rounded-[10px]" style={{background:'rgba(201,138,138,0.08)', color:'var(--rose)', border:'1px solid rgba(201,138,138,0.28)'}}>
                 <Icon name="AlertCircle" size={10} style={{marginRight:4, verticalAlign:'middle'}} />
                 Missing from shelf: {buildPlan.missingBasics.join(', ')}. The plan still works — add these for a complete routine.
               </p>
             )}
-            {!buildPlanAccepted && (
+            {/* === SKIPPED (May 2026 — safety filters) ===
+                Products dropped from the plan by the safety filters
+                (pregnancy, fragrance sensitivity, Rx conflict). Quiet
+                muted card so the user sees why a product they own
+                didn't make it in. */}
+            {Array.isArray(buildPlan.skipped) && buildPlan.skipped.length > 0 && (
+              <div className="text-[11px] mb-3 px-3 py-2 rounded-[10px]" style={{background:'var(--cream)', color:'var(--ink-soft)', border:'1px solid var(--line)'}}>
+                <div className="text-[9px] tracking-[0.24em] uppercase mb-1" style={{color:'var(--ink-soft)', fontWeight:700}}>Skipped from your plan</div>
+                <ul className="space-y-0.5">
+                  {buildPlan.skipped.map((s, i) => (
+                    <li key={`skipped-${i}`} className="leading-snug">
+                      <span style={{color:'var(--ink)', fontWeight:600}}>{s.productName || 'Product'}</span>
+                      <span> — {s.reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {/* === PLAN COMMIT (Wave 11, May 30 2026 — Pattern C) ===
+                Was: ad-hoc Accept/Refine button cluster + bespoke
+                "Plan accepted" confirm card. Now: shared
+                <PlanCommitStrip /> primitive that Build, Procedure
+                briefing, Event prep, and SkinLog will all adopt for
+                a unified commit grammar. The "See full routine"
+                affordance moves below the strip as a quiet link so
+                the strip stays generic across surfaces. */}
+            {!buildPlanAccepted && buildPlan.slotted.length > 0 && (
+              <PlanCommitStrip
+                state="draft"
+                onAccept={acceptPlan}
+                onDiscard={rebuildFromStart}
+                acceptLabel="Accept this plan"
+                discardLabel="Start over"
+              />
+            )}
+            {!buildPlanAccepted && buildPlan.slotted.length === 0 && (
               <div className="flex gap-2">
-                {buildPlan.slotted.length > 0 && (
-                  <button
-                    onClick={acceptPlan}
-                    className="flex-1 pill-btn primary"
-                    type="button"
-                  >
-                    <Icon name="Check" size={14} style={{marginRight:6}} />
-                    Accept this plan
-                  </button>
-                )}
                 <button
                   onClick={rebuildFromStart}
                   className="flex-1 pill-btn secondary"
                   type="button"
                 >
                   <Icon name="RotateCcw" size={14} style={{marginRight:6}} />
-                  Refine
+                  Start over
                 </button>
               </div>
             )}
             {buildPlanAccepted && (
               <div className="space-y-3">
+                <PlanCommitStrip
+                  state="accepted"
+                  statusLabel="Plan accepted"
+                />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setRoutinePreviewOpen(true)}
+                    className="text-[9.5px] tracking-[0.2em] uppercase whitespace-nowrap"
+                    style={{ color: 'var(--accent-sage-dark)', fontWeight: 700 }}
+                  >
+                    See full routine →
+                  </button>
+                </div>
+
                 {/* Cadence-saved caption + duplicate week strip +
                     See today / See your week buttons retired May
                     2026 per Jenni — the Week at a glance above
@@ -2192,7 +2541,7 @@ const RegimenBuildView = ({
                         className="w-full pill-btn secondary"
                         type="button"
                         title={inactivesCount > 0
-                          ? 'Activate a shelf product — Étude will suggest a cadence'
+                          ? 'Activate a shelf product — Frida will suggest a cadence'
                           : 'Open the shelf picker'}
                       >
                         <Icon name="Plus" size={13} style={{marginRight:6}} />
@@ -2207,15 +2556,14 @@ const RegimenBuildView = ({
                     className="rounded-[18px] p-4 space-y-3"
                     style={{
                       background:'var(--cream)',
-                      border:'1px solid var(--line)',
-                      marginTop:8,
-                    }}
+                      border: '1px solid var(--line)',
+                      marginTop:8}}
                   >
                     {/* Sheet header */}
                     <div className="flex items-center justify-between">
                       <div className="text-[9.5px] tracking-[0.24em] uppercase" style={{color:'var(--accent)', fontWeight:600}}>
                         {buildAddStage === 'shelf-pick' && 'From your shelf'}
-                        {buildAddStage === 'propose' && 'Étude suggests'}
+                        {buildAddStage === 'propose' && 'Frida suggests'}
                       </div>
                       <button
                         onClick={() => { setBuildAddSheet(false); setBuildAddStage('chooser'); setBuildAddProposal(null); setBuildAddQueue([]); }}
@@ -2257,7 +2605,7 @@ const RegimenBuildView = ({
                                   setBuildAddStage('propose');
                                 }}
                                 className="w-full p-3 rounded-[12px] border text-left transition hover:bg-[var(--cream-deep)] flex items-center gap-3"
-                                style={{borderColor:'var(--line)', background:'var(--cream-deep)', cursor:'pointer'}}
+                                style={{borderColor: 'var(--line)', background:'var(--cream-deep)', cursor:'pointer'}}
                                 type="button"
                               >
                                 <div className="flex-1 min-w-0">
@@ -2312,6 +2660,93 @@ const RegimenBuildView = ({
           </div>
         </section>
       )}
+
+      {/* === ROUTINE PREVIEW MODAL ===
+          Renders the full plan grouped into AM + PM lists. Each row
+          shows the product, the days-of-week cadence as small day
+          pills, and the explanation. Read-only — edits still happen
+          on the Build page itself. */}
+      {routinePreviewOpen && buildPlan && (() => {
+        const dayShort = ['S','M','T','W','T','F','S'];
+        const slotted = Array.isArray(buildPlan.slotted) ? buildPlan.slotted : [];
+        const amItems = slotted.filter(s => s && s.am);
+        const pmItems = slotted.filter(s => s && s.pm);
+        const RowList = ({ items, label }) => (
+          <div>
+            <div className="text-[9.5px] tracking-[0.28em] uppercase mb-2" style={{ color: 'var(--ink-soft)', fontWeight: 700 }}>{label}</div>
+            {items.length === 0 ? (
+              <p className="text-[12px] mb-3" style={{ color: 'var(--ink-soft)' }}>Nothing scheduled for {label.toLowerCase()} yet.</p>
+            ) : (
+              <div className="space-y-2 mb-3">
+                {items.map((s, i) => {
+                  const cadence = (s.days && s.days.length === 7) ? 'Daily' : (s.days && s.days.length === 0) ? '—' : (s.days || []).map(d => dayShort[d]).join('·');
+                  const rationale = (s.explanation || '').split(/\s—\s/).slice(1).join(' — ') || s.explanation || '';
+                  return (
+                    <div key={(s.product && s.product.id) + '-' + label + '-' + i} className="rounded-[10px] border p-3" style={{ background: 'var(--cream-deep)', borderColor: 'var(--line)' }}>
+                      <div className="text-[12.5px] leading-tight" style={{ color: 'var(--ink)', fontWeight: 600 }}>{s.product && s.product.name}</div>
+                      <div className="flex items-baseline gap-2 mt-1">
+                        <span className="text-[9.5px] tracking-[0.18em] uppercase" style={{ color: 'var(--accent)', fontWeight: 700 }}>{cadence}</span>
+                        <div className="flex gap-0.5">
+                          {[0,1,2,3,4,5,6].map(d => {
+                            const on = s.days && s.days.includes(d);
+                            return (
+                              <span key={d} className="w-4 h-4 rounded-full text-[8px] flex items-center justify-center" style={{ background: on ? 'var(--accent)' : 'transparent', color: on ? 'var(--cream)' : 'var(--ink-soft)', border: '1px solid ' + (on ? 'var(--accent)' : 'var(--line)'), fontWeight: 700 }}>{dayShort[d]}</span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      {rationale && <div className="text-[10.5px] mt-1.5 leading-snug" style={{ color: 'var(--ink-soft)' }}>{rationale}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+        return (
+          <Modal
+            eyebrow="Routine"
+            title="Your full week"
+            onClose={() => setRoutinePreviewOpen(false)}
+          >
+            <div className="p-4 md:p-6">
+              <p className="text-[11.5px] mb-4 leading-snug" style={{ color: 'var(--ink-soft)' }}>
+                {buildPlanAccepted ? 'Your accepted plan.' : 'Preview before accepting. Tweak any row on the Build page.'}
+              </p>
+              <div className="space-y-4">
+                <RowList items={amItems} label="AM" />
+                <RowList items={pmItems} label="PM" />
+              </div>
+              {buildPlan.missingBasics && buildPlan.missingBasics.length > 0 && (
+                <div className="mt-4 px-3 py-2 rounded-[10px] text-[11px] leading-snug" style={{ background: 'rgba(201,138,138,0.08)', color: 'var(--rose)', border: '1px solid rgba(201,138,138,0.28)' }}>
+                  <strong>Missing from shelf:</strong> {buildPlan.missingBasics.join(', ')}. The plan still works — add these for a complete routine.
+                </div>
+              )}
+              {/* === T3 FIX (May 2026) ===
+                  Safety-net pill for any unsaved tweak the user made
+                  inside the preview. After Agent A's auto-save day
+                  toggles SHOULD commit instantly, but if a code path
+                  ever bypasses persistRefinedPlan the user still gets
+                  a visible cue to Accept on the Build page. */}
+              {!buildPlanAccepted && buildPlan && Array.isArray(buildPlan.slotted) && buildPlan.slotted.length > 0 && (
+                <div className="text-[10px] tracking-[0.2em] uppercase mt-3" style={{ color: 'var(--accent)', fontWeight: 700 }}>
+                  Tweaks unsaved — Accept to apply
+                </div>
+              )}
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setRoutinePreviewOpen(false)}
+                  className="text-[10px] tracking-[0.2em] uppercase px-4 py-2 rounded-full"
+                  style={{ background: 'var(--ink)', color: 'var(--cream)', fontWeight: 700 }}
+                >
+                  Back to refine
+                </button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
     </div>
   );
   })();

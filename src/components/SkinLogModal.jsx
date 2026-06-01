@@ -43,8 +43,7 @@ const SkinLogModal = ({
   useModalScrollPreserve,
   toast,
   saveData,
-  callClaude,
-}) => {
+  callClaude}) => {
   const editingLog = editingLogId ? logs.find(l => l.id === editingLogId) : null;
   const isEditingLog = !!editingLog;
   // === HOISTED FORM STATE ===
@@ -64,8 +63,7 @@ const SkinLogModal = ({
     usedProducts: editingLog.usedProducts || [],
     usedTags: editingLog.usedTags || [],
     inlineProc: null,
-    inlineProductStart: null,
-  } : {
+    inlineProductStart: null} : {
     date: localDateISO(),
     area: 'full-face', rating: 5, notes: '', concerns: [], photo: null,
     photoPath: null,
@@ -73,8 +71,7 @@ const SkinLogModal = ({
     usedProducts: [],
     usedTags: [],
     inlineProc: null,
-    inlineProductStart: null,
-  };
+    inlineProductStart: null};
   const form = skinLogFormRef.current || skinLogForm || formSeed;
   const setForm = (updater) => {
     const base = skinLogFormRef.current || skinLogForm || formSeed;
@@ -170,7 +167,7 @@ PRODUCT RECOMMENDATIONS:
 
   // === HASHTAG PARSER ===
   const parseHashtagsFromNotes = (notes, existingTags) => {
-    const found = [...String(notes || '').matchAll(/#([a-zA-Z0-9_\-]{2,})/g)]
+    const found = [...String(notes || '').matchAll(/#([a-zA-Z0-9_\-]{2})/g)]
       .map(m => m[1].toLowerCase());
     const merged = new Set([...(existingTags || []).map(t => String(t).toLowerCase()), ...found]);
     return [...merged];
@@ -193,8 +190,7 @@ PRODUCT RECOMMENDATIONS:
         const enriched = {
           ...safeForm,
           usedTags: mergedTags,
-          ...(photoChanged && getApiKey() ? { aiAnalysis: null, analyzing: true, analyzingStartedAt: Date.now() } : {}),
-        };
+          ...(photoChanged && getApiKey() ? { aiAnalysis: null, analyzing: true, analyzingStartedAt: Date.now() } : {})};
         const updated = logs.map(l => l.id === editingLogId ? { ...l, ...enriched } : l)
           .sort((a, b) => new Date(b.date) - new Date(a.date));
         setLogs(updated);
@@ -205,7 +201,12 @@ PRODUCT RECOMMENDATIONS:
         skinLogFormRef.current = null;
         setSkinLogSuggesting(false);
         setSkinLogShowCamera(false);
-        toast(photoChanged && getApiKey() ? 'Entry updated — re-analyzing photo…' : 'Entry updated');
+        // === T5 FIX (May 2026) ===
+        // Old wording named only the photo re-analysis. The user
+        // also needs to know cross-surface reads (Skin Snapshot,
+        // last7Avg, concern tally) will refresh — "Snapshot
+        // refreshing" surfaces that without listing each surface.
+        toast(photoChanged && getApiKey() ? 'Entry updated — Snapshot refreshing' : 'Entry updated · Snapshot refreshing');
         saveData('logs', updated).catch(e => {
           console.error('[SkinLog] edit saveData failed:', e);
           toast(`Save error: ${e?.message || 'unknown'}`, 'error');
@@ -255,8 +256,23 @@ ${formatUsageForPrompt(usage30)}`;
                 return next;
               });
             } catch (e) {
+              // Bug #9 (May 31 2026): used to only console.warn — user
+              // never knew the re-analysis failed and JournalView had no
+              // breadcrumb to render a retry control. Now: stash error
+              // marker fields on the log so JournalView can find them
+              // (aiAnalysisError + aiAnalysisFailedAt), and toast.
               console.error('Edit re-analysis failed:', e);
-              setLogs(prev => prev.map(l => l.id === editingLogId ? { ...l, analyzing: false } : l));
+              try { toast('Re-analysis failed — tap to retry', 'error'); } catch (_) {}
+              setLogs(prev => {
+                const next = prev.map(l => l.id === editingLogId ? {
+                  ...l,
+                  analyzing: false,
+                  aiAnalysisError: (e && e.message) ? e.message : 'Analysis unavailable',
+                  aiAnalysisFailedAt: Date.now(),
+                } : l);
+                saveData('logs', next);
+                return next;
+              });
             }
           })();
         }
@@ -305,8 +321,7 @@ ${formatUsageForPrompt(usage30)}`;
           daypart: sharedFields.daypart || (new Date().getHours() < 12 ? 'am' : 'pm'),
           aiAnalysis: null,
           analyzing: getApiKey() ? true : false,
-          analyzingStartedAt: getApiKey() ? Date.now() : undefined,
-        }));
+          analyzingStartedAt: getApiKey() ? Date.now() : undefined}));
         updated = [...logs, ...newEntries].sort((a, b) => new Date(b.date) - new Date(a.date));
         toast(`${newEntries.length} entries saved`, 'info');
       } else {
@@ -317,8 +332,7 @@ ${formatUsageForPrompt(usage30)}`;
           daypart: safeForm.daypart || (new Date().getHours() < 12 ? 'am' : 'pm'),
           aiAnalysis: null,
           analyzing: getApiKey() ? true : false,
-          analyzingStartedAt: getApiKey() ? Date.now() : undefined,
-        };
+          analyzingStartedAt: getApiKey() ? Date.now() : undefined};
         delete newLog.photos;
         delete newLog.inlineProc;
         delete newLog.inlineProductStart;
@@ -338,8 +352,7 @@ ${formatUsageForPrompt(usage30)}`;
           date: safeForm.date,
           notes: '',
           beforePhotos: [],
-          afterPhotos: [],
-        };
+          afterPhotos: []};
         const updatedProcs = [...procedures, newProc];
         setProcedures(updatedProcs);
         saveData('procedures', updatedProcs).catch(e => console.error('[SkinLog inline-proc] save failed:', e));
@@ -359,8 +372,7 @@ ${formatUsageForPrompt(usage30)}`;
           mainIngredients: '',
           tags: [],
           concerns: [],
-          notes: '',
-        };
+          notes: ''};
         // products is read-only in this scope; we use the prop to read and
         // the App-scope setter to write. Append at App scope via prop.
         // NB: we don't call setProducts directly here because products is
@@ -392,8 +404,7 @@ ${formatUsageForPrompt(usage30)}`;
         setPostSaveSuggestion({
           date: safeForm.date,
           suggestProcedure,
-          suggestProductStart,
-        });
+          suggestProductStart});
       }
       console.log('[SkinLog] state updated, modal closed; persisting in background', { logsCount: updated.length, newEntryIds: newEntries.map(n => n.id) });
       saveData('logs', updated).catch(e => {
@@ -445,9 +456,10 @@ ${formatUsageForPrompt(usage30)}`;
     // === BACKGROUND AI per-entry analysis ===
     if (getApiKey() && newEntries.length > 0) {
       if (newEntries.length === 1) {
-        toast('Entry saved — analyzing in the background…', 'info');
+        // === T5 FIX (May 2026) === — append the cross-surface cue.
+        toast('Entry saved — analyzing in the background… · Snapshot refreshing', 'info');
       } else {
-        toast(`Analyzing ${newEntries.length} photos in the background…`, 'info');
+        toast(`Analyzing ${newEntries.length} photos in the background… · Snapshot refreshing`, 'info');
       }
       const usage30 = getActualUsage(products, regimenLogs, logs, { windowDays: 30 });
       const recentContext = logs.slice(0, 5).map(l => `${l.date}: ${l.area} ${l.rating}/10 [${l.concerns?.join(',') || ''}]`).join('; ') || 'no prior entries';
@@ -465,7 +477,7 @@ ${formatUsageForPrompt(usage30)}`;
             const hasIrritation = (safeForm.concerns || []).some(c => irritationKws.some(kw => c.toLowerCase().includes(kw)))
               || (safeForm.rating != null && Number(safeForm.rating) <= 5);
             const culpritSection = hasIrritation
-              ? `\n\nIrritation flagged (low rating or redness/breakout-type concern). Examine TODAY'S TAGGED PRODUCTS and the ACTIVELY USED section against the user's known SENSITIVITIES and against common irritant ingredients (fragrance, denatured alcohol, high-strength acids, retinoids if new, physical exfoliants). If a likely culprit exists, name it specifically — quote the exact product name. If nothing plausibly explains it, say so honestly. DO NOT suggest products from the LAPSED or UNUSED sections.`
+              ? `\n\nIrritation flagged (low rating or redness/breakout-type concern). Examine TODAY'S TAGGED PRODUCTS and the ACTIVELY USED section against the user's known SENSITIVITIES and against common irritant ingredients (fragrance, denatured alcohol, high-strength acids, retinoids if new, physical exfoliants). If a product is worth flagging to watch, name it specifically — quote the exact product name. If nothing in the routine plausibly fits, say so honestly. DO NOT suggest products from the LAPSED or UNUSED sections.`
               : '';
             const prompt = `Analyze this skin journal entry. Focus on the AREA shown in this photo specifically.
 
@@ -478,7 +490,7 @@ FORMAT (strict):
 - For [ACTION] bullets ONLY, also append a parseable evidence tag at the END in this exact format: [ev:strong|moderate|emerging:source] where source is one of RCT, observational, mechanism, expert. Example: "- [ACTION] Try azelaic 10% — well-studied for PIH. [ev:strong:RCT]". Skip this tag for [OBSERVE] and [CAUSE] bullets.
 - Be specific and mechanism-anchored. No fluff, no preamble, no signoff.
 
-CONTENT: one pattern OR likely cause, plus one concrete actionable suggestion.${culpritSection}
+CONTENT: one pattern OR one thing worth watching, plus one concrete actionable suggestion.${culpritSection}
 
 CRITICAL CONSTRAINT: only consider products in TODAY'S TAGGED PRODUCTS or in the ACTIVELY USED section. Products in OCCASIONAL/LAPSED/UNUSED are owned but NOT in current routine.
 
@@ -500,7 +512,7 @@ Recent context: ${recentContext}
 USER'S ACTUAL ROUTINE (from check-ins + photo tagging, NOT shelf):
 ${usageBlock}${hasIrritation ? `
 
-If you identify a likely culprit, end the response with: "SUSPECT: <product name> — <one-sentence why>".` : ''}
+If you identify a product worth flagging, end the response with: "WATCH: <product name> — <one-sentence why>".` : ''}
 
 After the bullets, on TWO SEPARATE FINAL LINES (not bullets, no dashes), append:
 METRICS: redness=<Clear|Low|Mild|Moderate|High>, hydration=<Plump|Good|Balanced|Dry|Parched>, texture=<Smooth|Even|Uneven|Rough|Bumpy>, breakouts=<Clear|Few|Some|Many|Severe>
@@ -540,8 +552,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                 metricSnapshot: finalSnapshot,
                 region: inlineRegion || l.region || null,
                 analyzing: false,
-                analyzingStartedAt: undefined,
-              } : l);
+                analyzingStartedAt: undefined} : l);
               saveData('logs', next);
               return next;
             });
@@ -593,13 +604,13 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
               <button
                 type="button"
                 onClick={() => setForm({ ...form, photo: null, photos: null, ratingExplanation: null, suggestedRating: null })}
-                className="text-[9px] tracking-[0.2em] uppercase italic"
+                className="text-[9px] tracking-[0.2em] uppercase"
                 style={{color:'var(--ink-soft)'}}
               >Start over</button>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {form.photos.map((p, idx) => (
-                <div key={idx} className="border rounded-md overflow-hidden" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
+                <div key={idx} className="border rounded-md overflow-hidden" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
                   <div className="relative aspect-square">
                     <img src={p.dataUrl} alt="" className="w-full h-full object-cover" />
                     <button
@@ -609,8 +620,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                         setForm({
                           ...form,
                           photos: next.length > 1 ? next : null,
-                          photo: next.length > 0 ? next[0].dataUrl : null,
-                        });
+                          photo: next.length > 0 ? next[0].dataUrl : null});
                       }}
                       className="absolute top-1 right-1 p-1 rounded-full"
                       style={{background:'rgba(28,25,23,0.85)', color:'var(--cream)'}}
@@ -625,7 +635,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                       setForm({ ...form, photos: next });
                     }}
                     className="w-full px-1.5 py-1 text-[10px] border-0 border-t focus:outline-none"
-                    style={{background:'var(--cream)', color:'var(--ink)', borderColor:'var(--line)'}}
+                    style={{background:'var(--cream)', color:'var(--ink)', borderColor: 'var(--line)'}}
                   >
                     <option value="full-face">Full Face</option>
                     <option value="hairline">Hairline</option>
@@ -640,7 +650,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                 </div>
               ))}
             </div>
-            <p className="text-[9px] tracking-[0.05em] italic" style={{color:'var(--ink-soft)'}}>
+            <p className="text-[9px] tracking-[0.05em]" style={{color:'var(--ink-soft)'}}>
               Saving creates one entry per photo · rating, concerns, notes apply to all
             </p>
           </div>
@@ -653,9 +663,9 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
               </button>
             </div>
             {suggestingRating && !form.ratingExplanation && (
-              <div className="p-2 rounded-md border flex items-center gap-2 pulse-soft" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
+              <div className="p-2 rounded-md border flex items-center gap-2 pulse-soft" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
                 <Icon name="Loader2" size={11} className="spin" />
-                <div className="text-[10px] italic" style={{color:'var(--ink-soft)'}}>Analyzing photo…</div>
+                <div className="text-[10px]" style={{color:'var(--ink-soft)'}}>Analyzing photo…</div>
               </div>
             )}
             {!suggestingRating && !form.ratingExplanation && !getApiKey() && (
@@ -664,13 +674,13 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
               </button>
             )}
             {form.ratingExplanation && (
-              <div className="p-2 rounded-md border" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
+              <div className="p-2 rounded-md border" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
                 <div className="flex items-center justify-between mb-1 flex-wrap gap-1">
                   <span className="text-[9px] tracking-[0.2em] uppercase flex items-center gap-1" style={{color:'var(--ink-soft)'}}>
                     <Icon name="Sparkles" size={10} /> AI · {form.suggestedRating || form.rating}/10
                   </span>
                   {form.suggestedRating && form.rating !== form.suggestedRating && (
-                    <button type="button" onClick={acceptSuggestion} className="text-[9px] tracking-[0.15em] uppercase italic underline" style={{color:'var(--ink)'}}>
+                    <button type="button" onClick={acceptSuggestion} className="text-[9px] tracking-[0.15em] uppercase underline" style={{color:'var(--ink)'}}>
                       Use {form.suggestedRating}/10
                     </button>
                   )}
@@ -694,12 +704,12 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
               type="button"
               onClick={() => { setShowLogModal(false); setShowPhotoImportQueue(true); }}
               className="flex-1 border border-dashed rounded-md py-4 flex flex-col items-center gap-1 transition hover:bg-[var(--cream-deep)]"
-              style={{borderColor:'var(--accent)', color:'var(--accent)'}}
+              style={{borderColor: 'var(--line)', color:'var(--accent)'}}
               title="Upload one or many photos"
             >
               <Icon name="Upload" size={18} />
               <span className="text-[10px] tracking-[0.22em] uppercase">Upload</span>
-              <span className="text-[8.5px] italic tracking-normal lowercase" style={{color:'var(--ink-soft)'}}>one or many</span>
+              <span className="text-[8.5px] tracking-normal lowercase" style={{color:'var(--ink-soft)'}}>one or many</span>
             </button>
             <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
           </div>
@@ -715,8 +725,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                   photo: finalShots[0].dataUrl,
                   photos: finalShots.map(s => ({ dataUrl: s.dataUrl, area: 'full-face' })),
                   ratingExplanation: null,
-                  suggestedRating: null,
-                }));
+                  suggestedRating: null}));
               } else {
                 const url = dataUrl || (finalShots && finalShots[0]?.dataUrl);
                 if (!url) return;
@@ -734,8 +743,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
             display: 'grid',
             gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
             gap: '10px',
-            alignItems: 'end',
-          }}
+            alignItems: 'end'}}
         >
           <div style={{minWidth: 0}}>
             <div
@@ -746,11 +754,10 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                 justifyContent: 'space-between',
                 gap: '4px',
                 marginBottom: '6px',
-                color: 'var(--ink-soft)',
-              }}
+                color: 'var(--ink-soft)'}}
             >
               <span>Day</span>
-              <span className="font-serif italic text-[10px] normal-case tracking-normal truncate" style={{color: form.date === todayKey ? 'var(--ink-soft)' : 'var(--accent)'}}>
+              <span className="font-sans text-[10px] normal-case tracking-normal truncate" style={{color: form.date === todayKey ? 'var(--ink-soft)' : 'var(--accent)'}}>
                 {form.date === todayKey ? 'today' : 'backdated'}
               </span>
             </div>
@@ -773,8 +780,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                 lineHeight: 1,
                 appearance: 'none',
                 WebkitAppearance: 'none',
-                MozAppearance: 'none',
-              }}
+                MozAppearance: 'none'}}
             />
           </div>
           <div style={{minWidth: 0}}>
@@ -791,10 +797,8 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                   color: 'var(--ink-soft)',
                   padding: '0 12px',
                   fontSize: '13px',
-                  fontStyle: 'italic',
                   display: 'flex',
-                  alignItems: 'center',
-                }}
+                  alignItems: 'center'}}
               >Per-photo above</div>
             ) : (
               <select
@@ -811,8 +815,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                   color: 'var(--ink)',
                   padding: '0 12px',
                   fontSize: '13px',
-                  lineHeight: 1,
-                }}
+                  lineHeight: 1}}
               >
                 <option value="full-face">Full Face</option>
                 <option value="hairline">Hairline</option>
@@ -831,7 +834,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
         <div>
           <div className="text-[8px] tracking-[0.2em] uppercase mb-0.5 flex justify-between" style={{color:'var(--ink-soft)'}}>
             <span>Rating · {form.rating}/10</span>
-            <span className="text-[8px] normal-case tracking-normal italic" style={{color:'var(--ink-soft)'}}>rough → glowing</span>
+            <span className="text-[8px] normal-case tracking-normal" style={{color:'var(--ink-soft)'}}>rough → glowing</span>
           </div>
           <input type="range" min="1" max="10" value={form.rating} onChange={e => setForm({ ...form, rating: +e.target.value })} className="w-full" />
         </div>
@@ -858,7 +861,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
           onChange={e => { skinLogFormRef.current = { ...(skinLogFormRef.current || form), notes: e.target.value }; }}
           placeholder="Notes (optional)"
           className="w-full px-2.5 py-1.5 border rounded-md focus:outline-none"
-          style={{borderColor:'var(--line)', background:'var(--cream)', color:'var(--ink)', fontSize:'13px'}}
+          style={{borderColor: 'var(--line)', background:'var(--cream)', color:'var(--ink)', fontSize:'13px'}}
         />
 
         <div className="text-[9px] tracking-[0.2em] uppercase text-center py-1" style={{color: form.photo ? 'var(--accent)' : 'var(--ink-soft)'}}>
@@ -869,7 +872,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
         </button>
 
         {!isEditingLog && (
-          <div className="pt-2 mt-1 border-t space-y-2" style={{borderColor:'var(--line)'}}>
+          <div className="pt-2 mt-1 border-t space-y-2" style={{borderColor: 'var(--line)'}}>
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>Also today</span>
               <button
@@ -879,8 +882,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                 style={{
                   borderColor: form.inlineProc ? 'var(--accent)' : 'var(--line)',
                   background: form.inlineProc ? 'var(--accent)' : 'transparent',
-                  color: form.inlineProc ? 'var(--cream)' : 'var(--ink-soft)',
-                }}
+                  color: form.inlineProc ? 'var(--cream)' : 'var(--ink-soft)'}}
               >
                 {form.inlineProc ? <Icon name="X" size={9} /> : '+'} procedure
               </button>
@@ -891,8 +893,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                 style={{
                   borderColor: form.inlineProductStart ? 'var(--accent)' : 'var(--line)',
                   background: form.inlineProductStart ? 'var(--accent)' : 'transparent',
-                  color: form.inlineProductStart ? 'var(--cream)' : 'var(--ink-soft)',
-                }}
+                  color: form.inlineProductStart ? 'var(--cream)' : 'var(--ink-soft)'}}
               >
                 {form.inlineProductStart ? <Icon name="X" size={9} /> : '+'} new product
               </button>
@@ -904,13 +905,13 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                   onChange={e => { skinLogFormRef.current = { ...(skinLogFormRef.current || form), inlineProc: { ...(skinLogFormRef.current?.inlineProc || form.inlineProc), name: e.target.value } }; }}
                   placeholder="Procedure name"
                   className="px-2 py-1.5 border rounded-md focus:outline-none"
-                  style={{borderColor:'var(--line)', background:'var(--cream)', color:'var(--ink)', fontSize:'13px'}}
+                  style={{borderColor: 'var(--line)', background:'var(--cream)', color:'var(--ink)', fontSize:'13px'}}
                 />
                 <select
                   value={form.inlineProc.type}
                   onChange={e => setForm(f => ({ ...f, inlineProc: { ...f.inlineProc, type: e.target.value } }))}
                   className="px-2 py-1.5 border rounded-md focus:outline-none"
-                  style={{borderColor:'var(--line)', background:'var(--cream)', color:'var(--ink)', fontSize:'13px'}}
+                  style={{borderColor: 'var(--line)', background:'var(--cream)', color:'var(--ink)', fontSize:'13px'}}
                 >
                   <option value="">Type…</option>
                   <option value="laser">Laser</option>
@@ -930,7 +931,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                 onChange={e => { skinLogFormRef.current = { ...(skinLogFormRef.current || form), inlineProductStart: { ...(skinLogFormRef.current?.inlineProductStart || form.inlineProductStart), name: e.target.value } }; }}
                 placeholder="Product name (e.g. Skinceuticals CE Ferulic)"
                 className="w-full px-2 py-1.5 border rounded-md focus:outline-none"
-                style={{borderColor:'var(--line)', background:'var(--cream)', color:'var(--ink)', fontSize:'13px'}}
+                style={{borderColor: 'var(--line)', background:'var(--cream)', color:'var(--ink)', fontSize:'13px'}}
               />
             )}
           </div>

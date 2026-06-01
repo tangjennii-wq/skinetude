@@ -14,10 +14,17 @@
 //   onRegionChange — (index, region) => void. Caller updates state.
 const REGION_OPTS = [
   { id: 'full-face',   label: 'Full face' },
-  { id: 'right-cheek', label: 'R cheek' },
   { id: 'left-cheek',  label: 'L cheek' },
+  { id: 'right-cheek', label: 'R cheek' },
   { id: 't-zone',      label: 'T-zone' },
   { id: 'chin',        label: 'Chin' },
+  { id: 'eye-area',    label: 'Eye area' },
+  { id: 'right-eye',   label: 'R eye' },
+  { id: 'left-eye',    label: 'L eye' },
+  { id: 'neck',        label: 'Neck' },
+  { id: 'back',        label: 'Back' },
+  { id: 'spot',        label: 'Spot' },
+  { id: 'other',       label: 'Other' },
 ];
 const getRegionLabel = (id) => (REGION_OPTS.find(r => r.id === id) || REGION_OPTS[0]).label;
 
@@ -41,7 +48,7 @@ const CheckInPhotoStrip = ({ photos = [], onEdit, regions = [], onRegionChange }
         <div className="text-[9.5px] tracking-[0.28em] uppercase" style={{color:'var(--accent)', fontWeight:600}}>{photoCountLabel}</div>
         {supportsRegions && queueLen > 1 && (
           <div className="text-[9px] tracking-[0.22em] uppercase text-right" style={{color:'var(--muted)', fontWeight:700}}>
-            Tap photo to label
+            Tap to label
           </div>
         )}
       </div>
@@ -61,7 +68,7 @@ const CheckInPhotoStrip = ({ photos = [], onEdit, regions = [], onRegionChange }
                   borderRadius: '50%',
                   overflow: 'hidden',
                   border: `${selected ? 3 : 2}px solid ${selected ? 'var(--accent)' : 'var(--cream)'}`,
-                  boxShadow: selected ? '0 0 0 3px rgba(125,15,60,0.16), 0 6px 16px rgba(0,0,0,0.16)' : '0 1px 3px rgba(0,0,0,0.06)',
+                  boxShadow: selected ? '0 0 0 3px rgba(229,60,45,0.18), 0 6px 16px rgba(0,0,0,0.16)' : '0 1px 3px rgba(0,0,0,0.06)',
                   transform: selected ? 'scale(1.1)' : 'scale(1)',
                   transformOrigin: 'center center',
                   transition: 'transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease',
@@ -71,7 +78,12 @@ const CheckInPhotoStrip = ({ photos = [], onEdit, regions = [], onRegionChange }
                 onClick={supportsRegions ? () => setSelectedPhotoIdx(i) : undefined}
                 title={supportsRegions ? 'Tap to set region' : undefined}
               >
-                <img src={p.dataUrl} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                <Photo
+                  item={p}
+                  src={p.dataUrl || p.photoPath || p.photo}
+                  alt={`Photo ${i + 1}`}
+                  className="w-full h-full object-cover"
+                />
                 {isOverflowSlot && (
                   <span
                     className="absolute inset-0 flex items-center justify-center"
@@ -102,11 +114,11 @@ const CheckInPhotoStrip = ({ photos = [], onEdit, regions = [], onRegionChange }
       {supportsRegions && photos.length > 0 && (
         <div
           className="mt-3 rounded-[14px]"
-          style={{background:'var(--cream-deep)', border:'1px solid var(--line)', padding:'10px 10px 9px'}}
+          style={{background:'var(--cream-deep)', border: '1px solid var(--line)', padding:'10px 10px 9px'}}
         >
           <div className="flex items-center justify-between gap-2 mb-2">
             <span className="text-[9.5px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)', fontWeight:700}}>
-              Photo {selectedIdx + 1} region
+              Photo {selectedIdx + 1}
             </span>
             <span className="text-[11px]" style={{color:'var(--accent)', fontWeight:700}}>{selectedRegionLabel}</span>
           </div>
@@ -136,8 +148,8 @@ const CheckInPhotoStrip = ({ photos = [], onEdit, regions = [], onRegionChange }
       {queueLen > 1 && (
         <p className="text-[10px] mt-2 leading-snug" style={{color:'var(--ink-soft)'}}>
           {queueLen > 5
-            ? 'One rating + note applies to this set. Fine-tune extras in Journal.'
-            : 'One rating + note applies to this set.'}
+            ? 'Same rating + context. Extras can change in Journal.'
+            : 'Same rating + context for this set.'}
         </p>
       )}
     </div>

@@ -9,8 +9,7 @@ const RoutineBuilder = ({ products, logs = [], procedures = [], regimenLogs = []
       'post-menopausal': 'The user is post-menopausal. Estrogen decline drives dryness, dermal thinning, slower wound healing — emphasize barrier support, retinoid for collagen stimulation, ceramide-rich formulations.',
       'androgen-pattern': 'The user has testosterone-pattern skin (higher sebum production, thicker dermis, persistent acne risk along jawline/back). Lean toward lighter textures, salicylic acid for pore congestion, retinoid for collagen and acne.',
       'pregnancy': 'The user is pregnant or breastfeeding. AVOID: retinoids (tretinoin, adapalene, retinol), high-dose salicylic acid (>2%), hydroquinone, oral isotretinoin. Safe: azelaic acid, niacinamide, glycolic/lactic acid (low %), hyaluronic acid, ceramides, mineral sunscreen, vitamin C, low-dose benzoyl peroxide.',
-      'hormone-therapy': 'The user is on hormone therapy. Tailor with awareness that exogenous hormones reshape skin behavior — confirm context (estrogen-direction or testosterone-direction) before specifying further; default to evidence-based stack.',
-    };
+      'hormone-therapy': 'The user is on hormone therapy. Tailor with awareness that exogenous hormones reshape skin behavior — confirm context (estrogen-direction or testosterone-direction) before specifying further; default to evidence-based stack.'};
     return '\n\n' + (map[hormonalContext] || '');
   })();
   const [routine, setRoutine] = useState(null);
@@ -160,8 +159,7 @@ GAPS DETECTED:
   const resolvedRitualForView = resolveTodayRitual({
     products,
     regimenLogs,
-    date: viewKeyForRitual,
-  });
+    date: viewKeyForRitual});
   // Pretty-print the viewed date (Today / Yesterday / Mon, Apr 27 etc.)
   const ritualDateLabel = (() => {
     const [y, m, d] = viewKeyForRitual.split('-').map(Number);
@@ -271,7 +269,7 @@ GAPS DETECTED:
         ? `\nThe user has NO products on their shelf yet. Build the entire 7-day rotation using ONLY category-level "[suggested]" items (e.g. "[suggested] gentle cleanser", "[suggested] vitamin C 10-15%", "[suggested] barrier moisturizer", "[suggested] mineral SPF 30+", "[suggested] retinoid (low-strength to start)"). Every product on every day must be prefixed with "[suggested]". Tailor the rotation to the user concerns listed above. Keep cadence sensible — retinoid 2-3 nights, exfoliation 1-2 nights, recovery night, daily SPF in AM. WHAT TO ADD section must list no more than 5 anchor product categories they should source first.\n`
         : '';
       const sparseInstruction = sparseShelf
-        ? `\nThe user has only ${selected.length} product(s) on their shelf — that's not enough for a full rotation. SUGGEST 2-4 generic product types (no brand) that would round out the week (e.g. "vitamin C serum", "gentle cleanser", "barrier moisturizer"). PREFIX each suggested product with "[suggested]" (literal) so the UI can italicize it as a recommendation, not a real shelf item. Mix suggestions with their existing products across the week.\n`
+        ? `\nThe user has only ${selected.length} product(s) on their shelf — that's not enough for a full rotation. SUGGEST 2-4 generic product types (no brand) that would round out the week (e.g. "vitamin C serum", "gentle cleanser", "barrier moisturizer"). PREFIX each suggested product with "[suggested]" (literal) so the UI can mark it as a recommendation, not a real shelf item. Mix suggestions with their existing products across the week.\n`
         : '';
       const prompt = `Build a 7-day product ROTATION schedule (Mon-Sun) optimizing CADENCE — when to use what, NOT which order to layer. The user owns these products:
 
@@ -427,7 +425,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
   return (
     <div>
       {/* === CONCERNS SELECTOR — collapsible: preview row + edit on expand === */}
-      <div className="mb-5 pb-4 border-b" style={{borderColor:'var(--line)'}}>
+      <div className="mb-5 pb-4 border-b" style={{borderColor: 'var(--line)'}}>
         {/* Preview row — always visible. Shows selected concerns inline + chevron to edit. */}
         <button
           type="button"
@@ -435,8 +433,8 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
           className="w-full flex items-center gap-2 text-left"
         >
           <span className="w-1.5 h-1.5 rounded-full inline-block flex-shrink-0" style={{background:'var(--accent)'}} />
-          <span className="text-[10px] tracking-[0.3em] uppercase flex-shrink-0" style={{color:'var(--ink-soft)'}}>Currently addressing</span>
-          <span className="font-serif italic text-[11px] flex-1 min-w-0 truncate" style={{color: (userConcerns || []).length > 0 ? 'var(--ink)' : 'var(--ink-soft)'}}>
+          <span className="text-[10px] tracking-[0.18em] uppercase flex-shrink-0" style={{color:'var(--ink-soft)', whiteSpace:'nowrap'}}>Currently addressing</span>
+          <span className="font-sans text-[11px] flex-1 min-w-0 truncate" style={{color: (userConcerns || []).length > 0 ? 'var(--ink)' : 'var(--ink-soft)'}}>
             {(userConcerns || []).length > 0
               ? (userConcerns || []).slice(0, 6).join(' · ')
               : 'tap to set concerns'}
@@ -459,7 +457,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                 );
               })}
               {(userConcerns || []).filter(c => !POPULAR_CONCERNS.includes(c)).map(c => (
-                <span key={c} className="inline-flex items-center gap-1 text-[10px] tracking-[0.05em] px-2.5 py-1 border rounded-full" style={{borderColor:'var(--accent)', background:'var(--accent)', color:'var(--cream)'}}>
+                <span key={c} className="inline-flex items-center gap-1 text-[10px] tracking-[0.05em] px-2.5 py-1 border rounded-full" style={{borderColor: 'var(--line)', background:'var(--accent)', color:'var(--cream)'}}>
                   {c}
                   <button onClick={() => toggleUserConcern(c)} className="opacity-70 hover:opacity-100"><Icon name="X" size={9} /></button>
                 </span>
@@ -472,9 +470,9 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomConcern(); } }}
                 placeholder="+ Add a concern not listed (e.g. melasma)"
                 className="flex-1 px-2 py-1 text-[11px] border rounded-sm focus:outline-none"
-                style={{borderColor:'var(--line)', background:'var(--cream)', color:'var(--ink)'}}
+                style={{borderColor: 'var(--line)', background:'var(--cream)', color:'var(--ink)'}}
               />
-              <button onClick={addCustomConcern} disabled={!customConcernInput.trim()} className="px-2 text-[9px] tracking-[0.15em] uppercase border disabled:opacity-40" style={{borderColor:'var(--line)', color:'var(--ink-soft)'}}>Add</button>
+              <button onClick={addCustomConcern} disabled={!customConcernInput.trim()} className="px-2 text-[9px] tracking-[0.15em] uppercase border disabled:opacity-40" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>Add</button>
             </div>
           </div>
         )}
@@ -507,7 +505,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                 onClick={() => setExpandedRoutineKey(expanded ? null : `${p.slot}-${p.n}`)}
                 className="w-full flex items-baseline gap-3 px-4 py-3 text-left transition hover:bg-[var(--cream-deep)]"
               >
-                <span className="font-serif italic text-[14px] flex-shrink-0" style={{color:'var(--ink-soft)', minWidth:'18px'}}>{p.n}</span>
+                <span className="font-sans text-[14px] flex-shrink-0" style={{color:'var(--ink-soft)', minWidth:'18px'}}>{p.n}</span>
                 <span className="flex-1 min-w-0">
                   <span className="text-[13px]" style={{color:'var(--ink)'}}>{p.step}</span>
                 </span>
@@ -515,15 +513,15 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
               </button>
               {expanded && (
                 <div className="px-4 pb-3 -mt-1 space-y-2">
-                  <p className="text-[11.5px] italic leading-relaxed" style={{color:'var(--ink-soft)'}}>{p.why}</p>
+                  <p className="text-[11.5px] leading-relaxed" style={{color:'var(--ink-soft)'}}>{p.why}</p>
                   <div className="grid grid-cols-2 gap-2 mt-2">
-                    <div className="rounded-[10px] border px-3 py-2" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
+                    <div className="rounded-[10px] border px-3 py-2" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
                       <div className="text-[8.5px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)'}}>$ Budget</div>
-                      <div className="text-[11.5px] mt-0.5 font-serif italic leading-tight" style={{color:'var(--ink)'}}>{p.budget}</div>
+                      <div className="text-[11.5px] mt-0.5 font-sans leading-tight" style={{color:'var(--ink)'}}>{p.budget}</div>
                     </div>
-                    <div className="rounded-[10px] border px-3 py-2" style={{borderColor:'var(--accent)', background:'var(--accent-soft)'}}>
+                    <div className="rounded-[10px] border px-3 py-2" style={{borderColor: 'var(--line)', background:'var(--accent-soft)'}}>
                       <div className="text-[8.5px] tracking-[0.18em] uppercase" style={{color:'var(--accent)'}}>$$ Mid-range</div>
-                      <div className="text-[11.5px] mt-0.5 font-serif italic leading-tight" style={{color:'var(--ink)'}}>{p.mid}</div>
+                      <div className="text-[11.5px] mt-0.5 font-sans leading-tight" style={{color:'var(--ink)'}}>{p.mid}</div>
                     </div>
                   </div>
                 </div>
@@ -532,14 +530,14 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
           );
         };
         return (
-          <div className="border" style={{background:'var(--cream)', borderColor:'var(--line)'}}>
-            <div className="px-4 py-3 border-b text-center" style={{borderColor:'var(--line)', background:'var(--cream-deep)'}}>
+          <div className="border" style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
+            <div className="px-4 py-3 border-b text-center" style={{borderColor: 'var(--line)', background:'var(--cream-deep)'}}>
               <div className="flex items-center justify-center gap-2 mb-1">
                 <Icon name="Sparkles" size={12} style={{color:'var(--accent)'}} />
                 <span className="text-[10px] tracking-[0.25em] uppercase" style={{color:'var(--accent)'}}>Starter routine</span>
               </div>
-              <h3 className="font-serif italic text-[18px] mb-1" style={{color:'var(--ink)'}}>AAD-aligned starting point</h3>
-              <p className="text-[11px] italic leading-relaxed max-w-md mx-auto" style={{color:'var(--ink-soft)'}}>
+              <h3 className="font-sans text-[18px] mb-1" style={{color:'var(--ink)'}}>AAD-aligned starting point</h3>
+              <p className="text-[11px] leading-relaxed max-w-md mx-auto" style={{color:'var(--ink-soft)'}}>
                 Tap any step for a $ budget pick + a $$ mid-range pick.
               </p>
             </div>
@@ -548,16 +546,16 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
               <span className="text-[10px] tracking-[0.22em] uppercase">Morning</span>
             </div>
             <div>{am.map((p, i) => renderStep(p, i))}</div>
-            <div className="px-4 pt-4 pb-1 flex items-center gap-1.5 border-t" style={{color:'var(--ink-soft)', borderColor:'var(--line)'}}>
+            <div className="px-4 pt-4 pb-1 flex items-center gap-1.5 border-t" style={{color:'var(--ink-soft)', borderColor: 'var(--line)'}}>
               <Icon name="Moon" size={11} style={{color:'var(--accent)'}} />
               <span className="text-[10px] tracking-[0.22em] uppercase">Evening</span>
             </div>
             <div>{pm.map((p, i) => renderStep(p, i))}</div>
-            <div className="px-4 py-4 border-t flex flex-col sm:flex-row gap-2 justify-center" style={{borderColor:'var(--line)', background:'var(--cream-deep)'}}>
+            <div className="px-4 py-4 border-t flex flex-col sm:flex-row gap-2 justify-center" style={{borderColor: 'var(--line)', background:'var(--cream-deep)'}}>
               <button onClick={() => setShowProductModal(true)} className="px-4 py-2 tracking-[0.2em] text-[10px] uppercase transition" style={{background:'var(--ink)', color:'var(--cream)'}}>
                 <Icon name="Plus" size={11} className="inline mr-1" /> Add my products
               </button>
-              <button onClick={generateStarterRoutine} disabled={loading} className="px-4 py-2 tracking-[0.2em] text-[10px] uppercase italic border transition disabled:opacity-50 flex items-center gap-1.5 justify-center" style={{borderColor:'var(--line)', color:'var(--ink)'}}>
+              <button onClick={generateStarterRoutine} disabled={loading} className="px-4 py-2 tracking-[0.2em] text-[10px] uppercase border transition disabled:opacity-50 flex items-center gap-1.5 justify-center" style={{borderColor: 'var(--line)', color:'var(--ink)'}}>
                 {loading ? <><Icon name="Loader2" size={11} className="spin" /> Building</> : <><Icon name="Sparkles" size={11} /> AI personalize</>}
               </button>
             </div>
@@ -571,13 +569,13 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
       {showRotationBuilder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4" style={{background:'rgba(28,25,23,0.5)', backdropFilter:'blur(4px)'}} onClick={() => setShowRotationBuilder(false)}>
           <div onClick={e => e.stopPropagation()} className="rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl" style={{background:'var(--cream)'}}>
-            <div className="sticky top-0 border-b px-4 py-2.5 flex justify-between items-center z-10" style={{background:'var(--cream)', borderColor:'var(--line)'}}>
-              <h2 className="font-serif italic text-[18px] md:text-[19px] leading-[1.1] tracking-tight" style={{color:'var(--ink)'}}>Build weekly rotation</h2>
+            <div className="sticky top-0 border-b px-4 py-2.5 flex justify-between items-center z-10" style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
+              <h2 className="font-sans text-[18px] md:text-[19px] leading-[1.1] tracking-tight" style={{color:'var(--ink)'}}>Build weekly rotation</h2>
               <button onClick={() => setShowRotationBuilder(false)} style={{color:'var(--ink-soft)'}}><Icon name="X" size={16} /></button>
             </div>
             <div className="px-4 py-3 space-y-3">
               {/* Concerns — read-only summary linking back to top-of-Ritual */}
-              <div className="border p-2.5" style={{borderColor:'var(--line)', background:'var(--cream)'}}>
+              <div className="border p-2.5" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
                 <div className="text-[8px] tracking-[0.25em] uppercase mb-1" style={{color:'var(--ink-soft)'}}>Targeting</div>
                 {(userConcerns || []).length > 0 ? (
                   <div className="flex flex-wrap gap-1">
@@ -586,7 +584,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                     ))}
                   </div>
                 ) : (
-                  <p className="text-[10px] italic" style={{color:'var(--ink-soft)'}}>No concerns selected. Edit the row at the top of Regimen to set what AI should target.</p>
+                  <p className="text-[10px]" style={{color:'var(--ink-soft)'}}>No concerns selected. Edit the row at the top of Regimen to set what AI should target.</p>
                 )}
               </div>
 
@@ -594,7 +592,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
               <div>
                 <div className="text-[9px] tracking-[0.25em] uppercase mb-1.5 flex items-center justify-between" style={{color:'var(--ink-soft)'}}>
                   <span>Products</span>
-                  <span className="text-[8px] normal-case tracking-normal italic" style={{color:'var(--accent)'}}>{rotationSelectedProductIds.length}/{activeProducts.length} selected</span>
+                  <span className="text-[8px] normal-case tracking-normal" style={{color:'var(--accent)'}}>{rotationSelectedProductIds.length}/{activeProducts.length} selected</span>
                 </div>
                 <div className="space-y-0.5 max-h-48 overflow-y-auto">
                   {activeProducts.map(p => {
@@ -656,7 +654,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
           {/* Date navigator — ◀ Date label ▶. Forward arrow disabled when viewing today.
               Pretty label switches: Today / Yesterday / Mon, Apr 27 etc. Tap label to
               jump back to today when not currently viewing it. */}
-          <div className="text-[9px] md:text-[10px] tracking-[0.3em] uppercase border-b pb-2 mb-3 flex items-center justify-between gap-2" style={{color:'var(--ink-soft)', borderColor:'var(--line)'}}>
+          <div className="text-[9px] md:text-[10px] tracking-[0.3em] uppercase border-b pb-2 mb-3 flex items-center justify-between gap-2" style={{color:'var(--ink-soft)', borderColor: 'var(--line)'}}>
             <button
               onClick={() => stepRitualDate(-1)}
               className="p-1 transition hover:opacity-60"
@@ -693,9 +691,9 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
               tighter spacing for a denser, editorial read. */}
           <div className="grid md:grid-cols-2 gap-3 md:gap-4">
             {/* === YOUR ROUTINE === */}
-            <div className="border rounded-[14px] px-3.5 py-3.5 md:px-4 md:py-4" style={{background:'var(--cream)', borderColor:'var(--line)'}}>
+            <div className="border rounded-[14px] px-3.5 py-3.5 md:px-4 md:py-4" style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
               <div className="flex items-baseline justify-between mb-3 gap-2 flex-wrap">
-                <h3 className="font-serif text-base md:text-lg italic leading-tight" style={{color:'var(--ink)'}}>
+                <h3 className="font-sans text-base md:text-lg leading-tight" style={{color:'var(--ink)'}}>
                   {isViewingToday ? 'Your routine' : (submittedRitualLog ? 'Logged that day' : 'Not logged')}
                 </h3>
                 <div className="flex items-baseline gap-2.5">
@@ -704,7 +702,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                   {isViewingToday && setShowCheckInModal && (
                     <button
                       onClick={() => setShowCheckInModal(true)}
-                      className="text-[9px] tracking-[0.18em] uppercase italic flex items-center gap-1 transition hover:opacity-70"
+                      className="text-[9px] tracking-[0.18em] uppercase flex items-center gap-1 transition hover:opacity-70"
                       style={{color:'var(--ink)'}}
                       title="Edit today"
                     >
@@ -715,11 +713,11 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
               </div>
               {/* Past day with NO submitted check-in — show clear empty state instead of pretending intended routine was used */}
               {!isViewingToday && !submittedRitualLog ? (
-                <p className="text-[12px] font-light italic" style={{color:'var(--ink-soft)'}}>
+                <p className="text-[12px] font-light" style={{color:'var(--ink-soft)'}}>
                   No regimen check-in recorded for {ritualDateLabel.toLowerCase()}.
                 </p>
               ) : (dailyAM.length === 0 && dailyPM.length === 0) ? (
-                <p className="text-[12px] font-light italic" style={{color:'var(--ink-soft)'}}>{isViewingToday ? 'No daily products tagged. Add usage schedule on your shelf items.' : 'Nothing was ticked AM or PM that day.'}</p>
+                <p className="text-[12px] font-light" style={{color:'var(--ink-soft)'}}>{isViewingToday ? 'No daily products tagged. Add usage schedule on your shelf items.' : 'Nothing was ticked AM or PM that day.'}</p>
               ) : (
                 <div className="space-y-3">
                   <div>
@@ -727,7 +725,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                       <Icon name="Sun" size={9} /> Morning
                     </div>
                     {dailyAM.length === 0 ? (
-                      <p className="text-[11px] italic" style={{color:'var(--ink-soft)'}}>No AM products yet.</p>
+                      <p className="text-[11px]" style={{color:'var(--ink-soft)'}}>No AM products yet.</p>
                     ) : (
                       <ol className="space-y-1">
                         {dailyAM.map((p, i) => {
@@ -737,12 +735,12 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                               <span className="text-[9px] font-medium" style={{color:'var(--accent)'}}>{i + 1}.</span>
                               <span style={{color:'var(--ink)'}}>{p.name}</span>
                               <span className="text-[8.5px] tracking-wider uppercase" style={{color:'var(--ink-soft)'}}>{p.category}</span>
-                              {sched.days.length < 7 && <span className="text-[8.5px] italic" style={{color:'var(--accent)'}}>{sched.days.map(dayName).join('·')}</span>}
+                              {sched.days.length < 7 && <span className="text-[8.5px]" style={{color:'var(--accent)'}}>{sched.days.map(dayName).join('·')}</span>}
                             </li>
                           );
                         })}
                         {dailyAMOverflow > 0 && (
-                          <li className="text-[11px] italic" style={{color:'var(--accent)'}}>+{dailyAMOverflow} more hidden by routine cap</li>
+                          <li className="text-[11px]" style={{color:'var(--accent)'}}>+{dailyAMOverflow} more hidden by routine cap</li>
                         )}
                       </ol>
                     )}
@@ -752,7 +750,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                       <Icon name="Moon" size={9} /> Evening
                     </div>
                     {dailyPM.length === 0 ? (
-                      <p className="text-[11px] italic" style={{color:'var(--ink-soft)'}}>No PM products yet.</p>
+                      <p className="text-[11px]" style={{color:'var(--ink-soft)'}}>No PM products yet.</p>
                     ) : (
                       <ol className="space-y-1">
                         {dailyPM.map((p, i) => {
@@ -762,12 +760,12 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                               <span className="text-[9px] font-medium" style={{color:'var(--accent)'}}>{i + 1}.</span>
                               <span style={{color:'var(--ink)'}}>{p.name}</span>
                               <span className="text-[8.5px] tracking-wider uppercase" style={{color:'var(--ink-soft)'}}>{p.category}</span>
-                              {sched.days.length < 7 && <span className="text-[8.5px] italic" style={{color:'var(--accent)'}}>{sched.days.map(dayName).join('·')}</span>}
+                              {sched.days.length < 7 && <span className="text-[8.5px]" style={{color:'var(--accent)'}}>{sched.days.map(dayName).join('·')}</span>}
                             </li>
                           );
                         })}
                         {dailyPMOverflow > 0 && (
-                          <li className="text-[11px] italic" style={{color:'var(--accent)'}}>+{dailyPMOverflow} more hidden by routine cap</li>
+                          <li className="text-[11px]" style={{color:'var(--accent)'}}>+{dailyPMOverflow} more hidden by routine cap</li>
                         )}
                       </ol>
                     )}
@@ -777,29 +775,29 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
             </div>
 
             {/* === RECOMMENDED === */}
-            <div className="border rounded-[14px] px-3.5 py-3.5 md:px-4 md:py-4" style={{background:'var(--cream-deep)', borderColor:'var(--accent)'}}>
+            <div className="border rounded-[14px] px-3.5 py-3.5 md:px-4 md:py-4" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
               <div className="flex items-baseline justify-between mb-3 gap-2">
-                <h3 className="font-serif text-base md:text-lg italic flex items-center gap-1.5 leading-tight" style={{color:'var(--ink)'}}>
+                <h3 className="font-sans text-base md:text-lg flex items-center gap-1.5 leading-tight" style={{color:'var(--ink)'}}>
                   <Icon name="Sparkles" size={12} /> Recommended
                 </h3>
                 {!routine && (
-                  <button onClick={generateRoutine} disabled={loading} className="text-[9px] tracking-[0.18em] uppercase italic flex items-center gap-1 disabled:opacity-50" style={{color:'var(--accent)'}}>
+                  <button onClick={generateRoutine} disabled={loading} className="text-[9px] tracking-[0.18em] uppercase flex items-center gap-1 disabled:opacity-50" style={{color:'var(--accent)'}}>
                     {loading ? <><Icon name="Loader2" size={10} className="spin" /> Building</> : <>Build <Icon name="ArrowRight" size={10} /></>}
                   </button>
                 )}
                 {routine && (
-                  <button onClick={generateRoutine} disabled={loading} className="text-[9px] tracking-[0.18em] uppercase italic flex items-center gap-1 disabled:opacity-50" style={{color:'var(--ink-soft)'}}>
+                  <button onClick={generateRoutine} disabled={loading} className="text-[9px] tracking-[0.18em] uppercase flex items-center gap-1 disabled:opacity-50" style={{color:'var(--ink-soft)'}}>
                     {loading ? <><Icon name="Loader2" size={10} className="spin" /></> : <>Refine</>}
                   </button>
                 )}
               </div>
               {!routine && !loading && (
-                <p className="text-[12px] font-light italic leading-snug" style={{color:'var(--ink-soft)'}}>
-                  Tap Build for an AI routine — derm-ordered, tailored to your concerns, flagged for overuse.
+                <p className="text-[12px] font-light leading-snug" style={{color:'var(--ink-soft)'}}>
+                  Tap Build for an AI routine — properly ordered, tailored to your concerns, flagged for overuse.
                 </p>
               )}
               {loading && !routine && (
-                <p className="text-[12px] font-light italic pulse-soft" style={{color:'var(--ink-soft)'}}>Reading your shelf, concerns, sensitivities…</p>
+                <p className="text-[12px] font-light pulse-soft" style={{color:'var(--ink-soft)'}}>Reading your shelf, concerns, sensitivities…</p>
               )}
               {routine && (() => {
                 /* === Parse each routine line into { product, why } so the list collapses to names. ===
@@ -813,8 +811,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                     if (dashIdx > -1) {
                       return {
                         product: cleaned.slice(0, dashIdx).trim(),
-                        why: cleaned.slice(dashIdx).replace(/^\s+[—–-]\s+/, '').trim(),
-                      };
+                        why: cleaned.slice(dashIdx).replace(/^\s+[—–-]\s+/, '').trim()};
                     }
                     return { product: cleaned, why: '' };
                   }).filter(it => it.product);
@@ -827,7 +824,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                       <Icon name={icon} size={9} /> {label}
                     </div>
                     {items.length === 0 ? (
-                      <div className="text-[12px] font-serif italic" style={{color:'var(--ink-soft)'}}>—</div>
+                      <div className="text-[12px] font-sans" style={{color:'var(--ink-soft)'}}>—</div>
                     ) : (
                       <ol className="space-y-1">
                         {items.map((it, i) => {
@@ -844,7 +841,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                                 className="w-full text-left flex items-baseline gap-2 group"
                                 disabled={!hasWhy}
                               >
-                                <span className="font-serif italic text-[12px] md:text-[13px] leading-tight" style={{color:'var(--ink)'}}>{it.product}</span>
+                                <span className="font-sans text-[12px] md:text-[13px] leading-tight" style={{color:'var(--ink)'}}>{it.product}</span>
                                 {hasWhy && <Icon name="Info" size={9} style={{color:'var(--ink-soft)', opacity: expanded ? 1 : 0.4}} />}
                               </button>
                               {expanded && it.why && (() => {
@@ -855,7 +852,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                                 const trimmed = it.why.split(/(?<=[.!?])\s+/)[0] || it.why;
                                 const concise = trimmed.length > 140 ? trimmed.slice(0, 138).trim() + '…' : trimmed;
                                 return (
-                                  <div className="text-[11px] leading-snug font-light mt-0.5 pl-2 border-l line-clamp-2" style={{color:'var(--ink-soft)', borderColor:'var(--accent)'}}>{withPearls(concise, onOpenLesson)}</div>
+                                  <div className="text-[11px] leading-snug font-light mt-0.5 pl-2 border-l line-clamp-2" style={{color:'var(--ink-soft)', borderColor: 'var(--line)'}}>{withPearls(concise, onOpenLesson)}</div>
                                 );
                               })()}
                             </li>
@@ -869,7 +866,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                   <div className="space-y-3">
                     {renderSlot('Morning', 'Sun', amItems, 'am')}
                     {renderSlot('Evening', 'Moon', pmItems, 'pm')}
-                    <p className="text-[8.5px] italic" style={{color:'var(--ink-soft)'}}>Hover or tap any product for the why.</p>
+                    <p className="text-[8.5px]" style={{color:'var(--ink-soft)'}}>Hover or tap any product for the why.</p>
                   </div>
                 );
               })()}
@@ -881,7 +878,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
           {routine && (
             <>
               {parseSection('OVERUSE / FLAGS') && parseSection('OVERUSE / FLAGS') !== 'No overuse patterns detected.' && (
-                <div className="border rounded-[14px] px-3.5 py-3 mt-3" style={{background:'var(--accent-soft)', borderColor:'var(--accent)'}}>
+                <div className="border rounded-[14px] px-3.5 py-3 mt-3" style={{background:'var(--accent-soft)', borderColor: 'var(--line)'}}>
                   <div className="text-[9px] tracking-[0.2em] uppercase mb-1.5 flex items-center gap-1.5" style={{color:'var(--accent)'}}>
                     <Icon name="AlertTriangle" size={10} /> Overuse / Flags
                   </div>
@@ -889,7 +886,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                 </div>
               )}
               {parseSection('LAYERING NOTES') && (
-                <div className="border rounded-[14px] px-3.5 py-3 mt-3" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
+                <div className="border rounded-[14px] px-3.5 py-3 mt-3" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
                   <div className="text-[9px] tracking-[0.2em] uppercase mb-1.5 flex items-center gap-1" style={{color:'var(--ink-soft)'}}>
                     <Icon name="Info" size={10} /> Layering Notes
                   </div>
@@ -921,7 +918,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
             if (/(peptide)/.test(haystack)) tips.push('Peptides are best in PM after retinoid is fully absorbed, or in AM before SPF.');
             if (tips.length === 0) tips.push('Apply thinnest to thickest — water-based serums first, oils and balms last. Wait ~60 seconds between layers.');
             return tips.length > 0 ? (
-              <div className="mt-4 px-3 py-2 border-l-2 text-[10px] md:text-[11px] font-light italic leading-snug" style={{borderColor:'var(--accent)', color:'var(--ink-soft)'}}>
+              <div className="mt-4 px-3 py-2 border-l-2 text-[10px] md:text-[11px] font-light leading-snug" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>
                 <span className="text-[8px] tracking-[0.25em] uppercase mr-2 not-italic" style={{color:'var(--accent)'}}>Pearl</span>
                 {tips.slice(0, 2).join(' ')}
               </div>
@@ -936,38 +933,38 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
            shelf is empty AND nothing is loading — avoids an empty header. */}
       {(activeProducts.length > 0 || weeklyRotation || rotationLoading) && (
         <div className="mb-8">
-          <div className="flex items-baseline justify-between border-b pb-2 mb-3" style={{borderColor:'var(--line)'}}>
+          <div className="flex items-baseline justify-between border-b pb-2 mb-3" style={{borderColor: 'var(--line)'}}>
             <div className="text-[10px] tracking-[0.3em] uppercase flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
               <span className="w-1.5 h-1.5 rounded-full inline-block" style={{background:'var(--accent)'}} />
-              Weekly{activeProducts.length === 0 && weeklyRotation ? <span className="ml-1 normal-case tracking-normal italic font-serif text-[11px]" style={{color:'var(--accent)'}}>· starter</span> : null}
+              Weekly{activeProducts.length === 0 && weeklyRotation ? <span className="ml-1 normal-case tracking-normal font-sans text-[11px]" style={{color:'var(--accent)'}}>· starter</span> : null}
             </div>
             {activeProducts.length > 0 && (
-              <button onClick={() => setShowRotationBuilder(true)} disabled={rotationLoading} className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1 disabled:opacity-50" style={{color:'var(--accent)'}}>
+              <button onClick={() => setShowRotationBuilder(true)} disabled={rotationLoading} className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1 disabled:opacity-50" style={{color:'var(--accent)'}}>
                 {rotationLoading ? <><Icon name="Loader2" size={10} className="spin" /> Building</> : (weeklyRotation ? <>Rebuild rotation <Icon name="RefreshCw" size={10} /></> : <>Build rotation <Icon name="ArrowRight" size={10} /></>)}
               </button>
             )}
             {activeProducts.length === 0 && weeklyRotation && (
-              <button onClick={() => generateWeeklyRotation([], [])} disabled={rotationLoading} className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1 disabled:opacity-50" style={{color:'var(--accent)'}}>
+              <button onClick={() => generateWeeklyRotation([], [])} disabled={rotationLoading} className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1 disabled:opacity-50" style={{color:'var(--accent)'}}>
                 {rotationLoading ? <><Icon name="Loader2" size={10} className="spin" /> Rebuilding</> : <>Rebuild <Icon name="RefreshCw" size={10} /></>}
               </button>
             )}
           </div>
           {!weeklyRotation && !rotationLoading && activeProducts.length > 0 && (
-            <p className="text-[11px] font-light italic" style={{color:'var(--ink-soft)'}}>Optimal cadence — which actives on which days, recovery nights spaced, antagonistic actives separated.{activeProducts.length < 6 && <span style={{color:'var(--accent)'}}> AI will also suggest products to round out the week since your shelf is light.</span>} Tap Build to pick the products and devices to include.</p>
+            <p className="text-[11px] font-light" style={{color:'var(--ink-soft)'}}>Optimal cadence — which actives on which days, recovery nights spaced, antagonistic actives separated.{activeProducts.length < 6 && <span style={{color:'var(--accent)'}}> AI will also suggest products to round out the week since your shelf is light.</span>} Tap Build to pick the products and devices to include.</p>
           )}
-          {rotationLoading && <p className="text-[11px] italic pulse-soft" style={{color:'var(--ink-soft)'}}>Reading shelf, concerns, sensitivities…</p>}
+          {rotationLoading && <p className="text-[11px] pulse-soft" style={{color:'var(--ink-soft)'}}>Reading shelf, concerns, sensitivities…</p>}
           {weeklyRotation && (
-            <div className="border overflow-x-auto" style={{borderColor:'var(--accent)', background:'var(--cream)'}}>
+            <div className="border overflow-x-auto" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
               <div className="grid grid-cols-7" style={{minWidth: '420px'}}>
                 {['MON','TUE','WED','THU','FRI','SAT','SUN'].map((day, i) => {
                   const am = parseRotationDay(day, 'AM');
                   const pm = parseRotationDay(day, 'PM');
-                  // Per-day note from AI assessment, rendered terracotta italic
+                  // Per-day note from AI assessment, rendered terracotta
                   const noteMatch = weeklyRotation.match(new RegExp(`${day}\\s+NOTE:\\s*(.+)`));
                   const note = noteMatch ? noteMatch[1].trim() : '';
                   // Letter labels: M T W T F S S (no number, per spec)
                   const letter = ['M','T','W','T','F','S','S'][i];
-                  // Render line — distinguish [suggested] items as italic terracotta
+                  // Render line — distinguish [suggested] items as terracotta
                   const renderLine = (line) => {
                     if (!line || line === '—') return <>—</>;
                     const parts = line.split(/\s*·\s*/);
@@ -977,13 +974,13 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                       return (
                         <React.Fragment key={idx}>
                           {idx > 0 && <span style={{color:'var(--ink-soft)'}}> · </span>}
-                          <span style={{color: isSuggested ? 'var(--accent)' : 'var(--ink)', fontStyle: isSuggested ? 'italic' : 'normal'}}>{clean}</span>
+                          <span style={{color: isSuggested ? 'var(--accent)' : 'var(--ink)'}}>{clean}</span>
                         </React.Fragment>
                       );
                     });
                   };
                   return (
-                    <div key={day} className="border-r last:border-r-0 px-1.5 py-2" style={{borderColor:'var(--line)'}}>
+                    <div key={day} className="border-r last:border-r-0 px-1.5 py-2" style={{borderColor: 'var(--line)'}}>
                       <div className="text-[10px] tracking-[0.15em] uppercase text-center mb-1.5 font-medium" style={{color:'var(--accent)'}}>{letter}</div>
                       <div className="space-y-1.5">
                         <div>
@@ -995,7 +992,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                           <div className="text-[9px] leading-tight">{renderLine(pm)}</div>
                         </div>
                         {note && (
-                          <div className="pt-1 mt-1 border-t text-[8px] italic leading-snug" style={{borderColor:'var(--line)', color:'var(--accent)'}}>
+                          <div className="pt-1 mt-1 border-t text-[8px] leading-snug" style={{borderColor: 'var(--line)', color:'var(--accent)'}}>
                             {note}
                           </div>
                         )}
@@ -1010,14 +1007,14 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                 return (
                   <>
                     {why && (
-                      <div className="border-t px-3 py-2 text-[10px] font-light italic leading-snug" style={{borderColor:'var(--line)', color:'var(--ink-soft)'}}>
+                      <div className="border-t px-3 py-2 text-[10px] font-light leading-snug" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>
                         {why[1].trim()}
                       </div>
                     )}
                     {add && (
-                      <div className="border-t px-3 py-2 text-[10px] leading-snug flex items-start gap-1.5" style={{borderColor:'var(--accent)', background:'var(--accent-soft)', color:'var(--ink)'}}>
+                      <div className="border-t px-3 py-2 text-[10px] leading-snug flex items-start gap-1.5" style={{borderColor: 'var(--line)', background:'var(--accent-soft)', color:'var(--ink)'}}>
                         <Icon name="Sparkles" size={10} style={{color:'var(--accent)', flexShrink:0, marginTop:'2px'}} />
-                        <span><span className="text-[8px] tracking-[0.25em] uppercase mr-1.5 not-italic" style={{color:'var(--accent)'}}>Round out</span><span className="italic">{compactWhatToAdd(add[1])}</span></span>
+                        <span><span className="text-[8px] tracking-[0.25em] uppercase mr-1.5 not-italic" style={{color:'var(--accent)'}}>Round out</span><span className="">{compactWhatToAdd(add[1])}</span></span>
                       </div>
                     )}
                   </>
@@ -1031,12 +1028,12 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
       {/* === THIS WEEK — 7-day horizontal row from regimenLogs === */}
       {activeProducts.length > 0 && (
         <div className="mb-8">
-          <div className="text-[10px] tracking-[0.3em] uppercase border-b pb-2 mb-3 flex items-center justify-between" style={{color:'var(--ink-soft)', borderColor:'var(--line)'}}>
+          <div className="text-[10px] tracking-[0.3em] uppercase border-b pb-2 mb-3 flex items-center justify-between" style={{color:'var(--ink-soft)', borderColor: 'var(--line)'}}>
             <span className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full inline-block" style={{background:'var(--accent)'}} />
               This week
             </span>
-            <span className="text-[9px] tracking-[0.2em] italic normal-case">
+            <span className="text-[9px] tracking-[0.2em] normal-case">
               {weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </span>
           </div>
@@ -1067,12 +1064,11 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                       minHeight:'92px',
                       borderColor: isToday ? 'var(--accent)' : 'var(--line)',
                       background: isToday ? 'var(--accent-soft)' : (log ? 'var(--cream-deep)' : 'var(--cream)'),
-                      opacity: future && !log ? 0.5 : 1,
-                    }}
+                      opacity: future && !log ? 0.5 : 1}}
                   >
                     <div className="flex items-baseline justify-between">
                       <span className="text-[10px] tracking-[0.2em] uppercase font-medium" style={{color: isToday ? 'var(--accent)' : 'var(--ink-soft)'}}>{dayLetter}</span>
-                      <span className="font-serif italic text-xs" style={{color:'var(--ink-soft)'}}>{d.getDate()}</span>
+                      <span className="font-sans text-xs" style={{color:'var(--ink-soft)'}}>{d.getDate()}</span>
                     </div>
                     <div className="mt-1.5 flex-1 space-y-1">
                       <div>
@@ -1119,8 +1115,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                     background: isToday ? 'var(--accent-soft)' : (log ? 'var(--cream-deep)' : 'var(--cream)'),
                     color: future ? 'var(--line)' : 'var(--ink)',
                     opacity: future && !log ? 0.5 : 1,
-                    minHeight: '70px',
-                  }}
+                    minHeight: '70px'}}
                 >
                   <div className="text-[10px] tracking-[0.15em] uppercase font-medium text-center" style={{color: isToday ? 'var(--accent)' : 'var(--ink-soft)'}}>{dayLetter}</div>
                   <div className="mt-1 space-y-0.5 flex-1">
@@ -1143,7 +1138,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
           </div>
           {/* Actives summary */}
           {activesThisWeek.length > 0 && (
-            <div className="mt-2.5 text-[10px] font-light italic leading-snug" style={{color:'var(--ink-soft)'}}>
+            <div className="mt-2.5 text-[10px] font-light leading-snug" style={{color:'var(--ink-soft)'}}>
               <span className="text-[8px] tracking-[0.25em] uppercase mr-2 not-italic" style={{color:'var(--ink-soft)'}}>This week</span>
               {activesThisWeek.map(([label, count], i) => (
                 <span key={label}>
@@ -1161,14 +1156,14 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
 
       {/* === MONTH CALENDAR — navigable, click day or week to expand === */}
       <div className="mb-8">
-        <div className="border-b pb-2 mb-3 flex items-center justify-between" style={{borderColor:'var(--line)'}}>
+        <div className="border-b pb-2 mb-3 flex items-center justify-between" style={{borderColor: 'var(--line)'}}>
           <button onClick={goPrevMonth} className="p-1.5" style={{color:'var(--ink-soft)'}} aria-label="Previous month">
             <Icon name="ChevronLeft" size={14} />
           </button>
           <div className="flex items-baseline gap-2">
             <span className="w-1.5 h-1.5 rounded-full inline-block" style={{background:'var(--accent)'}} />
-            <span className="font-serif italic text-base" style={{color:'var(--ink)'}}>{monthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
-            {!isCurrentMonth && <button onClick={goThisMonth} className="text-[9px] tracking-[0.2em] uppercase italic" style={{color:'var(--ink-soft)'}}>Today</button>}
+            <span className="font-sans text-base" style={{color:'var(--ink)'}}>{monthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+            {!isCurrentMonth && <button onClick={goThisMonth} className="text-[9px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>Today</button>}
           </div>
           <button onClick={goNextMonth} disabled={isCurrentMonth} className="p-1.5 disabled:opacity-30" style={{color:'var(--ink-soft)'}} aria-label="Next month">
             <Icon name="ChevronRight" size={14} />
@@ -1200,7 +1195,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
             return (
               <div key={ri} className="mb-0.5">
                 <div className="grid gap-0.5" style={{gridTemplateColumns:'18px repeat(7, minmax(0, 1fr))'}}>
-                  <button onClick={() => setExpandedWeekStart(expanded ? null : weekKey)} className="text-[8px] tracking-[0.15em] italic flex items-center justify-center transition" style={{color: expanded ? 'var(--accent)' : 'var(--ink-soft)'}} aria-label={`Toggle week starting ${weekKey}`}>
+                  <button onClick={() => setExpandedWeekStart(expanded ? null : weekKey)} className="text-[8px] tracking-[0.15em] flex items-center justify-center transition" style={{color: expanded ? 'var(--accent)' : 'var(--ink-soft)'}} aria-label={`Toggle week starting ${weekKey}`}>
                     wk
                   </button>
                   {row.map((day, ci) => {
@@ -1225,8 +1220,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                         style={{
                           background: isSelectedDay ? 'var(--accent)' : (isTodayCell ? 'var(--accent-soft)' : (hasAny ? 'var(--cream-deep)' : 'transparent')),
                           border: isTodayCell || isSelectedDay ? '1px solid var(--accent)' : '1px solid transparent',
-                          color: isSelectedDay ? 'var(--cream)' : (isFutureCell ? 'var(--line)' : 'var(--ink)'),
-                        }}
+                          color: isSelectedDay ? 'var(--cream)' : (isFutureCell ? 'var(--line)' : 'var(--ink)')}}
                       >
                         <span className="text-[10px] font-light leading-none">{day}</span>
                         {hasAny && (
@@ -1260,9 +1254,9 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                   });
                   const productNames = [...productSet].slice(0, 12);
                   return (
-                    <div className="mt-1 mb-2 border p-3" style={{borderColor:'var(--accent)', background:'var(--cream)'}}>
+                    <div className="mt-1 mb-2 border p-3" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
                       <div className="flex items-baseline justify-between mb-1.5">
-                        <span className="font-serif italic text-sm" style={{color:'var(--ink)'}}>
+                        <span className="font-sans text-sm" style={{color:'var(--ink)'}}>
                           Week of {weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {wkDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </span>
                         <button onClick={() => setExpandedWeekStart(null)} className="text-[9px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>Close</button>
@@ -1283,7 +1277,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                           {wkProcs.map((p, i) => (
                             <span key={p.id} style={{color:'var(--ink)'}}>
                               {i > 0 && <span style={{color:'var(--line)'}}> · </span>}
-                              <span className="font-serif italic">{p.name}</span> <span className="text-[9px]" style={{color:'var(--ink-soft)'}}>· {new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                              <span className="font-sans">{p.name}</span> <span className="text-[9px]" style={{color:'var(--ink-soft)'}}>· {new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                             </span>
                           ))}
                         </div>
@@ -1309,9 +1303,9 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
             ...(log.pmExtras || [])
           ] : [];
           return (
-            <div className="border p-3 mt-2" style={{borderColor:'var(--accent)', background:'var(--cream)'}}>
+            <div className="border p-3 mt-2" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
               <div className="flex items-baseline justify-between mb-2">
-                <div className="font-serif italic text-base" style={{color:'var(--ink)'}}>{new Date(expandedMonthDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+                <div className="font-sans text-base" style={{color:'var(--ink)'}}>{new Date(expandedMonthDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
                 <button onClick={() => setExpandedMonthDate(null)} className="text-[9px] tracking-widest uppercase" style={{color:'var(--ink-soft)'}}>Close</button>
               </div>
               {log ? (
@@ -1320,30 +1314,30 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                     <div className="text-[8px] tracking-[0.2em] uppercase mb-1 flex items-center gap-1" style={{color:'var(--ink-soft)'}}>
                       <Icon name="Sun" size={9} /> Morning
                     </div>
-                    {amNames.length === 0 ? <div className="italic" style={{color:'var(--ink-soft)'}}>—</div> : amNames.map(n => <div key={n} className="font-light" style={{color:'var(--ink)'}}>{n}</div>)}
+                    {amNames.length === 0 ? <div className="" style={{color:'var(--ink-soft)'}}>—</div> : amNames.map(n => <div key={n} className="font-light" style={{color:'var(--ink)'}}>{n}</div>)}
                   </div>
                   <div>
                     <div className="text-[8px] tracking-[0.2em] uppercase mb-1 flex items-center gap-1" style={{color:'var(--ink-soft)'}}>
                       <Icon name="Moon" size={9} /> Evening
                     </div>
-                    {pmNames.length === 0 ? <div className="italic" style={{color:'var(--ink-soft)'}}>—</div> : pmNames.map(n => <div key={n} className="font-light" style={{color:'var(--ink)'}}>{n}</div>)}
+                    {pmNames.length === 0 ? <div className="" style={{color:'var(--ink-soft)'}}>—</div> : pmNames.map(n => <div key={n} className="font-light" style={{color:'var(--ink)'}}>{n}</div>)}
                   </div>
                 </div>
               ) : (
-                <div className="text-[11px] italic" style={{color:'var(--ink-soft)'}}>No regimen check-in logged.</div>
+                <div className="text-[11px]" style={{color:'var(--ink-soft)'}}>No regimen check-in logged.</div>
               )}
               {log && (log.devices?.length > 0 || log.sleep || log.supplements?.length > 0) && (
-                <div className="mt-2 pt-2 border-t text-[10px] italic" style={{borderColor:'var(--line)', color:'var(--ink-soft)'}}>
+                <div className="mt-2 pt-2 border-t text-[10px]" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>
                   {log.devices?.length > 0 && <span>Devices: {log.devices.join(', ')} · </span>}
                   {log.sleep && <span>Sleep: {log.sleep}h · </span>}
                   {log.supplements?.length > 0 && <span>Supplements: {log.supplements.join(', ')}</span>}
                 </div>
               )}
               {procsHere.length > 0 && (
-                <div className="mt-2 pt-2 border-t" style={{borderColor:'var(--line)'}}>
+                <div className="mt-2 pt-2 border-t" style={{borderColor: 'var(--line)'}}>
                   <div className="text-[8px] tracking-[0.25em] uppercase mb-1" style={{color:'var(--rose)'}}>Procedure</div>
                   {procsHere.map(p => (
-                    <div key={p.id} className="text-[11px] font-serif italic" style={{color:'var(--ink)'}}>
+                    <div key={p.id} className="text-[11px] font-sans" style={{color:'var(--ink)'}}>
                       {p.name} <span className="text-[10px] not-italic font-light" style={{color:'var(--ink-soft)'}}>· {p.type?.replace(/-/g, ' ')}</span>
                     </div>
                   ))}
@@ -1357,7 +1351,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
       {/* === WEEKLY === */}
       {activeProducts.length > 0 && weeklyProducts.length > 0 && (
         <div className="mb-10">
-          <div className="text-[9px] md:text-[10px] tracking-[0.3em] uppercase border-b pb-2 mb-4 flex items-center gap-2" style={{color:'var(--ink-soft)', borderColor:'var(--line)'}}>
+          <div className="text-[9px] md:text-[10px] tracking-[0.3em] uppercase border-b pb-2 mb-4 flex items-center gap-2" style={{color:'var(--ink-soft)', borderColor: 'var(--line)'}}>
             <span className="w-1.5 h-1.5 rounded-full inline-block" style={{background:'var(--accent)'}} />
             Weekly cadence
           </div>
@@ -1365,11 +1359,11 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
             {weeklyProducts.map(p => {
               const sched = productSchedule(p);
               return (
-                <div key={p.id} className="border p-4" style={{background:'var(--cream)', borderColor:'var(--line)'}}>
+                <div key={p.id} className="border p-4" style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0">
                       <div className="text-[9px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{p.brand} · {p.category}</div>
-                      <div className="font-serif italic text-base leading-tight mt-0.5" style={{color:'var(--ink)'}}>{p.name}</div>
+                      <div className="font-sans text-base leading-tight mt-0.5" style={{color:'var(--ink)'}}>{p.name}</div>
                     </div>
                     <div className="text-[9px] tracking-[0.15em] uppercase whitespace-nowrap" style={{color:'var(--accent)'}}>
                       {p.frequency.replace(/-/g, ' ')}
@@ -1397,33 +1391,33 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
       {/* === MONTHLY === */}
       {(monthlyProducts.length > 0 || recentProcedures.length > 0) && (
         <div className="mb-6">
-          <div className="text-[9px] md:text-[10px] tracking-[0.3em] uppercase border-b pb-2 mb-4 flex items-center justify-between" style={{color:'var(--ink-soft)', borderColor:'var(--line)'}}>
+          <div className="text-[9px] md:text-[10px] tracking-[0.3em] uppercase border-b pb-2 mb-4 flex items-center justify-between" style={{color:'var(--ink-soft)', borderColor: 'var(--line)'}}>
             <span className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full inline-block" style={{background:'var(--accent)'}} />
               Monthly cadence
             </span>
             {setShowProcedureModal && (
-              <button onClick={() => setShowProcedureModal(true)} className="text-[10px] tracking-[0.2em] uppercase italic" style={{color:'var(--ink)'}}>
+              <button onClick={() => setShowProcedureModal(true)} className="text-[10px] tracking-[0.2em] uppercase" style={{color:'var(--ink)'}}>
                 + Log procedure
               </button>
             )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {monthlyProducts.map(p => (
-              <div key={p.id} className="border p-4" style={{background:'var(--cream)', borderColor:'var(--line)'}}>
+              <div key={p.id} className="border p-4" style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
                 <div className="text-[9px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{p.brand} · {p.category}</div>
-                <div className="font-serif italic text-base leading-tight mt-0.5" style={{color:'var(--ink)'}}>{p.name}</div>
+                <div className="font-sans text-base leading-tight mt-0.5" style={{color:'var(--ink)'}}>{p.name}</div>
                 <div className="text-[10px] mt-1.5" style={{color:'var(--accent)'}}>{p.frequency.replace(/-/g, ' ')}</div>
               </div>
             ))}
             {recentProcedures.map(pr => {
               const ago = Math.floor((Date.now() - new Date(pr.date).getTime()) / (24 * 60 * 60 * 1000));
               return (
-                <button key={pr.id} onClick={() => setActiveTab && setActiveTab('procedures')} className="border p-4 text-left transition hover:bg-[var(--cream-deep)]" style={{background:'var(--cream)', borderColor:'var(--accent)'}}>
+                <button key={pr.id} onClick={() => setActiveTab && setActiveTab('procedures')} className="border p-4 text-left transition hover:bg-[var(--cream-deep)]" style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
                   <div className="text-[9px] tracking-[0.2em] uppercase flex items-center gap-1" style={{color:'var(--accent)'}}>
                     <Icon name="Activity" size={9} /> Procedure
                   </div>
-                  <div className="font-serif italic text-base leading-tight mt-0.5" style={{color:'var(--ink)'}}>{pr.name}</div>
+                  <div className="font-sans text-base leading-tight mt-0.5" style={{color:'var(--ink)'}}>{pr.name}</div>
                   <div className="text-[10px] mt-1.5" style={{color:'var(--ink-soft)'}}>
                     {new Date(pr.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     {ago >= 0 && <> · {ago === 0 ? 'today' : `${ago} days ago`}</>}

@@ -4,17 +4,17 @@
 
 // === Button (Phase 1 primitive) ===
 // Three variants:
-//   primary   — terracotta fill, uppercase tracking, used as dominant CTA
-//   secondary — outlined cream/ink, used as alternate CTA
-//   tertiary  — text-only terracotta link with optional arrow
+//   primary   — AWA red fill, uppercase tracking, used as dominant CTA
+//   secondary — outlined white/ink, used as alternate CTA
+//   tertiary  — text-only red link with optional arrow
 // All pills are nowrap + capped at maxWidth (default 260) so they
 // don't sprawl in horizontal layouts.
 const Button = ({ children, onClick, variant = 'primary', icon, trailingIcon, maxWidth = 260, height, fullWidth = true, ...rest }) => {
   const variants = {
     primary: {
-      background: 'var(--accent)',
-      color: 'var(--cream)',
-      border: '1px solid var(--accent)',
+      background: 'var(--action-primary)',
+      color: '#FFFFFF',
+      border: '1px solid var(--action-primary)',
       fontWeight: T.weight.semibold,
       fontSize: 11,
       letterSpacing: T.tracking.cta,
@@ -23,7 +23,7 @@ const Button = ({ children, onClick, variant = 'primary', icon, trailingIcon, ma
     secondary: {
       background: 'transparent',
       color: 'var(--ink)',
-      border: '1px solid var(--line)',
+      border: '1px solid var(--action-secondary-border)',
       fontWeight: T.weight.mediumPlus,
       fontSize: 10.5,
       letterSpacing: T.tracking.cta,

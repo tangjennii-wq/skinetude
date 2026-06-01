@@ -73,14 +73,13 @@ NEXT STEPS: [one or two specific evidence-based suggestions]`;
         } else {
           result = await callClaude(
             prompt,
-            "You are an educational skincare advisor with dermatology training, comparing two photos of the same person's skin (informational observation, not a diagnosis). Be specific and evidence-based.",
+            "You are an obsessed educational skin advisor (informational observation, not a diagnosis), comparing two photos of the same person's skin. Be specific and evidence-based.",
             null,
             {
               images: [
                 { label: 'BEFORE photo:', b64: before64 },
                 { label: 'AFTER photo:',  b64: after64 },
-              ],
-            }
+              ]}
           );
         }
       } else {
@@ -94,11 +93,11 @@ NEXT STEPS: [one or two specific evidence-based suggestions]`;
   };
 
   return (
-    <div className="mt-6 p-8 border" style={{background:'linear-gradient(135deg, var(--cream-deep), var(--cream))', borderColor:'var(--line)'}}>
+    <div className="mt-6 p-8 border" style={{background:'linear-gradient(135deg, var(--cream-deep), var(--cream))', borderColor: 'var(--line)'}}>
       <div className="flex justify-between items-start gap-4 flex-wrap mb-4">
         <div>
           <div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Visual Analysis</div>
-          <h3 className="font-serif text-2xl italic mt-1" style={{color:'var(--ink)'}}>What changed?</h3>
+          <h3 className="font-sans text-2xl mt-1" style={{color:'var(--ink)'}}>What changed?</h3>
         </div>
         {!analysis && (
           <button onClick={analyze} disabled={loading} className="text-[10px] tracking-[0.2em] uppercase border px-4 py-2 disabled:opacity-50 flex items-center gap-2" style={{borderColor:'var(--ink)', color:'var(--ink)'}}>
@@ -106,7 +105,7 @@ NEXT STEPS: [one or two specific evidence-based suggestions]`;
           </button>
         )}
       </div>
-      {!analysis && !loading && <p className="text-sm font-light italic" style={{color:'var(--ink-soft)'}}>{(a.photo && b.photo) ? 'Both entries have photos — the AI will describe visible differences.' : 'AI will analyze the rating, concerns, and routine changes between these entries.'}</p>}
+      {!analysis && !loading && <p className="text-sm font-light" style={{color:'var(--ink-soft)'}}>{(a.photo && b.photo) ? 'Both entries have photos — the AI will describe visible differences.' : 'AI will analyze the rating, concerns, and routine changes between these entries.'}</p>}
       {analysis && <div className="text-sm leading-relaxed font-light whitespace-pre-wrap" style={{color:'var(--ink)'}}>{withPearls(analysis, onOpenLesson)}</div>}
     </div>
   );
