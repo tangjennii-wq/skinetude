@@ -16552,6 +16552,31 @@ If the user references something not in their data ("started retinol 6 weeks ago
               >
                 Add to routine
               </button>
+              {/* === REFINE OPTION (June 2026 per Jenni) ===
+                  Routes the user to Refine with an "I just added a product"
+                  intent. After the engine resolves the refined weekly
+                  pattern with the new product in place, the result lands
+                  in the Rotation view. */}
+              <button
+                type="button"
+                onClick={() => {
+                  const productNames = Array.isArray(promoteToRoutinePrompt.productNames)
+                    ? promoteToRoutinePrompt.productNames.join(', ')
+                    : 'a new product';
+                  setRefineIntent && setRefineIntent({
+                    id: 'added-product',
+                    label: 'Add + refine',
+                    prompt: `I just added ${productNames} to my shelf. Refine my weekly routine to fold it in — pick the right days, adjust cadence on competing actives, and show me the result in the Rotation view.`,
+                  });
+                  setPromoteToRoutinePrompt(null);
+                  setActiveTab('regimen');
+                  setRegimenView('build');
+                }}
+                className="text-[10px] tracking-[0.18em] uppercase px-3 py-1.5 rounded-full transition hover:bg-[var(--cream-deep)]"
+                style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, cursor:'pointer'}}
+              >
+                Refine
+              </button>
               <button
                 type="button"
                 onClick={() => setPromoteToRoutinePrompt(null)}
