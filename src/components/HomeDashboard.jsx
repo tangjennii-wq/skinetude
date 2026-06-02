@@ -3518,10 +3518,18 @@ CRITICAL OUTPUT REQUIREMENTS:
             // on submitted logs to decide. amHasItems/pmHasItems only
             // tells us products exist; submittedSlot tells us this
             // specific slot has been committed.
+            //
+            // === UNDO BUG FIX (June 2026 per Jenni) ===
+            // Was: `|| pmHasItems` fallback meant slotSubmitted stayed
+            // true even after undoSlotLog cleared pmDone, because
+            // pmProducts (the schedule) still had items. Result: tap
+            // to undo did nothing visible — UI never flipped back to
+            // the primary CTA. Fix: require actual done items (or the
+            // explicit slot-batch-confirmed flag) to flip slotSubmitted.
             const slotSubmitted = !!(submittedToday && sourceCheckIn && (
               ctaSlot === 'pm'
-                ? (Array.isArray(sourceCheckIn.pmDone) && sourceCheckIn.pmDone.length > 0) || pmHasItems
-                : (Array.isArray(sourceCheckIn.amDone) && sourceCheckIn.amDone.length > 0) || amHasItems
+                ? ((Array.isArray(sourceCheckIn.pmDone) && sourceCheckIn.pmDone.length > 0) || sourceCheckIn.pmBatchConfirmed === true)
+                : ((Array.isArray(sourceCheckIn.amDone) && sourceCheckIn.amDone.length > 0) || sourceCheckIn.amBatchConfirmed === true)
             ));
             // Skipped IDs for the current slot (from prompt 3 model).
             const skippedKeyForCta = ctaSlot === 'pm' ? 'pmSkipped' : 'amSkipped';
@@ -3628,13 +3636,21 @@ CRITICAL OUTPUT REQUIREMENTS:
             const undoSlotLog = () => {
               const existing = (regimenLogs || []).find(r => r.date === viewDate);
               if (!existing) return;
+              const otherSlotBatchConfirmed = ctaSlot === 'am'
+                ? !!existing.pmBatchConfirmed
+                : !!existing.amBatchConfirmed;
+              const otherSlotHasDone = ctaSlot === 'am'
+                ? (Array.isArray(existing.pmDone) && existing.pmDone.length > 0)
+                : (Array.isArray(existing.amDone) && existing.amDone.length > 0);
               const nextLog = {
                 ...existing,
                 amDone: ctaSlot === 'am' ? [] : (existing.amDone || []),
                 pmDone: ctaSlot === 'pm' ? [] : (existing.pmDone || []),
-                submitted: ctaSlot === 'am'
-                  ? ((existing.pmDone || []).length > 0)
-                  : ((existing.amDone || []).length > 0),
+                // June 2026: also clear the batch-confirmed flag for this
+                // slot. Without this, slotSubmitted stayed true on undo.
+                amBatchConfirmed: ctaSlot === 'am' ? false : existing.amBatchConfirmed,
+                pmBatchConfirmed: ctaSlot === 'pm' ? false : existing.pmBatchConfirmed,
+                submitted: otherSlotBatchConfirmed || otherSlotHasDone,
               };
               const next = regimenLogs.map(r => r.date === viewDate ? nextLog : r);
               setRegimenLogs(next);
