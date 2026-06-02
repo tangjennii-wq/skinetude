@@ -13167,9 +13167,12 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         return;
                       }
                       const slots = inferSlotForQuickAdd(shelfP);
+                      // === SAFETY: USE SUGGESTED CADENCE (June 2026 per Codex) ===
+                      // Was hardcoded 7-day daily — over-scheduled retinoids/AHAs.
+                      const sug = suggestedCadence(shelfP.category, shelfP.activeIngredients || shelfP.actives);
                       const updated = (products || []).map(p =>
                         p.id === shelfP.id
-                          ? sanitizeProductForSave({ ...p, useTimes: slots, cadence: { days: [0,1,2,3,4,5,6], frequency: 7 } })
+                          ? sanitizeProductForSave({ ...p, useTimes: slots, cadence: { days: sug.days, frequency: sug.days.length } })
                           : p
                       );
                       setProducts(updated);
@@ -13180,6 +13183,8 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     const handleQuickAddNewBuy = (catalogP) => {
                       // Build a fresh shelf product from the catalog item.
                       const slots = inferSlotForQuickAdd(catalogP);
+                      // === SAFETY: USE SUGGESTED CADENCE (June 2026 per Codex) ===
+                      const sug = suggestedCadence(catalogP.category, catalogP.actives || catalogP.main);
                       const newProduct = sanitizeProductForSave({
                         id: Date.now() + Math.floor(Math.random() * 1000),
                         brand: catalogP.brand || '',
@@ -13189,7 +13194,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         main: catalogP.main || catalogP.actives || '',
                         priceTier: catalogP.priceTier || catalogP.tier || '$$',
                         useTimes: slots,
-                        cadence: { days: [0,1,2,3,4,5,6], frequency: 7 },
+                        cadence: { days: sug.days, frequency: sug.days.length },
                         addedAt: Date.now(),
                         startDate: new Date().toISOString().slice(0, 10),
                       });
@@ -14216,6 +14221,61 @@ If the user references something not in their data ("started retinol 6 weeks ago
             // Defer to caller for any post-save action (e.g. open the
             // check-in details modal for the newly captured shots).
             if (guidedCaptureCtx?.onDone) guidedCaptureCtx.onDone(newLogs);
+            // === DEFAULT CHECK-IN ROUTING + AUTO-ANALYSIS (June 2026 per Jenni — bug fix) ===
+            // Was: for intent 'check_in', no onDone was set, analyzing
+            // stayed false, retryLogAnalysis never fired → photos saved
+            // but cover never showed them and analysis never ran.
+            // Symptom: toast said "saved" but no metric snapshot populated.
+            // Now (two-part fix):
+            //   1. Mark each new log analyzing:true and fire retryLogAnalysis
+            //      in a bounded worker pool (3 concurrent, same as bulk
+            //      upload) so analysis runs even if the user dismisses the
+            //      details modal. Cover sees analyzing:true → shows
+            //      "Reading…" spinner instead of "Add a photo" empty state.
+            //   2. Push shots into checkInDetailsQueue with existingLogId
+            //      so CheckInDetailsModal opens for rating/chips capture.
+            //      Pass existingLogId so the modal UPDATES the existing
+            //      logs (not duplicates them).
+            // Onboarding baseline stays special-cased above (its own analysis path).
+            if (guidedCaptureCtx?.intent === 'check_in') {
+              const apiKeyOn = !!getApiKey();
+              if (apiKeyOn) {
+                // Mark all check_in shots as analyzing so the cover
+                // surfaces the "Reading skin…" state until analysis lands.
+                setLogs(prev => prev.map(l => {
+                  if (!newLogs.find(nl => nl.id === l.id)) return l;
+                  return { ...l, analyzing: true, analyzingStartedAt: Date.now() };
+                }));
+                // Fire retryLogAnalysis with bounded concurrency.
+                if (typeof retryLogAnalysis === 'function') {
+                  const ANALYSIS_CONCURRENCY = 3;
+                  const queue = [...newLogs];
+                  const runOne = async (log) => {
+                    try { await retryLogAnalysis(log.id, { ...log, analyzing: true, analyzingStartedAt: Date.now() }); }
+                    catch (e) { console.warn('[check_in auto-analysis]', log.id, e?.message); }
+                  };
+                  Array(Math.min(ANALYSIS_CONCURRENCY, queue.length)).fill(null).forEach(async () => {
+                    while (queue.length > 0) {
+                      const next = queue.shift();
+                      if (next) await runOne(next);
+                    }
+                  });
+                }
+              }
+              // Route to CheckInDetailsModal for rating/chips/note capture.
+              if (typeof setCheckInDetailsQueue === 'function' && !guidedCaptureCtx?.onDone) {
+                const queueItems = newLogs.map(l => ({
+                  dataUrl: l.photo,
+                  capturedAt: l.capturedAt,
+                  source: l.source,
+                  angle: l.angle,
+                  existingLogId: l.id,
+                  date: l.date,
+                }));
+                setCheckInDetailsQueue(queueItems);
+                setCheckInDetailsIdx(0);
+              }
+            }
           }}
         />
       )}
@@ -16489,7 +16549,9 @@ If the user references something not in their data ("started retinol 6 weeks ago
               const prevUseTimes = Array.isArray(existingProduct.useTimes) ? existingProduct.useTimes : [];
               const nextUseTimes = prevUseTimes.includes(slot) ? prevUseTimes : [...prevUseTimes, slot];
               const hasCadence = existingProduct.cadence && Array.isArray(existingProduct.cadence.days) && existingProduct.cadence.days.length > 0;
-              const nextCadence = hasCadence ? existingProduct.cadence : { days: [0,1,2,3,4,5,6], frequency: 7 };
+              // === SAFETY: USE SUGGESTED CADENCE (June 2026 per Codex) ===
+              const sug = suggestedCadence(existingProduct.category, existingProduct.activeIngredients);
+              const nextCadence = hasCadence ? existingProduct.cadence : { days: sug.days, frequency: sug.days.length };
               const nextProducts = productsList.map(p => p.id === productId
                 ? sanitizeProductForSave({ ...p, useTimes: nextUseTimes, cadence: nextCadence })
                 : p

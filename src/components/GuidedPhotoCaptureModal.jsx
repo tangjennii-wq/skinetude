@@ -229,7 +229,7 @@ const GuidedPhotoCaptureModal = ({
     }
   };
 
-  const handleDone = () => {
+  const handleDone = async () => {
     if (totalCapturedCount === 0) {
       onClose && onClose();
       return;
@@ -246,7 +246,10 @@ const GuidedPhotoCaptureModal = ({
       const s = shotsByAngle[step.angle];
       if (s) ordered.push({ angle: step.angle, source: s.source, capturedAt: s.capturedAt, dataUrl: s.dataUrl });
     }
-    onComplete && onComplete(ordered);
+    if (onComplete) {
+      await onComplete(ordered);
+      return;
+    }
     onClose && onClose();
   };
 
