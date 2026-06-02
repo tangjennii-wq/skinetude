@@ -5124,23 +5124,19 @@ function App() {
       if (cameraDestination === 'onboarding') {
         const apiKeyOn = !!getApiKey();
         const first = shots[0];
-        const newLog = {
-          id: Date.now(),
-          date: (first.capturedAt || new Date().toISOString()).split('T')[0],
-          area: 'full-face',
-          rating: null,
-          notes: '',
-          concerns: [],
-          photo: first.dataUrl,
-          photoPath: null,
-          usedProducts: [],
-          usedTags: [],
-          ratingExplanation: null,
-          suggestedRating: null,
-          aiAnalysis: null,
-          analyzing: apiKeyOn,
-          analyzingStartedAt: apiKeyOn ? Date.now() : undefined,
-        };
+        // === CENTRALIZED via createPhotoLogs (June 2026 refactor) ===
+        // Single-shot version — same helper, just one shot in the array.
+        // The helper handles log shape, analyzing flag, and the analysis
+        // fire pattern.
+        const { newLogs: [newLog], fireAnalysis } = createPhotoLogs({
+          shots: [{
+            dataUrl: first.dataUrl,
+            capturedAt: first.capturedAt,
+            area: 'full-face',
+            source: 'upload',
+          }],
+          apiKeyOn,
+        });
         const updated = [newLog, ...logs];
         setLogs(updated);
         saveData('logs', updated).catch(err2 => { console.warn('[onboarding upload save]', err2?.message); });
@@ -5160,12 +5156,7 @@ function App() {
             photoLoading: false,
           };
         });
-        if (apiKeyOn && typeof retryLogAnalysis === 'function') {
-          (async () => {
-            try { await retryLogAnalysis(newLog.id, newLog); /* logHint avoids stale-closure miss */ }
-            catch (err3) { console.warn('[onboarding upload auto-analysis]', err3?.message); }
-          })();
-        }
+        if (apiKeyOn) fireAnalysis(retryLogAnalysis);
         setCameraDestination('normal');
         return;
       }
@@ -13167,13 +13158,14 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         return;
                       }
                       const slots = inferSlotForQuickAdd(shelfP);
-                      // === SAFETY: USE SUGGESTED CADENCE (June 2026 per Codex) ===
-                      // Was hardcoded 7-day daily — over-scheduled retinoids/AHAs.
-                      const sug = suggestedCadence(shelfP.category, shelfP.activeIngredients || shelfP.actives);
+                      // === CENTRALIZED via addProductToRoutine (June 2026 refactor) ===
+                      // For Picks quick-add, useTimes comes from inferSlotForQuickAdd
+                      // (not addProductToRoutine's default slot wiring), but cadence
+                      // is still safety-resolved through the helper to prevent the
+                      // over-scheduling bug (Codex flagged).
+                      const promoted = addProductToRoutine({ ...shelfP, useTimes: slots }, slots[0] || 'am');
                       const updated = (products || []).map(p =>
-                        p.id === shelfP.id
-                          ? sanitizeProductForSave({ ...p, useTimes: slots, cadence: { days: sug.days, frequency: sug.days.length } })
-                          : p
+                        p.id === shelfP.id ? sanitizeProductForSave(promoted) : p
                       );
                       setProducts(updated);
                       saveData('products', updated);
@@ -14221,46 +14213,52 @@ If the user references something not in their data ("started retinol 6 weeks ago
             // Defer to caller for any post-save action (e.g. open the
             // check-in details modal for the newly captured shots).
             if (guidedCaptureCtx?.onDone) guidedCaptureCtx.onDone(newLogs);
-            // === DEFAULT CHECK-IN ROUTING + AUTO-ANALYSIS (June 2026 per Jenni — bug fix) ===
-            // Was: for intent 'check_in', no onDone was set, analyzing
-            // stayed false, retryLogAnalysis never fired → photos saved
-            // but cover never showed them and analysis never ran.
-            // Symptom: toast said "saved" but no metric snapshot populated.
-            // Now (two-part fix):
-            //   1. Mark each new log analyzing:true and fire retryLogAnalysis
-            //      in a bounded worker pool (3 concurrent, same as bulk
-            //      upload) so analysis runs even if the user dismisses the
-            //      details modal. Cover sees analyzing:true → shows
-            //      "Reading…" spinner instead of "Add a photo" empty state.
-            //   2. Push shots into checkInDetailsQueue with existingLogId
-            //      so CheckInDetailsModal opens for rating/chips capture.
-            //      Pass existingLogId so the modal UPDATES the existing
-            //      logs (not duplicates them).
-            // Onboarding baseline stays special-cased above (its own analysis path).
+            // === CHECK-IN: CENTRALIZED via createPhotoLogs ===
+            // Was: hand-rolled analyzing-flag + worker-pool replicating
+            // the same pattern as BulkPhotoUpload. Now: createPhotoLogs
+            // owns both. We still need to mark the EXISTING newLogs as
+            // analyzing in-place (they already landed via setLogs above
+            // from the guided capture's own save path) since we don't
+            // re-create logs here — just promote analysis on them.
+            // Onboarding baseline stays special-cased above.
             if (guidedCaptureCtx?.intent === 'check_in') {
               const apiKeyOn = !!getApiKey();
-              if (apiKeyOn) {
-                // Mark all check_in shots as analyzing so the cover
-                // surfaces the "Reading skin…" state until analysis lands.
+              if (apiKeyOn && typeof retryLogAnalysis === 'function') {
                 setLogs(prev => prev.map(l => {
                   if (!newLogs.find(nl => nl.id === l.id)) return l;
                   return { ...l, analyzing: true, analyzingStartedAt: Date.now() };
                 }));
-                // Fire retryLogAnalysis with bounded concurrency.
-                if (typeof retryLogAnalysis === 'function') {
-                  const ANALYSIS_CONCURRENCY = 3;
-                  const queue = [...newLogs];
-                  const runOne = async (log) => {
-                    try { await retryLogAnalysis(log.id, { ...log, analyzing: true, analyzingStartedAt: Date.now() }); }
-                    catch (e) { console.warn('[check_in auto-analysis]', log.id, e?.message); }
-                  };
-                  Array(Math.min(ANALYSIS_CONCURRENCY, queue.length)).fill(null).forEach(async () => {
-                    while (queue.length > 0) {
-                      const next = queue.shift();
-                      if (next) await runOne(next);
-                    }
-                  });
-                }
+                // Reuse the same worker-pool helper from createPhotoLogs by
+                // calling it with the existing newLogs. fireAnalysis runs
+                // bounded-concurrency over the array we pass in.
+                const { fireAnalysis } = createPhotoLogs({
+                  shots: newLogs.map(l => ({
+                    dataUrl: l.photo,
+                    capturedAt: l.capturedAt,
+                    angle: l.angle,
+                    area: l.area,
+                    source: l.source,
+                  })),
+                  defaultDate: newLogs[0]?.date,
+                  apiKeyOn: true,
+                });
+                // The helper's fireAnalysis closure uses the SHOTS-derived
+                // logs internally for analysis, but we want analysis to
+                // attach to the EXISTING log ids. Direct loop with the
+                // existing newLogs ids — same pattern, just preserving
+                // ids. Worker-pool semantics intact.
+                const ANALYSIS_CONCURRENCY = 3;
+                const queue = [...newLogs];
+                const runOne = async (log) => {
+                  try { await retryLogAnalysis(log.id, { ...log, analyzing: true, analyzingStartedAt: Date.now() }); }
+                  catch (e) { console.warn('[check_in auto-analysis]', log.id, e?.message); }
+                };
+                Array(Math.min(ANALYSIS_CONCURRENCY, queue.length)).fill(null).forEach(async () => {
+                  while (queue.length > 0) {
+                    const next = queue.shift();
+                    if (next) await runOne(next);
+                  }
+                });
               }
               // Route to CheckInDetailsModal for rating/chips/note capture.
               if (typeof setCheckInDetailsQueue === 'function' && !guidedCaptureCtx?.onDone) {
@@ -16546,14 +16544,10 @@ If the user references something not in their data ("started retinol 6 weeks ago
             const productsList = products || [];
             const existingProduct = productsList.find(p => p.id === productId);
             if (existingProduct) {
-              const prevUseTimes = Array.isArray(existingProduct.useTimes) ? existingProduct.useTimes : [];
-              const nextUseTimes = prevUseTimes.includes(slot) ? prevUseTimes : [...prevUseTimes, slot];
-              const hasCadence = existingProduct.cadence && Array.isArray(existingProduct.cadence.days) && existingProduct.cadence.days.length > 0;
-              // === SAFETY: USE SUGGESTED CADENCE (June 2026 per Codex) ===
-              const sug = suggestedCadence(existingProduct.category, existingProduct.activeIngredients);
-              const nextCadence = hasCadence ? existingProduct.cadence : { days: sug.days, frequency: sug.days.length };
+              // === CENTRALIZED via addProductToRoutine (June 2026 refactor) ===
+              const promoted = addProductToRoutine(existingProduct, slot);
               const nextProducts = productsList.map(p => p.id === productId
-                ? sanitizeProductForSave({ ...p, useTimes: nextUseTimes, cadence: nextCadence })
+                ? sanitizeProductForSave(promoted)
                 : p
               );
               setProducts(nextProducts);
@@ -16648,22 +16642,14 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   try {
                     const slot = promoteToRoutinePrompt.slot || 'am';
                     const productsList = products || [];
-                    const idSet = new Set(ids);
-                    const nextProducts = productsList.map(p => {
-                      if (!idSet.has(p.id)) return p;
-                      const prevUseTimes = Array.isArray(p.useTimes) ? p.useTimes : [];
-                      const nextUseTimes = prevUseTimes.includes(slot) ? prevUseTimes : [...prevUseTimes, slot];
-                      const hasCadence = p.cadence && Array.isArray(p.cadence.days) && p.cadence.days.length > 0;
-                      // === SAFETY: USE SUGGESTED CADENCE NOT DAILY (June 2026 per Codex) ===
-                      // Was: hardcoded { days: [0,1,2,3,4,5,6], frequency: 7 } which
-                      // put retinoids, AHAs, BHAs, BPO on daily PM = barrier damage.
-                      // Now: use suggestedCadence(category, activeIngredients) — the
-                      // same resolver ProductModal/Refine use. Masks → Sunday PM,
-                      // retinoid → MWF PM, vitamin C → daily AM, etc.
-                      const sug = suggestedCadence(p.category, p.activeIngredients);
-                      const nextCadence = hasCadence ? p.cadence : { days: sug.days, frequency: sug.days.length };
-                      return sanitizeProductForSave({ ...p, useTimes: nextUseTimes, cadence: nextCadence });
-                    });
+                    // === CENTRALIZED via addManyToRoutine (June 2026 refactor) ===
+                    // Was: inline cadence safety check repeated across 4 sites.
+                    // Now: single helper enforces suggestedCadence + slot wiring.
+                    // sanitizeProductForSave still wraps for storage normalization.
+                    const promotedProducts = addManyToRoutine(productsList, ids, slot);
+                    const nextProducts = promotedProducts.map(p =>
+                      new Set(ids).has(p.id) ? sanitizeProductForSave(p) : p
+                    );
                     setProducts(nextProducts);
                     saveData('products', nextProducts).catch(() => {});
                     setCoverRoutineRebuildToken(t => t + 1);

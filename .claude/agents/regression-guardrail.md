@@ -146,3 +146,22 @@ If a future incident reveals a new invariant worth guarding, add it to this cata
 - Known-safe sites to ignore
 
 Append; don't rewrite. The catalog is a memory of past regressions.
+
+### Flow 8 — logHelpers used, not bypassed
+
+**The invariant:** New code creating photo logs must use `createPhotoLogs` from `src/resolvers/logHelpers.js`. New code promoting products to the weekly routine must use `addProductToRoutine` or `addManyToRoutine`. Hand-rolling the log shape with `setLogs([...newLogs, ...prev])` or hardcoding `cadence: { days: [0,1,2,3,4,5,6] }` = regression bait — every past fork caused a parallel-path bug.
+
+**How to check:**
+```bash
+# Hand-rolled log shape (should be 0 in new code — refactor any hits):
+grep -nE "analyzing:.*Date\.now\(\).*photo:" index.jsx.source src/components/**/*.jsx | grep -v logHelpers.js
+
+# Hardcoded daily-7 cadence in promotion/add-to-routine context (should be 0):
+grep -n "days:.*0.*1.*2.*3.*4.*5.*6.*frequency:.*7" index.jsx.source src/components/**/*.jsx | grep -v logHelpers.js
+```
+
+If either returns hits, the new code is bypassing the helpers. Refactor to use them. If the helper doesn't cover the case, extend it — don't fork.
+
+**Known safe sites (don't flag):**
+- `src/resolvers/logHelpers.js` itself — that's where the canonical pattern lives
+- The check-in path in `index.jsx.source` — operates on existing log ids, intentionally inline

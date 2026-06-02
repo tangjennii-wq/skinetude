@@ -6,6 +6,22 @@ Repo-level rules in `/CLAUDE.md` still apply. These are additional.
 
 ---
 
+## logHelpers is the load-bearing pattern layer
+
+`logHelpers.js` exists because the same patterns kept getting hand-replicated and missed in parallel code paths. The three exports:
+
+- `createPhotoLogs({ shots, defaultDate, baseFields, apiKeyOn, source, concurrency })` → `{ newLogs, fireAnalysis }` — single source for log shape + analyzing flag + bounded-concurrency analysis pool
+- `addProductToRoutine(product, slot, { force? })` → updated product with `useTimes` + safe `cadence` (via `suggestedCadence`)
+- `addManyToRoutine(productsList, productIds, slot, { force? })` → batch version of above
+
+**If you find yourself writing:**
+- `setLogs([...newLog, ...prev])` with hand-rolled log fields → use `createPhotoLogs` instead
+- `cadence: { days: [0,1,2,3,4,5,6], frequency: 7 }` → use `addProductToRoutine`
+
+**Extending these helpers is preferred over forking them.** Every fork in the past became a regression. The whole point of this layer is to make the right thing easy and the wrong thing impossible.
+
+---
+
 ## Composite math is sacred
 
 `compositeIndex.js` is the canonical score implementation. If you change any of:

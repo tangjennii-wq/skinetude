@@ -55,6 +55,7 @@ const SRC_FILES = [
   'src/resolvers/parseSkinMetrics.js',          // SKIN_METRIC_KEYS, SKIN_REGION_VALUES, parseSkinMetrics, parseSkinRegion, stripAnalysisStructuredLines
   'src/resolvers/normalizeRatingTo5.js',
   'src/resolvers/compositeIndex.js',            // Frida Composite Index v1 (June 2026): computeDomainScore, computeCompositeScore, computeBaseline, computeBaselineDelta, pickMostBenignPattern
+  'src/resolvers/logHelpers.js',                // Anti-regression refactor (June 2026): createPhotoLogs, addProductToRoutine, addManyToRoutine — single source of truth for log creation + product-to-routine promotion
   'src/resolvers/resolveContextSummary.js',     // PR 4: resolveContextSummary (uses CONTEXT_FACTORS above)
   'src/resolvers/sampleRoutines.js',            // PR 4: SAMPLE_ROUTINES + FOUNDATIONAL_SAMPLE_ROUTINE
   'src/resolvers/routineResolvers.js',          // PR 4b: MAX_FACE_ROUTINE_SLOT_PRODUCTS, isBodyProduct, resolveTodayRitual, getProductsForTodayFromPattern

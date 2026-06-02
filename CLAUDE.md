@@ -89,6 +89,7 @@ The bundle is generated, single-file, and deployed to `tangjennii-wq.github.io/s
 4. **Don't reintroduce retired words.** Search for `rhythm` and `ritual` before any large copy pass.
 5. **Don't reintroduce sensitivity as an AI metric domain.** It was dropped deliberately; the model rejection is intentional.
 6. **Run `regression-guardrail` before structural commits.** After any non-trivial change to `index.jsx.source`, `src/components/*.jsx`, or `src/resolvers/*`, invoke the `regression-guardrail` subagent (`.claude/agents/regression-guardrail.md`) to verify the seven fundamental flows still work. Catalog: photo upload → analysis fires, product save → today's log updated, done-state inheritance on slot-add, cover token bumps after writes, composite math integrity, no banned words, sensitivity stays dropped. Add new flows to the catalog when new incident-driven invariants emerge.
+7. **Use the centralized helpers in `src/resolvers/logHelpers.js`.** When creating photo logs, use `createPhotoLogs({ shots, apiKeyOn, ... })` — it returns `{ newLogs, fireAnalysis }`. When promoting products to the weekly routine, use `addProductToRoutine(product, slot)` (single) or `addManyToRoutine(list, ids, slot)` (batch). These wrap the load-bearing patterns (analyzing flag, retryLogAnalysis worker pool, suggestedCadence safety check). Don't hand-roll the log shape or hardcode `cadence: { days: [0,1,2,3,4,5,6] }` ever — every parallel call site that did so caused a regression. If the helpers don't cover your case, EXTEND them; don't fork.
 
 ## Other subagents available
 

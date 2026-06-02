@@ -460,13 +460,15 @@ const SOURCE_FILES = collectSourceFiles();
 // Guard 3.09 — daily photo captures must funnel through check-in details.
 // Mental model: every daily capture/upload/detail shot goes to
 // checkInDetailsQueue, where the user confirms region + rating + context.
-// Only onboarding_baseline can save directly.
+// Daily check-in defaults to a one-photo minimum. Full-set capture is an
+// explicit caller opt-in via requireFullGuidedSet, so onboarding/new-user
+// flows can stay lightweight unless they deliberately request the full set.
 {
   const sidecar = SOURCE_FILES.find(f => f.rel === 'index.jsx.source');
   if (sidecar) {
     const guidedBranch = /guidedCaptureCtx\?\.intent !== 'onboarding_baseline'[\s\S]{0,700}setCheckInDetailsQueue\(queue\)/.test(sidecar.text);
-    const fullSetOnlyForSetIntents =
-      sidecar.text.includes("requireFullGuidedSet={guidedCaptureCtx?.intent === 'onboarding_baseline'}");
+    const fullSetIsExplicitOptIn =
+      sidecar.text.includes('requireFullGuidedSet={guidedCaptureCtx?.requireFullGuidedSet === true}');
     const preservesMetadata =
       sidecar.text.includes('noticed: Array.isArray(form.noticed)') &&
       sidecar.text.includes('contextFactors: Array.isArray(form.contextFactors)') &&
@@ -474,8 +476,8 @@ const SOURCE_FILES = collectSourceFiles();
       sidecar.text.includes("eye_area: 'eye-area'");
     if (!guidedBranch) fail('Guided daily captures must route to CheckInDetailsModal before save');
     else ok('Guided daily captures route through CheckInDetailsModal');
-    if (!fullSetOnlyForSetIntents) fail('Only baseline/set capture should require the full guided sequence; check-in should allow one photo');
-    else ok('Guided check-in does not require the full 5-photo set');
+    if (!fullSetIsExplicitOptIn) fail('Full guided capture must be explicit opt-in; daily/new-user check-in should allow one photo');
+    else ok('Guided capture defaults to one-photo completion unless explicitly full-set');
     if (!preservesMetadata) fail('Saved check-in logs must preserve noticed/context/angle and eye-area metadata');
     else ok('Saved check-in logs preserve context and per-photo metadata');
   }
