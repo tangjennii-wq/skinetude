@@ -1070,7 +1070,7 @@ const RegimenTodayView = ({
               type="button"
             >
               <Icon name={activeSlotSubmitted ? 'Check' : (ritualSlot === 'pm' ? 'Moon' : 'Sun')} size={13} style={activeSlotSubmitted ? {color:'var(--accent-blue)'} : undefined} />
-              <span className="truncate">{activeSlotSubmitted ? 'Today logged' : (ritualSlot === 'pm' ? 'Yes, I did my PM regimen' : 'Yes, I did my AM regimen')}</span>
+              <span className="truncate">{activeSlotSubmitted ? 'Done today' : (ritualSlot === 'pm' ? 'Yes, I did PM' : 'Yes, I did AM')}</span>
             </button>
           </>
         )}

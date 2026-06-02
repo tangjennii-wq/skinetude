@@ -3556,13 +3556,16 @@ CRITICAL OUTPUT REQUIREMENTS:
             //   4. default OR some X'd as skipped  → "Yes, I did today's {AM/PM} regimen"
             //      (tapping commits all planned minus any X'd skipped —
             //      the natural reading: "I did everything I didn't skip")
+            // === SHORTER CTA LABELS (June 2026 per Jenni — two-pill layout) ===
+            // Was full-width verbose labels. Shorter copy so the two pills
+            // fit side-by-side at 380px without truncation.
             const ctaLabel = slotSubmitted
-              ? 'Today logged'
+              ? 'Done today'
               : (isEmptySlot
-                ? (ctaSlot === 'pm' ? 'Yes, I skipped PM products' : 'Yes, I skipped AM products')
+                ? (ctaSlot === 'pm' ? 'Skip PM today' : 'Skip AM today')
                 : (hasSomeManualDone
-                  ? `Save ${doneCount} of ${totalCount} done`
-                  : (ctaSlot === 'pm' ? "Yes, I did today's PM regimen" : "Yes, I did today's AM regimen")));
+                  ? `Save ${doneCount}/${totalCount}`
+                  : (ctaSlot === 'pm' ? "Yes, I did PM" : "Yes, I did AM")));
             // Inline save — writes the regimen log for viewDate with
             // exactly the checked products marked done (planned minus
             // skipped). Skipped IDs are preserved in the log so the
@@ -3697,37 +3700,15 @@ CRITICAL OUTPUT REQUIREMENTS:
             };
             return (
               <>
-                {slotSubmitted ? (
-                  // Tap-to-undo pill (May 2026, copy updated June 2026 per Jenni).
-                  // The pill IS the toggle now — tap once to undo, then the
-                  // primary "Log AM/PM" CTA reappears in the same slot for
-                  // an instant refill. Affordance made explicit with the
-                  // "TAP TO UNDO" label so mobile users (no hover/tooltip)
-                  // see what the second click does.
-                  <button
-                    type="button"
-                    onClick={undoSlotLog}
-                    className="w-full rounded-full py-3 px-4 flex items-center justify-between mt-3 transition hover:opacity-80"
-                    style={{
-                      background: 'var(--cream-deep)',
-                      color: 'var(--ink)',
-                      border: '1px solid var(--line)',
-                      fontWeight: 600, fontSize: 12.5, letterSpacing: '0.04em',
-                      cursor: 'pointer',
-                    }}
-                    aria-label={`${ctaSlot.toUpperCase()} regimen logged for today — tap to undo`}
-                    title={`Tap to undo today's ${ctaSlot.toUpperCase()} commit`}
-                  >
-                    <span className="flex items-center gap-2 min-w-0">
-                      <Icon name="Check" size={13} style={{color:'var(--accent-blue)'}} />
-                      <span className="truncate">Today logged</span>
-                    </span>
-                    <span className="flex items-center gap-1 text-[9.5px] tracking-[0.18em] uppercase flex-shrink-0" style={{color:'var(--ink-soft)', fontWeight:600}}>
-                      <Icon name="RotateCcw" size={10} />
-                      Tap to undo
-                    </span>
-                  </button>
-                ) : isEmptySlot ? (
+                {/* === TWO-PILL CTA ROW (June 2026 per Jenni) ===
+                    Was: stacked full-width buttons (Today logged / Log AM /
+                    Used something else today? Add here). Now: two equal
+                    pills side-by-side. Left pill is state-aware (logged
+                    state vs primary CTA); right pill is the always-visible
+                    "Something else?" shortcut. Empty slot path keeps its
+                    own stacked layout since those are recovery affordances,
+                    not the daily-execution pair. */}
+                {isEmptySlot ? (
                   <>
                     <button
                       onClick={hasBuiltRoutineForCta ? restoreEmptySlotFromRoutine : buildStandingRoutine}
@@ -3764,42 +3745,63 @@ CRITICAL OUTPUT REQUIREMENTS:
                       type="button"
                     >
                       <Icon name={ctaSlot === 'pm' ? 'Moon' : 'Sun'} size={12} />
-                      <span>Skip {ctaSlot.toUpperCase()} products today</span>
+                      <span>Skip {ctaSlot.toUpperCase()} today</span>
                     </button>
                   </>
                 ) : (
-                  <button
-                    onClick={logRitualNow}
-                    className="w-full rounded-full py-3 px-4 flex items-center justify-center gap-2 transition hover:opacity-90 mt-3"
-                    style={{
-                      background: 'var(--accent)',
-                      color: 'var(--cream)',
-                      border: '1px solid var(--accent)',
-                      fontWeight: 600, fontSize: 12.5, letterSpacing: '0.04em', cursor: 'pointer',
-                    }}
-                    title={isEmptySlot
-                      ? `Log ${ctaSlot.toUpperCase()} as bare for today (no products)`
-                      : (hasSomeSkipped
-                        ? `Save today's ${ctaSlot.toUpperCase()} check-in (${ctaList.length - skippedCount} done, ${skippedCount} skipped)`
-                        : `Mark all ${ctaSlot.toUpperCase()} products as done for today`)}
-                    type="button"
-                  >
-                    <Icon name={ctaIcon} size={13} />
-                    <span className="truncate">{ctaLabel}</span>
-                  </button>
-                )}
-                {/* Secondary — opens today-only bottom sheet. */}
-                {!isEmptySlot && (
-                  <button
-                    onClick={() => setUsedSomethingElseSheet({ open: true, slot: ctaSlot, date: viewDate })}
-                    className="w-full rounded-full py-2.5 px-4 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)] mt-2"
-                    style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:11.5, letterSpacing:'0.02em', cursor:'pointer'}}
-                    title="Add a one-off product, procedure, supplement, or note for today only"
-                    type="button"
-                  >
-                    <Icon name="Plus" size={12} />
-                    <span>Used something else today? Add here</span>
-                  </button>
+                  // Non-empty slot: paired pill row. Left pill flips between
+                  // logged (muted, tap to undo) and primary CTA (accent, tap
+                  // to mark all done). Right pill is "Something else?" — the
+                  // entry point for one-offs (procedures, devices, travel, etc.).
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    {slotSubmitted ? (
+                      <button
+                        type="button"
+                        onClick={undoSlotLog}
+                        className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:opacity-80"
+                        style={{
+                          background: 'var(--cream-deep)',
+                          color: 'var(--ink)',
+                          border: '1px solid var(--line)',
+                          fontWeight: 600, fontSize: 12, letterSpacing: '0.02em',
+                          cursor: 'pointer',
+                        }}
+                        aria-label={`${ctaSlot.toUpperCase()} regimen logged for today — tap to undo`}
+                        title={`Tap to undo today's ${ctaSlot.toUpperCase()} commit`}
+                      >
+                        <Icon name="Check" size={13} style={{color:'var(--accent-blue)'}} />
+                        <span className="truncate">{ctaLabel}</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={logRitualNow}
+                        className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:opacity-90"
+                        style={{
+                          background: 'var(--accent)',
+                          color: 'var(--cream)',
+                          border: '1px solid var(--accent)',
+                          fontWeight: 600, fontSize: 12, letterSpacing: '0.02em', cursor: 'pointer',
+                        }}
+                        title={hasSomeSkipped
+                          ? `Save today's ${ctaSlot.toUpperCase()} check-in (${ctaList.length - skippedCount} done, ${skippedCount} skipped)`
+                          : `Mark all ${ctaSlot.toUpperCase()} products as done for today`}
+                        type="button"
+                      >
+                        <Icon name={ctaIcon} size={13} />
+                        <span className="truncate">{ctaLabel}</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setUsedSomethingElseSheet({ open: true, slot: ctaSlot, date: viewDate })}
+                      className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)]"
+                      style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'}}
+                      title="Add a one-off product, procedure, supplement, or note for today only"
+                      type="button"
+                    >
+                      <Icon name="Plus" size={12} />
+                      <span className="truncate">Something else?</span>
+                    </button>
+                  </div>
                 )}
                 {/* === REFINE ROUTINE LINK (June 2026 per Jenni — bottom right) ===
                     Quiet text link that routes to Regimen → Refine view.
