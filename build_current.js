@@ -163,6 +163,11 @@ const COMPONENT_FILES = [
   // cover delta line, cover kebab, ProfileModal, and first-time auto-show.
   // Lives at module scope alongside Modal so it can be rendered from App.
   'src/components/ScoreExplainerModal.jsx',
+  // June 2026 — Travel mode setup modal. Opens from "Used something else?
+  // → Going traveling" or from tapping the cover travel banner. Captures
+  // dates, destination, time zone, climate, packed products, notes.
+  // Writes userProfile.travel.
+  'src/components/TravelSetupModal.jsx',
   // Wave 5.2 (May 2026) — SkinLogModal extracted (~1027 lines lifted).
   // Photo capture + AI rating + concerns + notes + "also today" inline
   // procedure/product start. Multi-photo session fan-out to N entries.

@@ -18,7 +18,8 @@ const BulkPhotoUploadModal = ({
   toast,
   user,
   setShowBulkUploadModal,
-  setCoverRoutineRebuildToken}) => {
+  setCoverRoutineRebuildToken,
+  retryLogAnalysis}) => {
   const [items, setItems] = useState([]); // [{ photo: b64, date: 'YYYY-MM-DD', area: 'full-face' }]
   const [defaultDate, setDefaultDate] = useState(localDateISO());
   const [perPhotoMode, setPerPhotoMode] = useState(false); // false = all share defaultDate
@@ -98,13 +99,40 @@ const BulkPhotoUploadModal = ({
         usedProducts: [],
         usedTags: [],
         aiAnalysis: null,
-        analyzing: false}));
+        // June 2026 bug fix per Jenni — was: `analyzing: false`. Bulk
+        // upload saved photos as raw logs and never triggered AI analysis,
+        // so they sat in the Journal with no metric snapshot or prose.
+        // Stamp analyzing:true here so the cover spinner and journal
+        // status badge show "Reading…" until retryLogAnalysis lands.
+        analyzing: !!retryLogAnalysis,
+        analyzingStartedAt: retryLogAnalysis ? Date.now() : undefined,
+      }));
       const updated = [...logs, ...newEntries].sort((a, b) => new Date(b.date) - new Date(a.date));
       // Close fast then persist. Same pattern as SkinLogModal create-path.
       setLogs(updated);
       setCoverRoutineRebuildToken(t => t + 1);
       close();
-      toast(`${newEntries.length} ${newEntries.length === 1 ? 'photo' : 'photos'} saved`, 'info');
+      toast(`${newEntries.length} ${newEntries.length === 1 ? 'photo' : 'photos'} saved · reading skin…`, 'info');
+      // === FIRE BACKGROUND ANALYSIS (June 2026 bug fix per Jenni) ===
+      // Bounded concurrency = 3 to avoid quota burst when user dumps 10+
+      // photos at once. Each call passes the freshly-created log object as
+      // logHint so retryLogAnalysis doesn't hit the stale-closure bug where
+      // `logs.find(id)` returns undefined.
+      if (typeof retryLogAnalysis === 'function') {
+        const ANALYSIS_CONCURRENCY = 3;
+        const queue = [...newEntries];
+        const runOne = async (entry) => {
+          try { await retryLogAnalysis(entry.id, entry); }
+          catch (e) { console.warn('[BulkUpload] analysis failed for', entry.id, e?.message); }
+        };
+        // Fire-and-forget worker pool — don't block the modal close.
+        Array(Math.min(ANALYSIS_CONCURRENCY, queue.length)).fill(null).forEach(async () => {
+          while (queue.length > 0) {
+            const next = queue.shift();
+            if (next) await runOne(next);
+          }
+        });
+      }
       saveData('logs', updated).catch(e => {
         console.error('[BulkUpload] saveData failed:', e);
         toast(`Save error: ${e?.message || 'unknown'}`, 'error');

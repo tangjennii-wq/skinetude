@@ -14071,6 +14071,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
           user={user}
           setShowBulkUploadModal={setShowBulkUploadModal}
           setCoverRoutineRebuildToken={setCoverRoutineRebuildToken}
+          retryLogAnalysis={retryLogAnalysis}
         />
       )}
 
@@ -17388,7 +17389,34 @@ If the user references something not in their data ("started retinol 6 weeks ago
           const nextSlot = isInSlot
             ? currentSlot.filter(id => id !== productId)
             : [...currentSlot, productId];
-          const nextLog = { ...baseLog, [slotKey]: nextSlot, [otherKey]: baseLog[otherKey] || [] };
+          // === INHERIT DONE STATE (June 2026 per Jenni — bug fix) ===
+          // When adding a product to a slot that's already in "Done today"
+          // state, the new product should inherit the done state. Without
+          // this, the user has to manually tap the circle on the new
+          // product after add, which contradicts the "Done today" promise.
+          // Detection: slot was batch-confirmed OR every existing product
+          // was already done. Removal path also strips from done.
+          const doneKey = slot === 'am' ? 'amDone' : 'pmDone';
+          const batchKey = slot === 'am' ? 'amBatchConfirmed' : 'pmBatchConfirmed';
+          const currentDone = Array.isArray(baseLog[doneKey]) ? baseLog[doneKey] : [];
+          const slotWasFullyDone = baseLog[batchKey] === true
+            || (currentSlot.length > 0 && currentSlot.every(id => currentDone.includes(id)));
+          let nextDone;
+          if (isInSlot) {
+            // Removing — also strip from done.
+            nextDone = currentDone.filter(id => id !== productId);
+          } else if (slotWasFullyDone) {
+            // Adding to an already-done slot — inherit done.
+            nextDone = currentDone.includes(productId) ? currentDone : [...currentDone, productId];
+          } else {
+            nextDone = currentDone;
+          }
+          const nextLog = {
+            ...baseLog,
+            [slotKey]: nextSlot,
+            [otherKey]: baseLog[otherKey] || [],
+            [doneKey]: nextDone,
+          };
           const nextRegimenLogs = todayLog
             ? regimenLogs.map(r => r.date === todayKey ? nextLog : r)
             : [nextLog, ...regimenLogs];
@@ -19250,6 +19278,63 @@ If the user references something not in their data ("started retinol 6 weeks ago
           />
         );
       })()}
+
+      {/* === TRAVEL SETUP MODAL (June 2026 — Phase 1) === */}
+      {showTravelSetupModal && (
+        <TravelSetupModal
+          userProfile={userProfile}
+          setUserProfile={setUserProfile}
+          products={products}
+          saveData={saveData}
+          toast={toast}
+          onClose={() => setShowTravelSetupModal(false)}
+        />
+      )}
+
+      {/* === WELCOME BACK PROMPT (June 2026 per Jenni — Phase 1) ===
+          Top banner after travel mode auto-flips off. Asks how the trip
+          went; tap routes to a check-in. Auto-dismisses after 12s. Once
+          dismissed, persists a seen flag so we don't re-prompt. */}
+      {welcomeBackPrompt && (
+        <div className="fixed top-4 left-1/2 z-40 px-3 max-w-md w-full" style={{transform:'translateX(-50%)'}}>
+          <div
+            className="rounded-[14px] shadow-lg flex items-center gap-2 px-3 py-2 flex-wrap"
+            style={{background:'var(--cream)', border:'1px solid var(--accent-blue)'}}
+          >
+            <span className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1.5 flex-1 min-w-0" style={{color:'var(--ink-soft)'}}>
+              <span style={{color:'var(--accent-blue)'}}>✈</span>
+              <span className="truncate" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'0.05em'}}>
+                Welcome back · how'd {welcomeBackPrompt.destination} go?
+              </span>
+            </span>
+            <div className="flex gap-1.5 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  try { localStorage.setItem(welcomeBackPrompt.seenKey, '1'); } catch {}
+                  setWelcomeBackPrompt(null);
+                  setShowCheckInChooser && setShowCheckInChooser(true);
+                }}
+                className="text-[10px] tracking-[0.18em] uppercase px-3 py-1.5 rounded-full transition hover:opacity-90"
+                style={{background:'var(--accent-blue)', color:'var(--cream)', fontWeight:600, cursor:'pointer'}}
+              >
+                Check in
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  try { localStorage.setItem(welcomeBackPrompt.seenKey, '1'); } catch {}
+                  setWelcomeBackPrompt(null);
+                }}
+                className="text-[10px] tracking-[0.18em] uppercase px-2 py-1.5 transition hover:opacity-70"
+                style={{color:'var(--ink-soft)', fontWeight:600, cursor:'pointer'}}
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* === FRIDA FORMULARY — SUGGESTED MATCHES DRAWER ===
           Bottom sheet on mobile, right drawer on desktop.

@@ -272,6 +272,14 @@ const compositeOut10 = (log, goal) => {
 const computeBaseline = (logs, goal) => {
   const sorted = (Array.isArray(logs) ? logs : [])
     .filter(l => l && l.date)
+    // === TRAVEL EXCLUSION (June 2026 per Jenni) ===
+    // Travel-tagged logs still get individual composite scores (you can
+    // see how the trip went), but they don't anchor the baseline. Skin
+    // behaves differently on the road — lighting, water, climate, sleep
+    // all shift. Baseline stays calibrated to "your normal skin." When
+    // travel mode flips off and the user returns home, baseline keeps
+    // its pre-travel anchor; new home-day logs continue to fill it.
+    .filter(l => !(l.travel === true))
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
   // Qualifying logs: have BOTH AI snapshot and a rating, so the per-domain
@@ -358,7 +366,9 @@ const computeBaselineDelta = (todayScore, baseline) => {
 // Returns:
 //   { domain, copy, n, mean, stdev } or null when nothing qualifies
 const pickMostBenignPattern = (logs, goal) => {
-  const pool = (Array.isArray(logs) ? logs : []).filter(l => l && l.metricSnapshot);
+  // Same travel exclusion as baseline — patterns derived for the
+  // anchored state shouldn't be drawn from a week at the beach.
+  const pool = (Array.isArray(logs) ? logs : []).filter(l => l && l.metricSnapshot && !(l.travel === true));
   if (pool.length < BASELINE_PATTERN_THRESHOLD) return null;
 
   const perDomainSeries = {};

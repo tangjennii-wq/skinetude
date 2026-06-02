@@ -1075,8 +1075,21 @@ Example response (just this, nothing else):
         if (existingLog) {
           const currentSlot = existingLog[slotKey] || [];
           if (!currentSlot.includes(id)) {
+            // === INHERIT DONE STATE (June 2026 per Jenni — bug fix) ===
+            // If the slot was already in "Done today" state, the new
+            // product inherits the done state so the user doesn't have
+            // to re-tap the circle. Detection mirrors the shelf-quick-add
+            // path: amBatchConfirmed OR every existing product was done.
+            const doneKey = ctxSlot === 'am' ? 'amDone' : 'pmDone';
+            const batchKey = ctxSlot === 'am' ? 'amBatchConfirmed' : 'pmBatchConfirmed';
+            const currentDone = Array.isArray(existingLog[doneKey]) ? existingLog[doneKey] : [];
+            const slotWasFullyDone = existingLog[batchKey] === true
+              || (currentSlot.length > 0 && currentSlot.every(pid => currentDone.includes(pid)));
+            const nextDone = slotWasFullyDone
+              ? (currentDone.includes(id) ? currentDone : [...currentDone, id])
+              : currentDone;
             nextLogs = regimenLogs.map(r => r.date === ctxDate
-              ? { ...r, [slotKey]: [...currentSlot, id] }
+              ? { ...r, [slotKey]: [...currentSlot, id], [doneKey]: nextDone }
               : r
             );
           }

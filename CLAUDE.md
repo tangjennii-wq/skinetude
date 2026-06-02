@@ -88,6 +88,19 @@ The bundle is generated, single-file, and deployed to `tangjennii-wq.github.io/s
 3. **Verification before "done".** Don't declare work complete based on intent — re-grep the bundle for the new strings/symbols you added.
 4. **Don't reintroduce retired words.** Search for `rhythm` and `ritual` before any large copy pass.
 5. **Don't reintroduce sensitivity as an AI metric domain.** It was dropped deliberately; the model rejection is intentional.
+6. **Run `regression-guardrail` before structural commits.** After any non-trivial change to `index.jsx.source`, `src/components/*.jsx`, or `src/resolvers/*`, invoke the `regression-guardrail` subagent (`.claude/agents/regression-guardrail.md`) to verify the seven fundamental flows still work. Catalog: photo upload → analysis fires, product save → today's log updated, done-state inheritance on slot-add, cover token bumps after writes, composite math integrity, no banned words, sensitivity stays dropped. Add new flows to the catalog when new incident-driven invariants emerge.
+
+## Other subagents available
+
+In addition to `regression-guardrail`, the repo has five other reviewers in `.claude/agents/`:
+
+- **brand-voice-auditor** — scans copy for retired words, italics, off-brand phrasing, causal claims
+- **brand-voice-rewriter** — rewrites flagged copy into Tang & Gainey voice
+- **design-direction-critic** — flags layout / visual choices that drift from the editorial-apartment direction
+- **mobile-first-qa** — checks 380px-first layout, touch targets, scroll behavior
+- **stratechery-critic** — strategic / surface-area critique through a Ben Thompson lens
+
+Use them deliberately. Brand voice + design before any copy or layout ships; regression-guardrail before any structural commit; stratechery + mobile-first for periodic audits.
 
 ---
 
