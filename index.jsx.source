@@ -16592,7 +16592,14 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       const prevUseTimes = Array.isArray(p.useTimes) ? p.useTimes : [];
                       const nextUseTimes = prevUseTimes.includes(slot) ? prevUseTimes : [...prevUseTimes, slot];
                       const hasCadence = p.cadence && Array.isArray(p.cadence.days) && p.cadence.days.length > 0;
-                      const nextCadence = hasCadence ? p.cadence : { days: [0,1,2,3,4,5,6], frequency: 7 };
+                      // === SAFETY: USE SUGGESTED CADENCE NOT DAILY (June 2026 per Codex) ===
+                      // Was: hardcoded { days: [0,1,2,3,4,5,6], frequency: 7 } which
+                      // put retinoids, AHAs, BHAs, BPO on daily PM = barrier damage.
+                      // Now: use suggestedCadence(category, activeIngredients) — the
+                      // same resolver ProductModal/Refine use. Masks → Sunday PM,
+                      // retinoid → MWF PM, vitamin C → daily AM, etc.
+                      const sug = suggestedCadence(p.category, p.activeIngredients);
+                      const nextCadence = hasCadence ? p.cadence : { days: sug.days, frequency: sug.days.length };
                       return sanitizeProductForSave({ ...p, useTimes: nextUseTimes, cadence: nextCadence });
                     });
                     setProducts(nextProducts);
