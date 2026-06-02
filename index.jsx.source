@@ -4603,6 +4603,26 @@ function App() {
     // Mirrored from onboardingState.experienceLevel post-onboarding
     // so the Insights "Lessons" filter has a single source of truth.
     experienceLevel: '',
+    // === TRAVEL MODE (June 2026 per Jenni — Phase 1) ===
+    // Global mode set from "Used something else? → Going traveling" or
+    // the cover banner. When active, resolveTodayRitual swaps the
+    // weekly routine for travel.products. Every regimenLog and photo
+    // log captured during travel gets travel:true so Journal and
+    // Compare can filter on it. Auto-flips off after endDate; a
+    // welcome-back prompt offers a "how'd it go?" check-in.
+    travel: {
+      active: false,
+      startDate: '',
+      endDate: '',
+      durationHint: '',         // 'weekend' | 'week' | '2-weeks' | 'longer' (derived from dates, editable)
+      products: [],              // product IDs in the travel-only routine
+      locationKind: '',          // 'beach' | 'cold' | 'humid' | 'dry' | 'normal'
+      destinationTz: '',         // IANA timezone string (e.g. 'Asia/Tokyo')
+      destinationLabel: '',      // human-friendly city/region label
+      homeTz: '',                // captured at setup time
+      tzDeltaHours: 0,           // derived; triggers jetlag content in Phase 2 when |Δ| ≥ 3
+      notes: '',
+    },
   };
   const [userProfile, setUserProfile] = useState(() => {
     try {
@@ -4814,6 +4834,44 @@ function App() {
   // hamburger menu. Pre-renders the current week's digest and offers a
   // one-tap .ics calendar export with the digest body embedded.
   const [showSundayDigest, setShowSundayDigest] = useState(false);
+  // === TRAVEL MODE (June 2026 per Jenni — Phase 1) ===
+  // Modal open flag — opened from "Used something else? → Going traveling"
+  // entry or from tapping the cover banner when travel.active. Modal
+  // edits userProfile.travel directly.
+  const [showTravelSetupModal, setShowTravelSetupModal] = useState(false);
+  // Welcome-back prompt — fired by the auto-flip-off effect when today
+  // crosses travel.endDate. Shows a top banner asking how the trip went;
+  // auto-dismisses after 12s. Persists a "seen" flag so we don't re-prompt
+  // on subsequent App opens once the user dismisses.
+  const [welcomeBackPrompt, setWelcomeBackPrompt] = useState(null);
+  useEffect(() => {
+    if (!welcomeBackPrompt) return;
+    const t = setTimeout(() => setWelcomeBackPrompt(null), 12000);
+    return () => clearTimeout(t);
+  }, [welcomeBackPrompt]);
+  // Auto-flip-off effect — runs whenever userProfile.travel changes.
+  // When today > endDate and travel.active is still true, flip active
+  // to false and fire the welcome-back prompt once (unless already shown
+  // for this trip via localStorage key).
+  useEffect(() => {
+    const tr = userProfile?.travel;
+    if (!tr || !tr.active || !tr.endDate) return;
+    const today = localDateISO();
+    if (today <= tr.endDate) return;
+    const seenKey = `lumiere:travelWelcomeBackSeen:${tr.startDate}_${tr.endDate}`;
+    let alreadySeen = false;
+    try { alreadySeen = localStorage.getItem(seenKey) === '1'; } catch {}
+    // Flip travel.active off in userProfile.
+    setUserProfile(prev => ({ ...prev, travel: { ...(prev.travel || {}), active: false } }));
+    saveData('userProfile', { ...userProfile, travel: { ...(userProfile.travel || {}), active: false } }).catch(() => {});
+    if (!alreadySeen) {
+      setWelcomeBackPrompt({
+        destination: tr.destinationLabel || 'your trip',
+        endedAt: tr.endDate,
+        seenKey,
+      });
+    }
+  }, [userProfile?.travel?.active, userProfile?.travel?.endDate]);
   // === PROFILEMODAL WIZARD STATE — lifted to App level ===
   // ProfileModal was extracted (Phase 4, May 2026) to src/components/
   // ProfileModal.jsx, which fixed the underlying remount cascade. We keep
