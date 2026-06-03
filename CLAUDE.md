@@ -93,15 +93,16 @@ The bundle is generated, single-file, and deployed to `tangjennii-wq.github.io/s
 
 ## Other subagents available
 
-In addition to `regression-guardrail`, the repo has five other reviewers in `.claude/agents/`:
+In addition to `regression-guardrail`, the repo has six other reviewers in `.claude/agents/`:
 
 - **brand-voice-auditor** — scans copy for retired words, italics, off-brand phrasing, causal claims
 - **brand-voice-rewriter** — rewrites flagged copy into Tang & Gainey voice
 - **design-direction-critic** — flags layout / visual choices that drift from the editorial-apartment direction
+- **interaction-loading-detective** — catches onboarding-shows-at-wrong-time, stuck spinners, first-time cards with no permanent re-entry, modal stack escape hatches, state transition flashes
 - **mobile-first-qa** — checks 380px-first layout, touch targets, scroll behavior
 - **stratechery-critic** — strategic / surface-area critique through a Ben Thompson lens
 
-Use them deliberately. Brand voice + design before any copy or layout ships; regression-guardrail before any structural commit; stratechery + mobile-first for periodic audits.
+Use them deliberately. Brand voice + design before any copy or layout ships; regression-guardrail + interaction-loading-detective before any structural or modal/onboarding commit; stratechery + mobile-first for periodic audits.
 
 ---
 

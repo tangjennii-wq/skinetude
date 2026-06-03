@@ -101,25 +101,16 @@ const HomeDashboard = ({
     return () => clearTimeout(t);
   }, []);
 
-  // === FIRST-TIME SCORE EXPLAINER AUTO-SHOW (June 2026 per Jenni) ===
-  // The very first time a user has a composite render on their cover
-  // (they've taken a check-in photo + the AI has produced a metricSnapshot),
-  // auto-open the explainer drawer once. After dismiss the localStorage
-  // flag flips and we never auto-open again. Same drawer is reachable
-  // from the kebab + cover delta line + Profile any time.
-  const firstAutoShownRef = useRef(false);
-  useEffect(() => {
-    if (firstAutoShownRef.current) return;
-    if (typeof setShowScoreExplainer !== 'function') return;
-    if (scoreExplainerSeen) return;
-    const hasComposite = (logs || []).some(l => l && l.metricSnapshot);
-    if (!hasComposite) return;
-    firstAutoShownRef.current = true;
-    // Small delay so the cover gets to paint first — the drawer
-    // appearing instantly on page load reads as an unwelcome popup.
-    const t = setTimeout(() => setShowScoreExplainer(true), 900);
-    return () => clearTimeout(t);
-  }, [logs, scoreExplainerSeen, setShowScoreExplainer]);
+  // === FIRST-TIME SCORE EXPLAINER AUTO-SHOW (REMOVED June 2026 per Jenni) ===
+  // Was: useEffect that auto-opened the explainer 900ms after first
+  // composite landed. User reported "shows analysis when not prompted" —
+  // the auto-show felt like an unwelcome popup even with the 900ms delay
+  // and per-device localStorage gate. Now: explainer NEVER auto-opens.
+  // Still reachable from three explicit entry points (cover delta line,
+  // cover kebab "How your score works", ProfileModal Settings link).
+  // The `scoreExplainerSeen` localStorage flag is retained for back-compat
+  // — kept in case we want to restore a first-time inline card later
+  // (different surface than the popup, less intrusive).
 
   // Export the Procedure Progress card as a downloadable JPG. Triggered
   // from the kebab menu. Filename pattern keeps procedures organized in
@@ -2006,14 +1997,33 @@ CRITICAL OUTPUT REQUIREMENTS:
                       </button>
                     </div>
                   )}
+                  {/* === STREAK INLINE — moved above baseline (June 2026 per Jenni) ===
+                      Was: streak rendered AFTER the baseline delta. Now: streak
+                      sits directly under "View analysis" so the encouragement
+                      lands before the delta number. Reads as: 7.9 → View
+                      analysis → 2 day streak → +5 from baseline. Tiered
+                      encouragement preserved (10+ "keep at it", 30+ "real
+                      consistency"). */}
+                  {loggingStreak >= 2 && (() => {
+                    const milestone = loggingStreak >= 30 ? '— real consistency'
+                                    : loggingStreak >= 10 ? '— keep at it'
+                                    : '';
+                    return (
+                      <div className="mt-1 text-[11px]" style={{color:'var(--ink)', fontWeight:500, letterSpacing:'0.01em'}}>
+                        <span style={{fontWeight:700}}>{loggingStreak}</span>
+                        <span style={{marginLeft:4}}>day streak{milestone ? ' ' + milestone : ''}</span>
+                      </div>
+                    );
+                  })()}
                   {/* === BASELINE STATUS / DELTA / WARNING (June 2026 per Jenni) ===
-                      A small text-only line beneath the score row. Shows
+                      A small text-only line beneath the streak. Shows
                       ONE of (in priority order):
                         1. AI-only warning if rating + chips missing
                         2. Most-benign pattern at day 7-9 (forming mode)
-                        3. Delta vs baseline at day 10+ (anchored mode)
+                        3. Delta from baseline at day 10+ (anchored mode)
                         4. Baseline-anchoring status at day 1-6 (establishing)
-                      Editorial / terse. Tap → opens score explainer. */}
+                      Editorial / terse. Tap → opens score explainer.
+                      Copy update: "vs" → "from" per Jenni. */}
                   {todayLog?.id != null && todayAvg != null && (() => {
                     const open = () => setShowScoreExplainer && setShowScoreExplainer(true);
                     if (todayDisplay?.mode === 'ai-only') {
@@ -2053,9 +2063,9 @@ CRITICAL OUTPUT REQUIREMENTS:
                           onClick={open}
                           className="text-left inline-flex items-center gap-1 transition hover:opacity-75"
                           style={{color, fontSize:11, fontWeight:600, letterSpacing:'-0.005em', cursor:'pointer', background:'transparent', border:'none'}}
-                          title={`Vs ${baseline.n}-log baseline (${baseline.composite})`}
+                          title={`From ${baseline.n}-log baseline (${baseline.composite})`}
                         >
-                          <span>{sign}{d} vs baseline</span>
+                          <span>{sign}{d} from baseline</span>
                           <Icon name="Info" size={10} style={{opacity:0.55}} />
                         </button>
                       );
@@ -2074,23 +2084,6 @@ CRITICAL OUTPUT REQUIREMENTS:
                       );
                     }
                     return null;
-                  })()}
-                  {/* === STREAK INLINE — all gold + encouragement (May 29 v7 per Jenni) ===
-                      Full line in gold so it reads as one unit (not a
-                      split number+label). Encouragement kicks in at
-                      10+ days to balance the line and reward the
-                      milestone. Tiered: 10+ "keep at it", 30+ "real
-                      consistency". */}
-                  {loggingStreak >= 2 && (() => {
-                    const milestone = loggingStreak >= 30 ? '— real consistency'
-                                    : loggingStreak >= 10 ? '— keep at it'
-                                    : '';
-                    return (
-                      <div className="mt-1 text-[11px]" style={{color:'var(--ink)', fontWeight:500, letterSpacing:'0.01em'}}>
-                        <span style={{fontWeight:700}}>{loggingStreak}</span>
-                        <span style={{marginLeft:4}}>day streak{milestone ? ' ' + milestone : ''}</span>
-                      </div>
-                    );
                   })()}
                   {/* Standalone "+ Check-in" link removed (May 29 v4
                       per Jenni) — photo watermark now carries a "CHECK

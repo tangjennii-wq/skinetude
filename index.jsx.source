@@ -8206,6 +8206,8 @@ Write 1–2 sentences only. Lowercase or sentence-cased prose, not headlines.`;
             return;
           }
           const sessionUser = { email: data.user.email, name: authForm.name, id: data.user.id, cloud: true };
+          // Same flash fix as sign-in path. See [interaction-loading-detective Mode 1].
+          setOnboardingResolved(false);
           setUser(sessionUser);
           // SIGNUP RESET — clear any state inherited from a previous
           // session on this browser BEFORE the cloud-load + migrate
@@ -8216,6 +8218,7 @@ Write 1–2 sentences only. Lowercase or sentence-cased prose, not headlines.`;
           // Migrate localStorage data if any exists
           await migrateLocalToSupabase(data.user.id, authForm.email);
           await loadFromSupabase(data.user.id);
+          setOnboardingResolved(true);
         } else {
           const { data, error } = await supabaseClient.auth.signInWithPassword({
             email: authForm.email,
@@ -8223,10 +8226,20 @@ Write 1–2 sentences only. Lowercase or sentence-cased prose, not headlines.`;
           });
           if (error) { setAuthError(error.message); return; }
           const sessionUser = { email: data.user.email, name: data.user.user_metadata?.name || authForm.email.split('@')[0], id: data.user.id, cloud: true };
+          // === ONBOARDING FLASH FIX (June 2026 per Jenni — interaction-loading-detective Mode 1) ===
+          // Was: boot's safety timer already flipped onboardingResolved=true,
+          // so signing in showed the OnboardingOverlay for 1-3s while
+          // loadFromSupabase landed. Symptom: returning user flashes welcome
+          // screen on sign-in. Fix: re-gate the overlay during signin by
+          // resetting onboardingResolved to false BEFORE loadFromSupabase,
+          // then letting loadFromSupabase's onboarding-merge logic flip it
+          // back true once cloud data is in.
+          setOnboardingResolved(false);
           setUser(sessionUser);
           // First-time sign-in: migrate any local data
           await migrateLocalToSupabase(data.user.id, authForm.email);
           await loadFromSupabase(data.user.id);
+          setOnboardingResolved(true);
         }
         return;
       } catch (err) {
@@ -11220,6 +11233,50 @@ If the user references something not in their data ("started retinol 6 weeks ago
             <button onClick={() => setShowSearch(true)} className="p-1.5 transition hidden md:inline-flex" style={{color:'var(--ink-soft)'}} title="Search (⌘K)">
               <Icon name="Search" size={14} />
             </button>
+            {/* === TRAVEL TOGGLE (June 2026 per Jenni — Phase 1) ===
+                Airplane icon in the header chrome. State-aware:
+                  active=false → outlined ink-soft, tap opens TravelSetupModal
+                  active=true → filled accent-blue + days-remaining badge,
+                                 tap opens TravelSetupModal in edit mode
+                Header position chosen over check-in adjacency because
+                travel mode is a CURRENT STATE (visible across every tab),
+                not a daily action. Cover banner reinforces state where
+                routine swap matters most. */}
+            {(() => {
+              const tr = userProfile?.travel || null;
+              const isTravelActive = !!(tr && tr.active);
+              // Days remaining (inclusive of today) — only when active.
+              let daysRemaining = null;
+              if (isTravelActive && tr.endDate) {
+                try {
+                  const today = new Date(localDateISO() + 'T00:00:00').getTime();
+                  const end = new Date(tr.endDate + 'T00:00:00').getTime();
+                  const ms = end - today;
+                  daysRemaining = Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)) + 1);
+                } catch (_) { daysRemaining = null; }
+              }
+              const titleText = isTravelActive
+                ? `Travel mode on${tr?.destinationLabel ? ' · ' + tr.destinationLabel : ''}${daysRemaining != null ? ' · ' + daysRemaining + 'd left' : ''}`
+                : 'Going traveling? Set up travel mode';
+              return (
+                <button
+                  onClick={() => setShowTravelSetupModal(true)}
+                  className="p-1.5 transition inline-flex items-center gap-1"
+                  style={{
+                    color: isTravelActive ? 'var(--accent-blue)' : 'var(--ink-soft)',
+                    fontWeight: isTravelActive ? 600 : 400,
+                  }}
+                  title={titleText}
+                  aria-label={titleText}
+                  aria-pressed={isTravelActive}
+                >
+                  <Icon name="Plane" size={14} />
+                  {isTravelActive && daysRemaining != null && (
+                    <span className="text-[9px] font-semibold" style={{letterSpacing:'0.04em'}}>{daysRemaining}d</span>
+                  )}
+                </button>
+              );
+            })()}
             <button onClick={() => setShowApiKeyModal(true)} className="p-1.5 transition" style={{color: apiKey ? 'var(--accent-blue)' : 'var(--accent)'}} title={apiKey ? 'API key set' : 'Set API key for AI features'}>
               <Icon name="Key" size={14} />
             </button>
