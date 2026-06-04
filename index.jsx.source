@@ -238,7 +238,10 @@ const EditorialPageHeader = ({ eyebrow, title, body, action, actionLabel, action
 // toggle expand. Caution state shows a small gold dot before the
 // eyebrow instead of recoloring the whole tile background.
 const InsightsReadRow = ({ tile }) => {
-  const [expanded, setExpanded] = React.useState(false);
+  // June 2026 (Tier B): tile.defaultExpanded lets a tile show its body
+  // without requiring a tap. Used for the Ingredient tile now that it's
+  // the only remaining Reads tile — the supporting copy IS the point.
+  const [expanded, setExpanded] = React.useState(!!tile.defaultExpanded);
   const isAction = !!tile.action;
   const handleClick = () => { if (isAction) tile.action(); else setExpanded(v => !v); };
   return (
@@ -12552,48 +12555,11 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         )}
                       </div>
 
-                      {signalPrimaryPlan && (
-                        <div className="rounded-[14px] border p-3" style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
-                          <div className="flex items-start justify-between gap-3 mb-2">
-                            <div className="min-w-0">
-                              <div className="text-[9px] tracking-[0.22em] uppercase mb-1" style={{color:'var(--accent)', fontWeight:700}}>{signalPrimaryPlan.eyebrow}</div>
-                              <div className="text-[15px] leading-tight" style={{color:'var(--ink)', fontWeight:750, letterSpacing:'-0.01em'}}>{signalPrimaryPlan.title}</div>
-                            </div>
-                            <span className="rounded-full border px-2.5 py-1 text-[8.5px] tracking-[0.14em] uppercase flex-shrink-0" style={{borderColor: 'var(--line)', color:'var(--accent)', background:'var(--surface-selected-soft)', fontWeight:700}}>
-                              {signalPrimaryConcernEntry?.[1] || 0} reads
-                            </span>
-                          </div>
-                          <p className="text-[11.5px] leading-relaxed mb-3" style={{color:'var(--ink-soft)'}}>{signalPrimaryPlan.read}</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
-                            <div className="rounded-[12px] border px-3 py-2" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
-                              <div className="text-[8px] tracking-[0.18em] uppercase mb-1" style={{color:'var(--ink-soft)', fontWeight:700}}>Why it matters</div>
-                              <div className="text-[10.5px] leading-snug" style={{color:'var(--ink-soft)'}}>{signalPrimaryPlan.why}</div>
-                            </div>
-                            <div className="rounded-[12px] border px-3 py-2" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
-                              <div className="text-[8px] tracking-[0.18em] uppercase mb-1" style={{color:'var(--ink-soft)', fontWeight:700}}>Next move</div>
-                              <div className="text-[10.5px] leading-snug" style={{color:'var(--ink-soft)'}}>{signalPrimaryPlan.next}</div>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => { setPearlsLessonCategory('concerns'); setPearlsTab('lessons'); }}
-                              className="rounded-full border px-3 py-2 text-[8.5px] tracking-[0.14em] uppercase"
-                              style={{borderColor: 'var(--line)', color:'var(--accent)', background:'var(--cream-deep)', fontWeight:700}}
-                            >
-                              Read why
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openMatchesForSignal(signalPrimaryPlan.concern, signalPrimaryPlan.action)}
-                              className="rounded-full border px-3 py-2 text-[8.5px] tracking-[0.14em] uppercase"
-                              style={{borderColor: 'var(--accent)', color:'var(--cream)', background:'var(--accent)', fontWeight:700}}
-                            >
-                              Go to matches
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                      {/* === Primary Plan card removed June 2026 (Tier B) ===
+                          Folded into "What we'd try" below — same job (concern → why
+                          → action + CTAs), now consolidated to one card per concern
+                          so users don't see "Frida noticed X" rendered twice with
+                          different framing. */}
 
                       <div className="rounded-[14px] border p-3" style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
                         <div className="text-[9px] tracking-[0.22em] uppercase mb-3" style={{color:'var(--accent-sage-dark)', fontWeight:700}}>Most responsive</div>
@@ -12633,11 +12599,16 @@ If the user references something not in their data ("started retinol 6 weeks ago
                           background flag. Less chrome, single visual object.
                           See InsightsReadRow above for the row renderer. */}
                       {(() => {
+                        // June 2026 (Tier B): cut 3 of 4 Reads tiles. Regimen
+                        // ("16 products") is just inventory — belongs in Regimen
+                        // tab. Overlap is duplicated by the Bench view in Picks
+                        // (and routed there from a single click already). Procedure
+                        // is one-off and doesn't return. Ingredient is the only
+                        // tile that surfaces non-obvious "what's actually helping"
+                        // — kept and default-expanded so the supporting reasoning
+                        // shows without a tap.
                         const readsTiles = [
-                          { label:'Ingredient', title: ingredientOutcomeRead.title, body: ingredientSignalCopy },
-                          { label:'Regimen', title: `${builtProductsForBudget.length || activeProductsForBudget.length} products`, body: regimenSignalCopy },
-                          { label:'Overlap', title: overlapGroups.length ? 'Repetition found' : 'No heavy overlap', body: overlapInsight, caution: overlapGroups.length > 0, action: () => { setPearlsTab('picks'); setPicksView('bench'); } },
-                          ...(procedureSignal ? [{ label:'Procedure', title: procedureName, body: procedureSignal }] : []),
+                          { label:'Ingredient', title: ingredientOutcomeRead.title, body: ingredientSignalCopy, defaultExpanded: true },
                         ];
                         return (
                           <div className="rounded-[18px] border overflow-hidden" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
@@ -12707,13 +12678,16 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         <Icon name="ChevronRight" size={15} style={{color:'var(--ink-soft)', marginTop:2}} />
                       </button>
                     </div>
+                    {/* June 2026 (Tier B): RecCardSection no longer collapsible —
+                        inline picks render visible by default so the card answers
+                        what / why / what to try without requiring a tap. Was
+                        `collapsible` which hid the picks behind a chevron. */}
                     {hasSignalRecCards && (
                       <div className="space-y-2">
                         <RecCardSection
                           coverage={signalCoverage}
                           surface="journal"
-                          maxCards={3}
-                          collapsible
+                          maxCards={2}
                           onPickClick={openSignalPicks}
                           onSwapClick={openSignalPicks}
                         />
@@ -12726,7 +12700,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         className="rounded-full border px-3 py-2 text-[8.5px] tracking-[0.14em] uppercase"
                         style={{borderColor: 'var(--line)', color:'var(--accent)', background:'var(--cream-deep)', fontWeight:700}}
                       >
-                        Learn why
+                        Learn more
                       </button>
                       <button
                         type="button"
@@ -12734,7 +12708,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         className="rounded-full border px-3 py-2 text-[8.5px] tracking-[0.14em] uppercase"
                         style={{borderColor: 'var(--line)', color:'var(--cream)', background:'var(--accent)', fontWeight:700}}
                       >
-                        See matches
+                        See more matches
                       </button>
                     </div>
                   </div>
