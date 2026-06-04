@@ -143,33 +143,24 @@ const InsightsView = ({
               changed" / "audit" / "generate trend" affordances still
               exist on the Lessons cards below (and persist on Ask). */}
 
-          {/* === DATA-DRIVEN INSIGHTS BLOCK (May 2026) ===
-              These three sections live ABOVE the AI magazine cards and
-              the "what we'd try" block because they are computed from
-              the user's own logs — no generation step, instant render,
-              honest about gaps. Order:
+          {/* === DATA-DRIVEN INSIGHTS BLOCK (June 2026 — post-critic cleanup) ===
+              Computed from the user's own logs — no generation step, instant
+              render, honest about gaps. Pared from 3 panels to 2:
                 1. Four-week metric trends (sparklines)
-                2. Patterns we're noticing (descriptive observations —
-                   NEVER causal per memory feedback_no_causal_claims)
-                3. Cadence (streak + AM/PM adherence)
-              Each section quiets itself when there isn't enough data. */}
+                2. Frida is noticing (Signals — deeper multi-part observations)
+              Removed in June 2026 cleanup:
+                - PatternsPanel: same paradigm as Signals (collapsible dot+
+                  chevron rows from same data), rendered twice.
+                - AdherencePanel: streak duplicated Home cover; AM/PM/photo
+                  days belong in Regimen per project_regimen_canonical.
+              See: stratechery + design-direction critic outputs (June 2026). */}
           <MetricTrendsGrid logs={logs} />
-          {/* SignalsPanel — deeper "Frida is noticing" cards (May 2026).
-              Sits ABOVE PatternsPanel because it's the richer surface
-              (4-part: observation / connection / possible factor / try).
-              PatternsPanel stays for the lighter one-line co-occurrence
-              reads that don't graduate into a full Signal card. */}
           <SignalsPanel
             logs={logs}
             products={products}
             regimenLogs={regimenLogs}
             onAsk={(q) => { setCounselSubTab('ask'); handleInsight(q); }}
           />
-          <PatternsPanel
-            logs={logs}
-            onAsk={(q) => { setCounselSubTab('ask'); handleInsight(q); }}
-          />
-          <AdherencePanel logs={logs} regimenLogs={regimenLogs} />
 
           {/* === WHAT WE'D TRY (May 2026) ===
               Engine-driven CONCERN_GAP + COMPLEMENT recs on a 30-day

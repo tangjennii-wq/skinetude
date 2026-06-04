@@ -44,9 +44,10 @@ const MetricSparkline = ({
   const delta = (latest != null && earliest != null && latest !== earliest)
     ? latest - earliest : null;
   const arrow = delta == null ? null : delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
-  const deltaColor = delta == null ? 'var(--ink-soft)'
-    : delta > 0 ? 'var(--accent-blue)'
-    : 'var(--rose)';
+  // June 2026 cleanup: dropped --rose (not in locked AWW palette). Up/down/
+  // null all neutralize to --ink-soft; the arrow itself carries direction.
+  // Avoids implying up=good / down=bad — matches no-causal-claims rule.
+  const deltaColor = 'var(--ink-soft)';
   const noData = values.every(v => v == null);
   return (
     <div className="rounded-[14px] px-3 py-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>

@@ -25,11 +25,13 @@
 // always-on per-card chrome from ~6 stacked blocks to one row.
 const SignalRow = ({ s, onAsk }) => {
   const [expanded, setExpanded] = React.useState(false);
+  // June 2026 cleanup: dropped sensitivity branch (--rose not in locked AWW
+  // palette; also sensitivity was dropped from AI extraction per CLAUDE.md
+  // composite rules — branch was dead). Falls through to --ink.
   const signalTone = (sig) => sig === 'redness' ? 'var(--accent)'
     : sig === 'hydration' ? 'var(--accent-blue)'
     : sig === 'breakouts' ? 'var(--gold)'
     : sig === 'barrier' ? 'var(--gold)'
-    : sig === 'sensitivity' ? 'var(--rose)'
     : 'var(--ink)';
   const categoryLabel = (c) => c === 'trend' ? 'Trend'
     : c === 'product' ? 'Product'
