@@ -19,7 +19,7 @@ You do not edit, commit, fetch with side effects, or push. Every check below is 
 
 **How to check:**
 ```bash
-cd /Users/jennitang/Documents/Claude/Projects/TangSkin && git status --short
+cd /Users/jennitang/Developer/TangSkin && git status --short
 ```
 - 0 lines → clean, no risk.
 - >0 lines → list every modified file and report which look like substantive code (not just `index.html` rebuild artifact). Flag as RISK if any are in `src/`, `index.jsx.source`, `supabase/functions/`, or `.claude/agents/`.
@@ -30,7 +30,7 @@ cd /Users/jennitang/Documents/Claude/Projects/TangSkin && git status --short
 
 **How to check:**
 ```bash
-cd /Users/jennitang/Documents/Claude/Projects/TangSkin && git fetch origin --quiet 2>&1 && git log --oneline HEAD..origin/main
+cd /Users/jennitang/Developer/TangSkin && git fetch origin --quiet 2>&1 && git log --oneline HEAD..origin/main
 ```
 - 0 lines → local has every remote commit.
 - >0 lines → report each commit's hash + subject + author. Verdict: `pull-first`. Do NOT proceed with editing until Jenni pulls.
@@ -41,7 +41,7 @@ cd /Users/jennitang/Documents/Claude/Projects/TangSkin && git fetch origin --qui
 
 **How to check:**
 ```bash
-cd /Users/jennitang/Documents/Claude/Projects/TangSkin && git log --oneline origin/main..HEAD
+cd /Users/jennitang/Developer/TangSkin && git log --oneline origin/main..HEAD
 # combined with state 2's output
 ```
 - If both `HEAD..origin/main` AND `origin/main..HEAD` have entries → DIVERGENT.
@@ -53,9 +53,9 @@ cd /Users/jennitang/Documents/Claude/Projects/TangSkin && git log --oneline orig
 
 **How to check:**
 ```bash
-ls -la /Users/jennitang/Documents/Claude/Projects/TangSkin/.git/index.lock 2>/dev/null
-ls -la /Users/jennitang/Documents/Claude/Projects/TangSkin/.git/ORIG_HEAD.lock 2>/dev/null
-ls -la /Users/jennitang/Documents/Claude/Projects/TangSkin/.git/HEAD.lock 2>/dev/null
+ls -la /Users/jennitang/Developer/TangSkin/.git/index.lock 2>/dev/null
+ls -la /Users/jennitang/Developer/TangSkin/.git/ORIG_HEAD.lock 2>/dev/null
+ls -la /Users/jennitang/Developer/TangSkin/.git/HEAD.lock 2>/dev/null
 ```
 - Any lock file present → flag and tell Jenni the exact `rm` command for the path. Do NOT auto-remove (you'd hide an actual in-progress operation).
 
@@ -65,7 +65,7 @@ ls -la /Users/jennitang/Documents/Claude/Projects/TangSkin/.git/HEAD.lock 2>/dev
 
 **How to check:**
 ```bash
-cd /Users/jennitang/Documents/Claude/Projects/TangSkin && git ls-files --others --exclude-standard -- src/ index.jsx.source supabase/
+cd /Users/jennitang/Developer/TangSkin && git ls-files --others --exclude-standard -- src/ index.jsx.source supabase/
 ```
 - 0 lines → clear.
 - >0 lines → report each untracked file with its size. Flag as RISK if any match `*.js`, `*.jsx`, or `*.ts` — those need a human to confirm whether to keep, commit, or discard.

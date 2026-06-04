@@ -45,7 +45,7 @@ supabase --version   # should print 1.x or higher
 ### 2. Log in and link the project
 
 ```bash
-cd /Users/jennitang/Documents/Claude/Projects/TangSkin
+cd /Users/jennitang/Developer/TangSkin
 supabase login                                  # opens a browser
 supabase link --project-ref vdtmflgetzilcgtcsogt
 ```

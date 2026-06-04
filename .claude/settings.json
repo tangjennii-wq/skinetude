@@ -1,12 +1,22 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/jennitang/Developer/TangSkin/.claude/git-sync-check.sh"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.file_path' | grep -q '/src/' && (cd \"/Users/jennitang/Documents/Claude/Projects/TangSkin\" && node build_current.js) || true"
+            "command": "jq -r '.tool_input.file_path' | grep -q '/src/' && (cd \"/Users/jennitang/Developer/TangSkin\" && node build_current.js) || true"
           }
         ]
       }
