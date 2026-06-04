@@ -193,11 +193,12 @@ const COMPONENT_FILES = [
   'src/components/HomeDashboard.jsx',
   // === Insights sub-components (May 2026) ===
   // MUST come before InsightsView since InsightsView renders them.
-  // MetricSparkline is a leaf used by MetricTrendsGrid → list it first.
+  // MetricSparkline is a leaf used by MetricTrendsGrid + MetricTrendsList.
   'src/components/insights/MetricSparkline.jsx',
-  'src/components/insights/MetricTrendsGrid.jsx',
-  'src/components/insights/AdherencePanel.jsx',
-  'src/components/insights/PatternsPanel.jsx',
+  'src/components/insights/MetricTrendsGrid.jsx', // deprecated June 2026, kept in bundle as dead code (reversible)
+  'src/components/insights/MetricTrendsList.jsx', // June 2026 — canonical collapsible-row replacement
+  'src/components/insights/AdherencePanel.jsx',   // deprecated June 2026, kept as dead code
+  'src/components/insights/PatternsPanel.jsx',    // deprecated June 2026, kept as dead code
   // SignalsPanel — deeper "Étude is noticing" cards (May 2026). Depends
   // on computeSignals from src/insights/signalGenerator.js (above).
   'src/components/insights/SignalsPanel.jsx',
