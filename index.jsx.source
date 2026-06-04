@@ -12506,28 +12506,15 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       <h2 className="text-[17px] leading-tight" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.01em'}}>What your skin is telling you.</h2>
                     </div>
 
-                    <div className="rounded-[12px] border px-3 py-2 mb-3" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
-                      <div className="flex items-center justify-between gap-2">
-                        {[
-                          { n:'1', label:'Log' },
-                          { n:'2', label:'Interpret' },
-                          { n:'3', label:'Choose' },
-                        ].map((step, idx) => (
-                          <React.Fragment key={step.label}>
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="w-4 h-4 rounded-full border inline-flex items-center justify-center text-[8px]" style={{borderColor: 'var(--line)', color:'var(--accent)', background:'var(--cream)', fontWeight:700}}>{step.n}</span>
-                              <span className="text-[9px] tracking-[0.16em] uppercase truncate" style={{color:'var(--ink-soft)', fontWeight:700}}>{step.label}</span>
-                            </div>
-                            {idx < 2 && <Icon name="ChevronRight" size={10} style={{color:'var(--ink-soft)', opacity:0.55}} />}
-                          </React.Fragment>
-                        ))}
+                    {/* === Log → Interpret → Choose flowchart removed June 2026 (Tier A.2) ===
+                        Onboarding chrome welded to a live surface — narrated verbs the user
+                        is already doing. The substantive "not enough check-ins yet" copy is
+                        preserved below as a standalone establishing-state line. */}
+                    {!signalReady && (
+                      <div className="rounded-[12px] border px-3 py-2 mb-3 text-[10px] leading-snug" style={{background:'var(--cream-deep)', borderColor: 'var(--line)', color:'var(--ink-soft)'}}>
+                        Not enough check-ins for a confident interpretation yet. Three or more logs gives Signals something real to compare.
                       </div>
-                      {!signalReady && (
-                        <div className="text-[10px] leading-snug mt-2" style={{color:'var(--ink-soft)'}}>
-                          Not enough check-ins for a confident interpretation yet. Three or more logs gives Signals something real to compare.
-                        </div>
-                      )}
-                    </div>
+                    )}
 
                     <div className="space-y-2.5">
                       <div className="rounded-[14px] border p-3" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
@@ -12670,13 +12657,13 @@ If the user references something not in their data ("started retinol 6 weeks ago
                                         </div>
                                         <div className="text-[10.5px] mt-1 leading-snug" style={{color:'var(--ink-soft)'}}>{watcherInterpretation(r, activeProductsForBudget || products)}</div>
                                       </div>
-                                      <div className="font-serif italic text-[18px] leading-none flex-shrink-0" style={{color:'var(--rose, #c9a094)', fontWeight:500, letterSpacing:'-0.01em', marginTop:'2px'}}>
+                                      <div className="font-serif text-[18px] leading-none flex-shrink-0" style={{color:'var(--ink-soft)', fontWeight:500, letterSpacing:'-0.01em', marginTop:'2px'}}>
                                         {r.delta.toFixed(1)}
                                       </div>
                                     </li>
                                   ))}
                                 </ul>
-                                <div className="text-[9px] mt-3 italic" style={{color:'var(--ink-soft)'}}>
+                                <div className="text-[9px] mt-3" style={{color:'var(--ink-soft)'}}>
                                   Correlation, not causation.
                                 </div>
                               </div>
@@ -12766,8 +12753,8 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   return (
                     <div className="border p-10 text-center" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
                       <Icon name="BookmarkPlus" size={28} className="mx-auto mb-3" style={{color:'var(--ink-soft)'}} />
-                      <p className="font-serif italic text-base mb-1" style={{color:'var(--ink)'}}>No saved pearls yet.</p>
-                      <p className="text-xs font-light italic" style={{color:'var(--ink-soft)'}}>Open any lesson and tap the Save icon to keep it as a reference card here.</p>
+                      <p className="font-serif text-base mb-1" style={{color:'var(--ink)'}}>No saved pearls yet.</p>
+                      <p className="text-xs font-light" style={{color:'var(--ink-soft)'}}>Open any lesson and tap the Save icon to keep it as a reference card here.</p>
                     </div>
                   );
                 }
@@ -12778,8 +12765,8 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         <button onClick={() => setOpenLesson(l)} className="flex-1 min-w-0 text-left transition hover:opacity-80">
                           <div className="text-[9px] tracking-[0.25em] uppercase mb-1" style={{color:'var(--ink-soft)'}}>{l.category}</div>
                           <div className="flex items-baseline gap-2 md:gap-3 flex-wrap">
-                            <span className="font-serif text-base md:text-xl italic leading-tight" style={{color:'var(--ink)'}}>{l.title}</span>
-                            <span className="text-xs md:text-sm font-light italic leading-snug" style={{color:'var(--ink-soft)'}}>— {l.excerpt}</span>
+                            <span className="font-serif text-base md:text-xl leading-tight" style={{color:'var(--ink)'}}>{l.title}</span>
+                            <span className="text-xs md:text-sm font-light leading-snug" style={{color:'var(--ink-soft)'}}>— {l.excerpt}</span>
                           </div>
                         </button>
                         <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0 mt-1">
@@ -13107,7 +13094,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
 
                     {!['start', 'routine', 'concerns'].includes(activeSubtab) && filteredLessonsSub.length === 0 && (
                       <div className="border p-10 text-center" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
-                        <p className="text-sm font-light italic" style={{color:'var(--ink-soft)'}}>No lessons in this category yet — drafts coming.</p>
+                        <p className="text-sm font-light" style={{color:'var(--ink-soft)'}}>No lessons in this category yet — drafts coming.</p>
                       </div>
                     )}
 
@@ -13420,7 +13407,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                             );
                           })}
                           {(!userConcerns || userConcerns.length === 0) && (
-                            <span className="text-[10.5px] italic" style={{color:'var(--ink-soft)'}}>Add concerns in profile to personalize matches.</span>
+                            <span className="text-[10.5px]" style={{color:'var(--ink-soft)'}}>Add concerns in profile to personalize matches.</span>
                           )}
                         </div>
 
@@ -13446,7 +13433,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                                 className="rounded-full border px-3 py-1.5 text-[9.5px] tracking-[0.14em] uppercase whitespace-nowrap"
                                 style={{
                                   background: active ? 'var(--accent)' : 'var(--cream-deep)',
-                                  color: active ? '#ffffff' : 'var(--ink-soft)',
+                                  color: active ? 'var(--cream)' : 'var(--ink-soft)',
                                   borderColor: active ? 'var(--accent)' : 'var(--line)',
                                   fontWeight:700,
                                 }}
@@ -13632,7 +13619,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                                   <div className="text-[13px] leading-tight mt-0.5" style={{color:'var(--ink)', fontWeight:700}}>{p.name}</div>
                                   <div className="text-[10.5px] mt-1 leading-snug" style={{color:'var(--ink-soft)'}}>{p.actives || p.main || p.category}</div>
                                   {p.evidence_tier && (
-                                    <div className="text-[9.5px] mt-1.5 italic" style={{color:'var(--ink-soft)'}}>{String(p.evidence_tier).replace(/-/g, ' ')}</div>
+                                    <div className="text-[9.5px] mt-1.5" style={{color:'var(--ink-soft)'}}>{String(p.evidence_tier).replace(/-/g, ' ')}</div>
                                   )}
                                 </div>
                                 <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
@@ -13718,7 +13705,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                                 <Dot status={status} />
                                 <div className="min-w-0 flex-1">
                                   <div className="text-[8.5px] tracking-[0.22em] uppercase" style={{ color:'var(--ink-soft)', fontWeight:700 }}>{step.label}</div>
-                                  <div className="text-[12px] mt-0.5 leading-tight" style={{ color: cur ? 'var(--ink)' : 'var(--ink-soft)', fontStyle: cur ? 'normal' : 'italic', fontWeight: cur ? 600 : 500 }}>
+                                  <div className="text-[12px] mt-0.5 leading-tight" style={{ color: cur ? 'var(--ink)' : 'var(--ink-soft)', fontStyle: 'normal', fontWeight: cur ? 600 : 500 }}>
                                     {cur ? `${cur.brand || ''}${cur.brand ? ' · ' : ''}${cur.name || ''}` : 'nothing here yet'}
                                   </div>
                                   <div className="text-[10.5px] mt-1 leading-snug" style={{ color:'var(--ink-soft)' }}>
@@ -13751,24 +13738,13 @@ If the user references something not in their data ("started retinol 6 weeks ago
                           </div>
                         </div>
 
-                    <div className="rounded-[14px] border p-3" style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
-                      <div className="text-[10px] tracking-[0.25em] uppercase mb-1" style={{color:'var(--accent)'}}>Current regimen</div>
-                      <div className="text-[12px] mb-3 leading-snug" style={{color:'var(--ink-soft)'}}>Reference only, so Picks stays focused on decisions instead of becoming an inventory list.</div>
-                      <div className="space-y-2">
-                        {(builtProductsForBudget.length ? builtProductsForBudget : activeProductsForBudget).slice(0, 10).map(p => {
-                          const fam = productBudgetFamily(p);
-                          return (
-                            <div key={p.id || `${p.brand}-${p.name}`} className="rounded-[12px] border p-3 flex items-start justify-between gap-3" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
-                              <div className="min-w-0">
-                                <div className="text-[8.5px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{p.brand || fam}</div>
-                                <div className="text-[12.5px] leading-tight mt-0.5" style={{color:'var(--ink)', fontWeight:700}}>{p.name || p.displayName}</div>
-                              </div>
-                              <span className="text-[8.5px] tracking-[0.14em] uppercase rounded-full border px-2 py-1 flex-shrink-0" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>{fam}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    {/* === Current Regimen snapshot removed June 2026 (Tier A.1) ===
+                        Both stratechery + design critics flagged this as the single
+                        highest-leverage delete. The Ideal-vs-Current grid above already
+                        encodes current state in its "current" column, and the Regimen
+                        tab is the canonical inventory. The comment that lived here
+                        ("Reference only, so Picks stays focused on decisions") was the
+                        design defending what shouldn't be there. */}
                       </div>
                     );
                   })()}
@@ -13790,7 +13766,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                           'What is the evidence for the gut-skin axis?',
                           'Why does niacinamide layer well with everything?'
                         ].map(q => (
-                          <button key={q} onClick={() => handlePearlsQA(q)} className="border p-4 text-left text-sm font-light italic transition hover:border-[var(--ink)]" style={{background:'var(--cream)', borderColor: 'var(--line)', color:'var(--ink)'}}>"{q}"</button>
+                          <button key={q} onClick={() => handlePearlsQA(q)} className="border p-4 text-left text-sm font-light transition hover:border-[var(--ink)]" style={{background:'var(--cream)', borderColor: 'var(--line)', color:'var(--ink)'}}>"{q}"</button>
                         ))}
                       </div>
                     </div>
@@ -13811,7 +13787,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="text-[10px] tracking-[0.2em] uppercase mb-1" style={{color:'var(--ink-soft)'}}>Pearls</div>
-                                <div className="whitespace-pre-wrap leading-relaxed font-light text-[13px]" style={{color: m.error ? '#a04555' : 'var(--ink)'}}>{withPearls(m.content, setOpenLesson)}</div>
+                                <div className="whitespace-pre-wrap leading-relaxed font-light text-[13px]" style={{color: m.error ? 'var(--accent)' : 'var(--ink)'}}>{withPearls(m.content, setOpenLesson)}</div>
                               </div>
                             </div>
                           )}
@@ -13838,7 +13814,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePearlsQA(); } }}
                       placeholder={pearlsQAMessages.length === 0 ? "Ask a general dermatology question…" : "Continue…"}
                       rows="2"
-                      className="w-full px-4 py-3 border-0 focus:outline-none font-light italic resize-none"
+                      className="w-full px-4 py-3 border-0 focus:outline-none font-light resize-none"
                       style={{background:'transparent', color:'var(--ink)'}}
                     />
                     <div className="flex items-center justify-between px-3 pb-3">
