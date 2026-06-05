@@ -14126,6 +14126,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
           setShowBulkUploadModal={setShowBulkUploadModal}
           setCoverRoutineRebuildToken={setCoverRoutineRebuildToken}
           retryLogAnalysis={retryLogAnalysis}
+          userProfile={userProfile}
         />
       )}
 

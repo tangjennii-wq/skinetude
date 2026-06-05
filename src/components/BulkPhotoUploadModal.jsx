@@ -19,7 +19,9 @@ const BulkPhotoUploadModal = ({
   user,
   setShowBulkUploadModal,
   setCoverRoutineRebuildToken,
-  retryLogAnalysis}) => {
+  retryLogAnalysis,
+  // June 2026 Phase 2: needed for travel-active log tagging.
+  userProfile}) => {
   const [items, setItems] = useState([]); // [{ photo: b64, date: 'YYYY-MM-DD', area: 'full-face' }]
   const [defaultDate, setDefaultDate] = useState(localDateISO());
   const [perPhotoMode, setPerPhotoMode] = useState(false); // false = all share defaultDate
@@ -100,6 +102,7 @@ const BulkPhotoUploadModal = ({
         })),
         baseFields: { rating: 5, notes: '', concerns: [] },
         apiKeyOn,
+        travel: !!(userProfile?.travel?.active),
       });
       const updated = [...logs, ...newEntries].sort((a, b) => new Date(b.date) - new Date(a.date));
       // Close fast then persist. Same pattern as SkinLogModal create-path.
