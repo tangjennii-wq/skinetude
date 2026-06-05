@@ -365,6 +365,12 @@ Example output:
     const q = (searchInput || '').trim();
     if (q.length < 2) return;
     if (isUrl(q)) return;
+    // June 2026 fix per Jenni: when the search input was just set
+    // programmatically by applySuggestion (the picked product name flows
+    // back into the input as a "chip"), DON'T re-fire the typeahead —
+    // it would find the same product locally and re-show the dropdown.
+    // form.name is the canonical "what was picked" marker.
+    if (form.name && q === form.name) return;
 
     // Stage 1: instant local match (cheap; just runs JS).
     // Dedupe state writes — only update when results actually change OR
