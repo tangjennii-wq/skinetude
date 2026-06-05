@@ -182,6 +182,7 @@ const RegimenView = ({
       setRitualSuggestion={setRitualSuggestion}
       setShelfQuickAddOpen={setShelfQuickAddOpen}
       setUsedSomethingElseSheet={setUsedSomethingElseSheet}
+      userProfile={userProfile}
     />
   )}
 

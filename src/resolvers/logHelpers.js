@@ -50,6 +50,11 @@ const createPhotoLogs = ({
   apiKeyOn = false,
   source: defaultSource = 'capture',
   concurrency = 3,
+  // June 2026 Phase 2: when true, every new photo log gets travel:true so
+  // Journal/Compare can split home vs travel weeks. Callers pass
+  // userProfile?.travel?.active. Defaults to false — backward compat with
+  // existing call sites that don't pass it (correct behavior at home).
+  travel = false,
 }) => {
   if (!Array.isArray(shots) || shots.length === 0) {
     return { newLogs: [], fireAnalysis: () => {} };
@@ -86,6 +91,7 @@ const createPhotoLogs = ({
       usedTags: Array.isArray(shot.usedTags) ? shot.usedTags : [],
       ratingExplanation: shot.ratingExplanation ?? null,
       suggestedRating: shot.suggestedRating ?? null,
+      ...(travel ? { travel: true } : {}),
     };
   });
   // === FIRE ANALYSIS HELPER ===

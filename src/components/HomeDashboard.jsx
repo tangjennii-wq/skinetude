@@ -68,6 +68,8 @@ const HomeDashboard = ({
   setShowScoreExplainer,
   scoreExplainerSeen,
   setScoreExplainerSeen,
+  setUserProfile,
+  setShowTravelSetupModal,
 }) => {
   // === BOOT HYDRATION GRACE (May 2026 v2 per Jenni) ===
   // Briefly suppresses the fresh-user empty-state cover while
@@ -672,6 +674,62 @@ CRITICAL OUTPUT REQUIREMENTS:
             {today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase()}
           </div>
         </section>
+
+        {/* === TRAVEL MODE BANNER (June 2026 Phase 2) ===
+            Surfaces when userProfile.travel.active === true. The whole
+            row is tappable → opens TravelSetupModal so the user can
+            edit destination/dates/packed routine. "End" link on the
+            right flips travel.active = false (lightweight off switch
+            without opening the modal). Banner uses --accent-blue tone
+            (AWW powder blue) to read as travel-y without competing
+            with the cover's red hero accent. */}
+        {userProfile?.travel?.active && (
+          <button
+            type="button"
+            onClick={() => { if (typeof setShowTravelSetupModal === 'function') setShowTravelSetupModal(true); }}
+            className="w-full rounded-[14px] border px-3 py-2.5 flex items-center justify-between gap-3 text-left transition hover:opacity-90"
+            style={{background:'color-mix(in srgb, var(--accent-blue) 12%, var(--cream))', borderColor:'color-mix(in srgb, var(--accent-blue) 28%, var(--line))', cursor:'pointer'}}
+            aria-label="Travel mode active — tap to edit"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Icon name="Plane" size={13} style={{color:'var(--accent-blue)', flexShrink:0}} />
+              <div className="min-w-0">
+                <div className="text-[9.5px] tracking-[0.22em] uppercase" style={{color:'var(--accent-blue)', fontWeight:700}}>
+                  Travel
+                </div>
+                <div className="text-[12px] leading-snug truncate" style={{color:'var(--ink)', fontWeight:600}}>
+                  {userProfile.travel.destinationLabel || 'Trip routine on'}
+                  {userProfile.travel.endDate ? (
+                    <span style={{color:'var(--ink-soft)', fontWeight:400}}> · back {(() => {
+                      try {
+                        const d = new Date(userProfile.travel.endDate + 'T00:00:00');
+                        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                      } catch { return userProfile.travel.endDate; }
+                    })()}</span>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (typeof setUserProfile === 'function') {
+                  setUserProfile(prev => ({ ...prev, travel: { ...(prev?.travel || {}), active: false } }));
+                }
+                if (typeof saveData === 'function') {
+                  try { saveData('userProfile', { ...userProfile, travel: { ...(userProfile.travel || {}), active: false } }); } catch (_) {}
+                }
+              }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.currentTarget.click(); } }}
+              className="text-[9px] tracking-[0.2em] uppercase flex-shrink-0"
+              style={{color:'var(--ink-soft)', borderBottom:'1px dotted var(--ink-soft)', cursor:'pointer', fontWeight:650}}
+            >
+              End
+            </span>
+          </button>
+        )}
 
         {/* === SKIN CHECK-IN CARD — Codex spec, mockup-matched ===
             Horizontal layout: oval LEFT (~320px tall, vertically
@@ -2571,6 +2629,7 @@ CRITICAL OUTPUT REQUIREMENTS:
         regimenLogs,
         date: viewDate,
         acceptedPlan: buildPlanAccepted ? buildPlan : null,
+        userProfile, // June 2026 — enables travel.products swap when travel.active
       });
       const amList = coverResolved.am;
       const pmList = coverResolved.pm;
@@ -3056,6 +3115,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                               regimenLogs: [],   // ignore any existing log
                               date: todayStr,
                               acceptedPlan: buildPlanAccepted ? buildPlan : null,
+                              userProfile,
                             });
                             const amIds = (resolved.am || []).map(p => p.id);
                             const pmIds = (resolved.pm || []).map(p => p.id);
@@ -4286,7 +4346,7 @@ CRITICAL OUTPUT REQUIREMENTS:
           where all the recs can be given." */}
       {(() => {
         try {
-          const ritual = resolveTodayRitual({ products, regimenLogs, date: todayStr });
+          const ritual = resolveTodayRitual({ products, regimenLogs, date: todayStr, userProfile });
           const coverage = resolveCoverageStates({
             routine: { am: ritual.am, pm: ritual.pm },
             concerns: [],

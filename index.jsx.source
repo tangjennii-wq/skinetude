@@ -5139,6 +5139,7 @@ function App() {
             source: 'upload',
           }],
           apiKeyOn,
+          travel: !!(userProfile?.travel?.active),
         });
         const updated = [newLog, ...logs];
         setLogs(updated);
@@ -11389,6 +11390,8 @@ If the user references something not in their data ("started retinol 6 weeks ago
             setShowScoreExplainer={setShowScoreExplainer}
             scoreExplainerSeen={scoreExplainerSeen}
             setScoreExplainerSeen={setScoreExplainerSeen}
+            setUserProfile={setUserProfile}
+            setShowTravelSetupModal={setShowTravelSetupModal}
           />
         )}
 
@@ -14577,6 +14580,11 @@ If the user references something not in their data ("started retinol 6 weeks ago
           const slot = sheet.slot || 'am';
           const extrasKey = slot === 'pm' ? 'pmExtras' : 'amExtras';
           const existing = (regimenLogs || []).find(r => r.date === date);
+          // June 2026 Phase 2: tag the log with travel:true when the user
+          // is in active travel mode so Journal/Compare can filter home
+          // weeks vs. travel weeks. Applied to brand-new logs only —
+          // editing an existing log preserves whatever tag it already has.
+          const isTraveling = !!(userProfile?.travel?.active);
           const nextLog = existing
             ? { ...existing, [extrasKey]: [...(existing[extrasKey] || []), label] }
             : {
@@ -14590,6 +14598,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 pmExtras: slot === 'pm' ? [label] : [],
                 notes: '',
                 submitted: false,
+                ...(isTraveling ? { travel: true } : {}),
               };
           const next = existing
             ? regimenLogs.map(r => r.date === date ? nextLog : r)
@@ -14823,17 +14832,15 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     })}
                     <div style={{height: 1, background: 'var(--line)', margin: '0 18px'}} />
                     {/* === GOING TRAVELING (June 2026 per Jenni) ===
-                        Routes to Refine page with a travel intent. The user can
-                        pack a separate routine for the trip + see a skip-day
-                        calendar for things they're leaving home. v1 keeps the
-                        intent simple — Refine page picks up the rest. */}
+                        Phase 2 update: routes directly to the dedicated
+                        TravelSetupModal instead of the Refine intent +
+                        Build view detour. The modal captures destination,
+                        dates, location kind, and the packed product set —
+                        which then triggers the cover banner + ritual swap
+                        + log tagging for the duration of the trip. */}
                     {renderOption('Briefcase', 'Going traveling', 'Pack a routine for the trip.', () => {
                       close();
-                      if (typeof setRefineIntent === 'function') {
-                        setRefineIntent({ id: 'travel', label: 'Travel routine', prompt: 'I need a pared-down routine for travel. Keep essentials, drop fragile or fussy products.' });
-                      }
-                      setActiveTab('regimen');
-                      setRegimenView('build');
+                      setShowTravelSetupModal(true);
                     })}
                   </div>
                   <button
@@ -17359,6 +17366,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
           toast={toast}
           saveData={saveData}
           generateProductArtForAll={generateProductArtForAll}
+          userProfile={userProfile}
         />
       )}
       {/* === CONFLICT OVERRIDE PROMPT ===

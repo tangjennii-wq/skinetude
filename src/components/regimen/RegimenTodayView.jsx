@@ -30,7 +30,8 @@ const RegimenTodayView = ({
   setRitualSuggestToken,
   setRitualSuggestion,
   setShelfQuickAddOpen,
-  setUsedSomethingElseSheet}) => {
+  setUsedSomethingElseSheet,
+  userProfile}) => {
   const [showAllRitualItems, setShowAllRitualItems] = useState(false);
   const [expandedRitualItemId, setExpandedRitualItemId] = useState(null);
   // Per-row "show full mechanism / evidence" toggles (May 31 2026 per Jenni).
@@ -266,6 +267,9 @@ const RegimenTodayView = ({
     setCoverRoutineRebuildToken(t => t + 1);
     toast(`Restored ${slot.toUpperCase()} from your weekly plan`, 'info');
   };
+  // June 2026 Phase 2: tag new logs with travel:true when the user is
+  // in active travel mode. Preserves any existing travel tag on edit.
+  const isTraveling = !!(userProfile?.travel?.active);
   const skipSlotForToday = (slot) => {
     const slotKey = slot === 'am' ? 'amProducts' : 'pmProducts';
     const doneKey = slot === 'am' ? 'amDone' : 'pmDone';
@@ -289,7 +293,9 @@ const RegimenTodayView = ({
       supplements: existing?.supplements || [],
       notes: existing?.notes || '',
       submitted: true,
-      submittedAt: Date.now()};
+      submittedAt: Date.now(),
+      ...(existing?.travel ? { travel: existing.travel } : (isTraveling ? { travel: true } : {})),
+    };
     const next = existing
       ? (regimenLogs || []).map(r => r.date === viewDate ? nextLog : r)
       : [nextLog, ...(regimenLogs || [])];
@@ -326,7 +332,9 @@ const RegimenTodayView = ({
       pmBatchConfirmed: ritualSlot === 'pm' ? commitSkipped.length === 0 : (existing?.pmBatchConfirmed ?? false),
       notes: existing?.notes || '',
       submitted: true,
-      submittedAt: Date.now()};
+      submittedAt: Date.now(),
+      ...(existing?.travel ? { travel: existing.travel } : (isTraveling ? { travel: true } : {})),
+    };
     const next = existing
       ? (regimenLogs || []).map(r => r.date === viewDate ? nextLog : r)
       : [nextLog, ...(regimenLogs || [])];

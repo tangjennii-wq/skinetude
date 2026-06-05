@@ -69,7 +69,7 @@ const isBodyProduct = (p) => {
 // symbols exist at module scope by the time resolveTodayRitual is
 // invoked — which they do (sidecar runs entirely before any
 // component calls resolveTodayRitual).
-const resolveTodayRitual = ({ products, regimenLogs, date, acceptedPlan = null }) => {
+const resolveTodayRitual = ({ products, regimenLogs, date, acceptedPlan = null, userProfile = null }) => {
   const empty = {
     source: 'empty', am: [], pm: [],
     amExtras: [], pmExtras: [],
@@ -139,6 +139,40 @@ const resolveTodayRitual = ({ products, regimenLogs, date, acceptedPlan = null }
       pm: pmCap.list,
       amExtras: Array.isArray(log.amExtras) ? log.amExtras : [],
       pmExtras: Array.isArray(log.pmExtras) ? log.pmExtras : [],
+      amOverflow: amCap.overflow,
+      pmOverflow: pmCap.overflow,
+      amHidden: amCap.hidden,
+      pmHidden: pmCap.hidden,
+    };
+  }
+  // === TRAVEL MODE OVERRIDE (June 2026 per Jenni) ===
+  // When userProfile.travel.active === true, the weekly routine is
+  // replaced by travel.products for the duration of the trip. We do this
+  // AFTER the existing log check (a log on a travel day still wins —
+  // that's what actually happened) but BEFORE the planned-routine fallback
+  // (which would otherwise show the home week's products instead of what
+  // the user packed). Products are split by their existing useTimes;
+  // products with no useTimes default to both AM and PM.
+  const travel = userProfile?.travel;
+  if (travel?.active && Array.isArray(travel.products) && travel.products.length > 0) {
+    const travelProducts = travel.products
+      .map(id => active.find(p => p.id === id))
+      .filter(Boolean);
+    const inAm = travelProducts.filter(p => {
+      const t = Array.isArray(p.useTimes) ? p.useTimes : [];
+      return t.length === 0 || t.includes('am');
+    });
+    const inPm = travelProducts.filter(p => {
+      const t = Array.isArray(p.useTimes) ? p.useTimes : [];
+      return t.length === 0 || t.includes('pm');
+    });
+    const amCap = capWithOverflow(inAm);
+    const pmCap = capWithOverflow(inPm);
+    return {
+      source: 'travel',
+      am: amCap.list,
+      pm: pmCap.list,
+      amExtras: [], pmExtras: [],
       amOverflow: amCap.overflow,
       pmOverflow: pmCap.overflow,
       amHidden: amCap.hidden,

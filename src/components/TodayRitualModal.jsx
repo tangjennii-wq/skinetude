@@ -45,7 +45,9 @@ const TodayRitualModal = ({
   toast,
   saveData,
   // Wave 8 audit (May 2026) — App-scope, not module-scope.
-  generateProductArtForAll}) => {
+  generateProductArtForAll,
+  // June 2026 Phase 2: needed for travel.active log tagging.
+  userProfile}) => {
   // === DATE-AWARE ===
   // Edits whichever day's regimen the user is viewing (via cover or
   // regimen scrubber). Defaults to today. When opened on a prior day,
@@ -154,12 +156,20 @@ const TodayRitualModal = ({
   const handleSubmit = async () => {
     const safeForm = ritualFormRef.current || form;
     const id = existing?.id || Date.now();
+    // June 2026 Phase 2: tag new submitted logs with travel:true when the
+    // user is in active travel mode. Preserves existing travel tag on
+    // edit so re-saving a travel log doesn't accidentally drop the flag.
+    const isTraveling = !!(userProfile?.travel?.active);
     const submitted = {
       ...safeForm,
       id,
       date: targetDate,
       submitted: true,
-      submittedAt: Date.now()};
+      submittedAt: Date.now(),
+      ...(safeForm?.travel || existing?.travel
+        ? { travel: safeForm?.travel || existing.travel }
+        : (isTraveling ? { travel: true } : {})),
+    };
     const next = existing
       ? regimenLogs.map(r => r.date === targetDate ? { ...r, ...submitted } : r)
       : [submitted, ...regimenLogs];
