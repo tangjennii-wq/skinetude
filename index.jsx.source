@@ -6011,7 +6011,13 @@ Return JSON in EXACTLY this shape (no markdown fences, no commentary):
   // Sub-views in user-facing nav: 'today' | 'shelf' | 'build' | 'occasions'.
   // Legacy values 'ritual' | 'concerns' | 'sensitivities' | 'technique' are kept
   // for backward compat with deep-links from cover/launcher and aliased on read.
-  const [regimenViewRaw, setRegimenView] = useState('today');
+  // June 2026 (per Jenni + stratechery critic): Default landing on Regimen
+  // is now 'refine', not 'today'. Reasoning: Home cover already shows
+  // today's routine summary + mark-done inline (project_journal_whoop_page),
+  // so Today-in-Regimen was ~80% redundant. The JTBD when a user taps
+  // Regimen is "do something to my routine" — Refine is the highest-leverage
+  // surface for that intent. Today is still reachable via the sub-tab.
+  const [regimenViewRaw, setRegimenView] = useState('refine');
   const normalizeRegimenView = (view) => {
     if (view === 'ritual') return 'today';
     if (view === 'refine' || view === 'rebuild') return 'build';
@@ -21060,7 +21066,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
               <div className="text-[10px] tracking-[0.3em] uppercase mb-3" style={{color:'var(--ink-soft)'}}>Work on</div>
               <div className="flex flex-wrap gap-2">
                 <button onClick={() => { setShowLauncher(false); setShowProductModal(true); }} className="text-[11px] tracking-[0.15em] uppercase px-4 py-2 border transition hover:border-[var(--ink)]" style={{borderColor: 'var(--line)', color:'var(--ink)'}}>Add a product</button>
-                <button onClick={() => { setShowLauncher(false); setActiveTab('regimen'); setRegimenView('today'); }} className="text-[11px] tracking-[0.15em] uppercase px-4 py-2 border transition hover:border-[var(--ink)]" style={{borderColor: 'var(--line)', color:'var(--ink)'}}>Build my routine</button>
+                <button onClick={() => { setShowLauncher(false); setActiveTab('regimen'); setRegimenView('build'); }} className="text-[11px] tracking-[0.15em] uppercase px-4 py-2 border transition hover:border-[var(--ink)]" style={{borderColor: 'var(--line)', color:'var(--ink)'}}>Build my routine</button>
                 <button onClick={() => { setShowLauncher(false); setShowEventModal(true); }} className="text-[11px] tracking-[0.15em] uppercase px-4 py-2 border transition hover:border-[var(--ink)]" style={{borderColor: 'var(--line)', color:'var(--ink)'}}>Plan an occasion</button>
                 <button onClick={() => { setShowLauncher(false); setShowProcedureModal(true); }} className="text-[11px] tracking-[0.15em] uppercase px-4 py-2 border transition hover:border-[var(--ink)]" style={{borderColor: 'var(--line)', color:'var(--ink)'}}>Log a procedure</button>
               </div>

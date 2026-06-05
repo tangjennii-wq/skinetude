@@ -877,12 +877,15 @@ Example response (just this, nothing else):
       concerns: (s.concerns && s.concerns.length) ? s.concerns : (prev.concerns || [])
     }));
     // Hide the suggestion list once one is picked.
-    // CRITICAL: clear searchInput AND hasSearched together, AND bump the
-    // resetKey so the debounced LocalSearchInput's internal val is also
-    // wiped (it ignores upstream setState mid-typing by design).
+    // CRITICAL: bump the resetKey so the debounced LocalSearchInput's
+    // internal val updates (it ignores upstream setState mid-typing by
+    // design). June 2026 per Jenni: the search input now SHOWS the picked
+    // product name (with an X button to clear and search again — see
+    // input render) instead of clearing on pick. Standard autocomplete
+    // chip pattern; gives the user a visible anchor of what they selected.
     setNameSuggestions([]);
     setHasSearched(false);
-    setSearchInput('');
+    setSearchInput(s.name || '');
     bumpSearchReset();
     try {
       const filled = await deepFillProduct({ name: s.name, brand: s.brand, category: s.category });
@@ -2297,7 +2300,7 @@ ALTERNATIVES:
                 initial={searchInput}
                 resetKey={searchInputResetKey}
                 placeholder="Type a brand, product, or paste a link…"
-                className={'w-full px-4 py-2 rounded-full border text-[12px] font-light focus:outline-none transition' + (nameSearching ? ' pr-8' : '')}
+                className={'w-full px-4 py-2 rounded-full border text-[12px] font-light focus:outline-none transition' + (nameSearching || searchInput.trim().length > 0 ? ' pr-9' : '')}
                 style={{borderColor:'var(--line)', background:'var(--cream-deep)', color:'var(--ink)'}}
                 debounceMs={140}
                 onCommit={(v) => { setSearchInput(v); setUrlFetchError(''); setSearchError(''); }}
@@ -2306,6 +2309,37 @@ ALTERNATIVES:
               {/* Inline searching indicator — sits in the input, doesn't reflow layout. */}
               {nameSearching && (
                 <Icon name="Loader2" size={11} className="spin absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{color:'var(--accent)'}} />
+              )}
+              {/* June 2026 (per Jenni): X button to clear a picked product +
+                  reset the form so the user can search again. Surfaces when
+                  the input has content and no search is in flight. Clears
+                  searchInput AND the autofilled form fields (name / brand /
+                  actives / main / concerns / tags) so stale data doesn't
+                  bleed into the next product. */}
+              {!nameSearching && searchInput.trim().length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchInput('');
+                    setForm(prev => ({
+                      ...prev,
+                      name: '',
+                      brand: '',
+                      activeIngredients: '',
+                      mainIngredients: '',
+                      concerns: [],
+                      tags: [],
+                    }));
+                    setNameSuggestions([]);
+                    setHasSearched(false);
+                    bumpSearchReset();
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full w-5 h-5 flex items-center justify-center transition hover:bg-[var(--cream)]"
+                  style={{color:'var(--ink-soft)', background:'var(--cream-deep)'}}
+                  aria-label="Clear picked product"
+                >
+                  <Icon name="X" size={10} />
+                </button>
               )}
             </div>
             <button
