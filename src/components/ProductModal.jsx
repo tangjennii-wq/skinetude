@@ -2382,13 +2382,17 @@ ALTERNATIVES:
         )}
 
         {/* === EDITABLE HEADER CARD ===
-            New products: hidden — the search input above does the same
-            job (and the AI suggestion dropdown auto-fills name/brand on
-            pick). Edit mode: shown — this is the canonical "what
-            product is this" header for an existing item. (May 31 2026
-            per Jenni — remove the redundant ghost preview on the
-            Search Product modal.) */}
-        {isEditing && (
+            Renders for:
+              - Edit mode (always)
+              - New products AFTER a suggestion has been picked (form has a
+                name OR brand). Before any pick, the search input above is the
+                canonical input and this card is hidden to avoid duplication.
+            June 2026 fix per Jenni: previously gated on `isEditing` alone,
+            which meant after picking a suggestion in the New Product flow
+            the form had name/brand stored but nothing in the UI displayed
+            them — search input was cleared on pick, and this card was
+            hidden. Now the card surfaces once name/brand land. */}
+        {(isEditing || !!form.name || !!form.brand) && (
         <div className="rounded-[12px] px-2.5 py-2 flex items-center gap-2" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
           <div className="flex-shrink-0 w-7 h-9 flex items-end justify-center" style={{color:'var(--ink-soft)'}}>
             <DashedBottleOutline />

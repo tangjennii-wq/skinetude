@@ -12651,37 +12651,78 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   <div>
                     <div className="text-[9px] tracking-[0.22em] uppercase mb-2" style={{color:'var(--ink-soft)', fontWeight:650}}>What we'd try</div>
                     <div className="rounded-[14px] border p-3 mb-2" style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
-                      <button
-                        type="button"
-                        onClick={openSignalPicks}
-                        className="w-full text-left flex items-start justify-between gap-3 transition hover:opacity-90"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 text-[9.5px] tracking-[0.22em] uppercase mb-2" style={{color:'var(--accent)', fontWeight:700}}>
-                            <Icon name="Sparkles" size={11} />
-                            {topInsightConcern ? (insightDecision?.eyebrow || `${topInsightConcernLabel} · this week`) : 'Start · keep logging'}
-                          </div>
-                          <div className="text-[15px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:700}}>
-                            {topInsightConcern ? (insightDecision?.headline || `${topInsightConcernLabel} is repeating.`) : 'Log a few more days.'}
-                          </div>
-                          <div className="text-[11px] leading-snug" style={{color:'var(--ink-soft)'}}>
-                            {topInsightConcern
-                              ? insightDecision?.analysis || insightRefine?.tryThis || 'Choose a focused adjustment for this week.'
-                              : 'Signals will turn repeat observations into a specific next move.'}
-                          </div>
-                          {topInsightConcern && insightDecision?.missing && (
-                            <div className="text-[10px] leading-snug mt-2" style={{color:'var(--ink-soft)'}}>
-                              {insightDecision.missing}
+                      {/* === Header — NOT a button (June 2026 per Jenni) ===
+                          Previous version made the entire header a button that
+                          routed to Picks/Suggestions. Tapping anywhere on the
+                          card text shipped the user out of the Signals tab —
+                          which is exactly the "leading user out of the section"
+                          problem. Header is now a plain div; navigation only
+                          happens via the explicit bottom CTAs. */}
+                      <div className="flex items-center gap-1.5 text-[9.5px] tracking-[0.22em] uppercase mb-2" style={{color:'var(--accent)', fontWeight:700}}>
+                        <Icon name="Sparkles" size={11} />
+                        {topInsightConcern ? (insightDecision?.eyebrow || `${topInsightConcernLabel} · this week`) : 'Start · keep logging'}
+                      </div>
+                      <div className="text-[15px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:700}}>
+                        {topInsightConcern ? (insightDecision?.headline || `${topInsightConcernLabel} is repeating.`) : 'Log a few more days.'}
+                      </div>
+                      <div className="text-[11px] leading-snug" style={{color:'var(--ink-soft)'}}>
+                        {topInsightConcern
+                          ? insightDecision?.analysis || insightRefine?.tryThis || 'Choose a focused adjustment for this week.'
+                          : 'Signals will turn repeat observations into a specific next move.'}
+                      </div>
+
+                      {/* === Inline lesson snippet (June 2026 per Jenni) ===
+                          Pulls excerpt + first 2 actions from CONCERN_GUIDE when
+                          a matching entry exists (redness / breakouts / dryness
+                          / hyperpigmentation / fine-lines / irritation / sun-
+                          damage). Pore + texture don't have CONCERN_GUIDE
+                          entries — fall back to insightDecision.missing which
+                          already serves a similar "what to check" line.
+                          Goal: the user gets the "why + concrete next moves"
+                          inline. No tap-through required. */}
+                      {topInsightConcern && (() => {
+                        const concernKey = topInsightConcern[0];
+                        // Map concern aliases to CONCERN_GUIDE.id
+                        const guideKey = concernKey === 'acne' ? 'breakouts'
+                          : concernKey === 'pigment' ? 'hyperpigmentation'
+                          : concernKey === 'aging' ? 'fine-lines'
+                          : concernKey;
+                        const guide = CONCERN_GUIDE.find(c => c.id === guideKey);
+                        const hasGuide = guide && (guide.excerpt || (guide.actions && guide.actions.length));
+                        const hasFallback = !!insightDecision?.missing;
+                        if (!hasGuide && !hasFallback) return null;
+                        return (
+                          <div className="rounded-[12px] border px-3 py-2.5 mt-3" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
+                            <div className="text-[8.5px] tracking-[0.22em] uppercase mb-1.5" style={{color:'var(--ink-soft)', fontWeight:700}}>
+                              Why this matters
                             </div>
-                          )}
-                        </div>
-                        <Icon name="ChevronRight" size={15} style={{color:'var(--ink-soft)', marginTop:2}} />
-                      </button>
+                            {hasGuide ? (
+                              <>
+                                {guide.excerpt && (
+                                  <div className="text-[11px] leading-snug mb-2" style={{color:'var(--ink-soft)'}}>{guide.excerpt}</div>
+                                )}
+                                {guide.actions && guide.actions.length > 0 && (
+                                  <ul className="space-y-1.5 mt-2">
+                                    {guide.actions.slice(0, 2).map((a, i) => (
+                                      <li key={i} className="text-[11px] leading-snug flex items-start gap-2" style={{color:'var(--ink)'}}>
+                                        <span style={{color:'var(--accent)', flexShrink:0, marginTop:'1px', fontWeight:700}}>·</span>
+                                        <span>{a}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </>
+                            ) : (
+                              <div className="text-[11px] leading-snug" style={{color:'var(--ink-soft)'}}>{insightDecision.missing}</div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
-                    {/* June 2026 (Tier B): RecCardSection no longer collapsible —
-                        inline picks render visible by default so the card answers
-                        what / why / what to try without requiring a tap. Was
-                        `collapsible` which hid the picks behind a chevron. */}
+
+                    {/* Inline picks — RecCardSection renders shelf-first then
+                        outside picks. Default-visible (not collapsible) so the
+                        actual product cards show without a tap. */}
                     {hasSignalRecCards && (
                       <div className="space-y-2">
                         <RecCardSection
