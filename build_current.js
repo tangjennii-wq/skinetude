@@ -207,6 +207,9 @@ const COMPONENT_FILES = [
   'src/components/insights/SignalsPanel.jsx',
   // Wave 7.4 (May 2026) — InsightsView extracted (~249 lines lifted).
   'src/components/InsightsView.jsx',
+  // June 2026 — generic tap-to-zoom modal (Compare pair / Journal single /
+  // Read Analysis). Defined BEFORE CompareView so the pair view can use it.
+  'src/components/PhotoLightbox.jsx',
   // Wave 7.3 (May 2026) — CompareView extracted (~1300 lines lifted).
   'src/components/CompareView.jsx',
   // Wave 7.2 (May 2026) — JournalView extracted.

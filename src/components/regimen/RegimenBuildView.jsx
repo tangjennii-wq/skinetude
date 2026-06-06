@@ -906,24 +906,47 @@ const RegimenBuildView = ({
               <div className="text-[9px] tracking-[0.32em] uppercase mb-1.5" style={{color:'var(--accent)', fontWeight:600}}>Plan for something</div>
               <p className="text-[12.5px] mb-4" style={{color:'var(--ink)', fontWeight:500}}>Temporary weeks for real life, without wrecking your standing routine.</p>
               <div className="space-y-1">
-                {planRows.map(row => (
-                  <button
-                    key={row.id}
-                    type="button"
-                    onClick={() => openRefineSheet({ id: row.id, label: row.title, icon: row.icon, prompt: row.prompt })}
-                    className="w-full text-left rounded-[12px] px-4 py-3.5 flex items-center gap-3 transition hover:bg-[var(--cream)]"
-                    style={{background:'var(--cream)', border: '1px solid var(--line)', cursor:'pointer'}}
-                  >
-                    <span className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
-                      <Icon name={row.icon} size={14} style={{color:'var(--ink-soft)'}} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] leading-tight" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.01em'}}>{row.title}</span>
-                      <span className="block text-[11px] mt-0.5 leading-snug" style={{color:'var(--ink-soft)'}}>{row.sub}</span>
-                    </span>
-                    <Icon name="ChevronRight" size={14} style={{color:'var(--ink-soft)', flexShrink:0}} />
-                  </button>
-                ))}
+                {planRows.map(row => {
+                  // June 2026 Phase 2.5: the travel row routes to the
+                  // dedicated TravelSetupModal (auto-build flow with
+                  // dates / climate / packed list / upcoming preview)
+                  // instead of the legacy LLM-driven refineSheet. Same
+                  // entry point as "Used something else? → Going
+                  // traveling" so all travel paths converge. Existing
+                  // trip pre-fills the modal — user can edit dates,
+                  // climate, or replace the packing list with a fresh
+                  // auto-build for a new destination.
+                  const isTravel = row.id === 'travel';
+                  // Safe ref — upcomingTripCount is optional prop; not yet wired.
+                  const tripCountSafe = (typeof upcomingTripCount === 'number') ? upcomingTripCount : 0;
+                  const subtitle = isTravel && tripCountSafe
+                    ? `${row.sub} · ${tripCountSafe} trip on file — tap to edit or plan another`
+                    : row.sub;
+                  return (
+                    <button
+                      key={row.id}
+                      type="button"
+                      onClick={() => {
+                        if (isTravel && typeof setShowTravelSetupModal === 'function') {
+                          setShowTravelSetupModal(true);
+                          return;
+                        }
+                        openRefineSheet({ id: row.id, label: row.title, icon: row.icon, prompt: row.prompt });
+                      }}
+                      className="w-full text-left rounded-[12px] px-4 py-3.5 flex items-center gap-3 transition hover:bg-[var(--cream)]"
+                      style={{background:'var(--cream)', border: '1px solid var(--line)', cursor:'pointer'}}
+                    >
+                      <span className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+                        <Icon name={row.icon} size={14} style={{color:'var(--ink-soft)'}} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] leading-tight" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.01em'}}>{row.title}</span>
+                        <span className="block text-[11px] mt-0.5 leading-snug" style={{color:'var(--ink-soft)'}}>{subtitle}</span>
+                      </span>
+                      <Icon name="ChevronRight" size={14} style={{color:'var(--ink-soft)', flexShrink:0}} />
+                    </button>
+                  );
+                })}
               </div>
             </section>
           </div>

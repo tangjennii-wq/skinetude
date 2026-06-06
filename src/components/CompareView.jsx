@@ -43,6 +43,36 @@ const CompareView = ({
   //   1. Quick    — auto today + user picks prior; quick-pick presets; AI inline
   //   2. Product  — list of eligible products; opens ProductCompareModal
   //   3. Procedure — list of procedures with before/after photo anchors
+  // === Photo lightbox (June 2026 per Jenni) ===
+  // Tap either Before or After photo → opens the PhotoLightbox with both
+  // side-by-side at a much larger size. Lets users actually see deltas
+  // they can't tell from the small thumbnails. Same component handles
+  // single-photo zoom elsewhere; passing 2 photos triggers pair mode.
+  const [lightboxPhotos, setLightboxPhotos] = React.useState(null);
+  const photoSrcOf = (l) => {
+    if (!l) return null;
+    if (typeof l.photo === 'string' && l.photo.startsWith('data:')) return l.photo;
+    // Fallback: if hosted, the Photo component resolves photoPath; we don't
+    // have direct access to that resolver here. Return the data URL if any,
+    // else null (caller renders the small-card Photo as today).
+    return l.photo || null;
+  };
+  const openCompareLightbox = () => {
+    const bSrc = photoSrcOf(beforeLog);
+    const aSrc = photoSrcOf(afterLog);
+    if (!bSrc && !aSrc) return;
+    const photos = [];
+    if (bSrc) photos.push({
+      src: bSrc, label: 'Before', sub: fmt(beforeLog.date),
+      area: beforeLog?.area || 'full-face', score: aiScoreOut10(beforeLog) || 0,
+    });
+    if (aSrc) photos.push({
+      src: aSrc, label: compareTimeAfterId && afterLog?.id !== afterDefaultLog?.id ? 'After' : 'After · today',
+      sub: fmt(afterLog.date),
+      area: afterLog?.area || 'full-face', score: aiScoreOut10(afterLog) || 0,
+    });
+    setLightboxPhotos(photos);
+  };
   const hasPhoto = (l) => l.photoPath || (typeof l.photo === 'string' && l.photo.startsWith('data:'));
   const photoLogs = logs.filter(hasPhoto).sort((a, b) => new Date(b.date) - new Date(a.date));
   const fullFacePhotoLogs = photoLogs.filter(l => l.area === 'full-face');
@@ -470,11 +500,19 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                   <div className="text-[10px] tracking-[0.28em] uppercase px-3 pt-3 pb-1.5" style={{color:'var(--ink-soft)'}}>Before</div>
                   {beforeLog ? (
                     <>
-                      <div className="aspect-[4/3] overflow-hidden" style={{background:'var(--cream-deep)'}}>
-                        <Photo item={beforeLog} alt="" className="w-full h-full object-cover"
-                          renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-sans text-4xl" style={{color:'var(--ink-soft)'}}>{beforeLog.rating}</span></div>}
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={openCompareLightbox}
+                        aria-label="Zoom in on photos"
+                        className="block w-full p-0 m-0 border-0 transition hover:opacity-95"
+                        style={{background:'transparent', cursor:'zoom-in'}}
+                      >
+                        <div className="aspect-[4/3] overflow-hidden" style={{background:'var(--cream-deep)'}}>
+                          <Photo item={beforeLog} alt="" className="w-full h-full object-cover"
+                            renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-sans text-4xl" style={{color:'var(--ink-soft)'}}>{beforeLog.rating}</span></div>}
+                          />
+                        </div>
+                      </button>
                       <div className="px-3 py-2.5 flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <div className="font-sans text-base truncate" style={{color:'var(--ink)'}}>{fmt(beforeLog.date)}</div>
@@ -510,11 +548,19 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                     <span className="w-1 h-1 rounded-full inline-block" style={{background:'var(--accent)'}} />
                     {compareTimeAfterId && afterLog?.id !== afterDefaultLog?.id ? 'After' : 'After · today'}
                   </div>
-                  <div className="aspect-[4/3] overflow-hidden" style={{background:'var(--cream-deep)'}}>
-                    <Photo item={afterLog} alt="" className="w-full h-full object-cover"
-                      renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-sans text-4xl" style={{color:'var(--ink-soft)'}}>{afterLog.rating}</span></div>}
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    onClick={openCompareLightbox}
+                    aria-label="Zoom in on photos"
+                    className="block w-full p-0 m-0 border-0 transition hover:opacity-95"
+                    style={{background:'transparent', cursor:'zoom-in'}}
+                  >
+                    <div className="aspect-[4/3] overflow-hidden" style={{background:'var(--cream-deep)'}}>
+                      <Photo item={afterLog} alt="" className="w-full h-full object-cover"
+                        renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-sans text-4xl" style={{color:'var(--ink-soft)'}}>{afterLog.rating}</span></div>}
+                      />
+                    </div>
+                  </button>
                   <div className="px-3 py-2.5 flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <div className="font-sans text-base truncate" style={{color:'var(--ink)'}}>{fmt(afterLog.date)}</div>
@@ -1323,6 +1369,13 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
           (journal + shelf + procedures + color) and a richer toolset. The
           compareAsk* state survives in App scope as dead state for one
           release in case any deep link routes here. */}
+
+      {/* === Photo lightbox (June 2026 per Jenni) ===
+          Renders when user taps either Before or After photo. Side-by-side
+          pair view at full size — actually usable for spotting deltas. */}
+      {lightboxPhotos && lightboxPhotos.length > 0 && (
+        <PhotoLightbox photos={lightboxPhotos} onClose={() => setLightboxPhotos(null)} />
+      )}
     </div>
   );
 };
