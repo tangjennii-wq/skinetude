@@ -137,8 +137,8 @@ const RegimenView = ({
         Phase A.2 (deferred — full Picks scoring engine extraction). */}
     <EditorialSubTabs
       tabs={[
-        { id: 'today', label: 'Today' },
         { id: 'build', label: userHasBuiltPattern(products) ? 'Refine' : 'Build' },
+        { id: 'today', label: 'Today' },
         { id: 'bench', label: 'Bench' },
         { id: 'occasions', label: 'Rotation' },
         { id: 'shelf', label: 'Shelf' },
@@ -475,6 +475,16 @@ const RegimenView = ({
     const { unusedProducts, overlapGroups, benchCount } = (typeof computeBench === 'function')
       ? computeBench({ products })
       : { unusedProducts: [], overlapGroups: [], benchCount: 0 };
+    // June 2026 Phase A.2 — budget picks for the Bench surface. Uses
+    // userProfile.actionGoal as the action filter (so picks line up with
+    // the user's stated goal) and userConcerns as the concern set.
+    const budgetPicks = (typeof computeBudgetPicks === 'function')
+      ? computeBudgetPicks({
+          userConcerns: userConcerns || [],
+          actionFilter: (userProfile?.actionGoal || 'all'),
+          limit: 6,
+        })
+      : [];
     return (
       <div className="md:max-w-md md:mx-auto pb-6">
         <div className="rounded-[14px] border p-3" style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
@@ -556,10 +566,52 @@ const RegimenView = ({
             </div>
           )}
 
-          {/* Budget Picks pointer — temporary during Phase A migration */}
-          <div className="text-[9px] tracking-[0.18em] uppercase mt-4 text-center" style={{color:'var(--ink-soft)'}}>
-            Budget picks · still in Insights → Picks → Budget for now
-          </div>
+          {/* === Budget Picks (Phase A.2 — June 2026) ===
+              Drugstore-tier ($) catalog matches scored against the user's
+              actionGoal + observed concerns. Pulled from computeBudgetPicks
+              (src/resolvers/budgetResolvers.js). Same engine the legacy
+              Pearls/Picks/Budget view uses, behavior-identical so the
+              Phase C deletion is safe. Derm endorsements (when present)
+              render as a compact eyebrow chip above brand. */}
+          <div className="text-[9px] tracking-[0.22em] uppercase mt-4 mb-2" style={{color:'var(--ink-soft)', fontWeight:700}}>Budget picks — drugstore-tier matches</div>
+          {budgetPicks.length === 0 ? (
+            <div className="rounded-[12px] border p-3 text-[12px] leading-snug" style={{borderColor: 'var(--line)', background:'var(--cream-deep)', color:'var(--ink-soft)'}}>
+              No drugstore-tier matches for your current goal + concerns yet.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {budgetPicks.map((p, i) => {
+                const dermChip = p.derm_endorsement && (typeof compactDermLabel === 'function')
+                  ? compactDermLabel(p.derm_endorsement)
+                  : null;
+                const concernLabel = (p._concernHits || [])[0];
+                const actionLabel = (p._tags && p._tags[0])
+                  ? ({ repair:'Barrier', calm:'Calm', hydrate:'Hydration', brighten:'Pigment', exfoliate:'Texture' })[p._tags[0]] || 'Budget'
+                  : 'Budget';
+                return (
+                  <div key={`budget-${p.brand}-${p.name}-${i}`} className="rounded-[14px] border p-3" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        {dermChip && (
+                          <div className="inline-flex items-center rounded-full px-2 py-0.5 mb-1 text-[8.5px] tracking-[0.14em] uppercase" style={{background:'var(--surface-selected-soft)', color:'var(--accent)', fontWeight:700}}>{dermChip}</div>
+                        )}
+                        <div className="text-[8.5px] tracking-[0.22em] uppercase mb-0.5" style={{color:'var(--accent)', fontWeight:700}}>{actionLabel}{concernLabel ? ` · ${concernLabel}` : ''}</div>
+                        <div className="text-[8.5px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{p.brand}</div>
+                        <div className="text-[13px] leading-tight mt-0.5" style={{color:'var(--ink)', fontWeight:700}}>{p.name}</div>
+                        <div className="text-[10.5px] mt-1 leading-snug" style={{color:'var(--ink-soft)'}}>{p.actives || p.main || p.category}</div>
+                        {p.evidence_tier && (
+                          <div className="text-[9.5px] mt-1.5" style={{color:'var(--ink-soft)'}}>{String(p.evidence_tier).replace(/-/g, ' ')}</div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                        <span className="rounded-full px-2.5 py-1 text-[8.5px] tracking-[0.14em] uppercase whitespace-nowrap" style={{background:'var(--accent)', color:'var(--cream)', fontWeight:700}}>Budget pick · $</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     );
