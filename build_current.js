@@ -59,6 +59,7 @@ const SRC_FILES = [
   'src/resolvers/resolveContextSummary.js',     // PR 4: resolveContextSummary (uses CONTEXT_FACTORS above)
   'src/resolvers/sampleRoutines.js',            // PR 4: SAMPLE_ROUTINES + FOUNDATIONAL_SAMPLE_ROUTINE
   'src/resolvers/routineResolvers.js',          // PR 4b: MAX_FACE_ROUTINE_SLOT_PRODUCTS, isBodyProduct, resolveTodayRitual, getProductsForTodayFromPattern
+  'src/resolvers/benchResolvers.js',            // Phase A Tier C (June 2026): benchProductFamily, benchOverlapLabel, benchOverlapFamilyForProduct, computeBench — used by Regimen/bench sub-tab
   'src/resolvers/brandRanking.js',              // Phase 1 (May 2026): BRAND_PRIORITY_OVERRIDES + normalize/score/sort helpers for brand + product pickers
   'src/resolvers/extractPhotoDate.js',          // Wave 1.2 (May 2026): EXIF DateTimeOriginal extractor; consumed by BulkPhotoUploadModal
   // === Recommendation engine (May 2026) ===

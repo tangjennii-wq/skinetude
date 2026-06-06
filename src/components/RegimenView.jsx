@@ -129,10 +129,17 @@ const RegimenView = ({
         users come to Regimen for, after checking Today. Putting it
         third or fourth made it feel like an admin / edge surface
         rather than a primary daily-use tool. */}
+    {/* === Bench sub-tab added June 2026 (Phase A of Tier C IA cleanup) ===
+        Sits between Refine and Rotation — fits the "look at what's not
+        actively serving the routine" narrative right after Refine's
+        "make the routine better" lens. Replaces what used to live in
+        Insights → Picks → Bench. Budget Picks migrates to Bench in
+        Phase A.2 (deferred — full Picks scoring engine extraction). */}
     <EditorialSubTabs
       tabs={[
         { id: 'today', label: 'Today' },
         { id: 'build', label: userHasBuiltPattern(products) ? 'Refine' : 'Build' },
+        { id: 'bench', label: 'Bench' },
         { id: 'occasions', label: 'Rotation' },
         { id: 'shelf', label: 'Shelf' },
       ]}
@@ -451,5 +458,111 @@ const RegimenView = ({
   {regimenView === 'technique' && (
     <RegimenTechnique onOpenLesson={setOpenLesson} />
   )}
+
+  {/* === BENCH — June 2026 Phase A of Tier C IA cleanup ===
+      The new canonical home for "what's on my shelf I'm not using":
+      Unused (owned products not in built routine) + Overlap (products
+      sharing an active family with something already active). Pulls from
+      computeBench (src/resolvers/benchResolvers.js) which both this view
+      and the legacy Pearls/Picks/bench render call — so behavior stays
+      in lockstep during the migration.
+
+      Budget Picks (drugstore-tier matches) is NOT here yet — it depends
+      on the full Picks scoring engine which is a bigger extraction.
+      Phase A.2 will lift Budget once that lift happens. Until then a
+      footer note points to the Insights/Picks/Budget location. */}
+  {regimenView === 'bench' && (() => {
+    const { unusedProducts, overlapGroups, benchCount } = (typeof computeBench === 'function')
+      ? computeBench({ products })
+      : { unusedProducts: [], overlapGroups: [], benchCount: 0 };
+    return (
+      <div className="md:max-w-md md:mx-auto pb-6">
+        <div className="rounded-[14px] border p-3" style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <div className="text-[10px] tracking-[0.25em] uppercase" style={{color:'var(--accent)', fontWeight:650}}>Bench</div>
+              <div className="text-[12px] mt-1 leading-snug" style={{color:'var(--ink-soft)'}}>Products on the bench — not currently in your routine, or overlapping something active.</div>
+            </div>
+            <span className="rounded-full border px-3 py-1.5 text-[9px] tracking-[0.14em] uppercase flex-shrink-0" style={{borderColor: 'var(--line)', color:'var(--ink-soft)', background:'var(--cream-deep)', fontWeight:700}}>
+              {benchCount || 'Clear'}
+            </span>
+          </div>
+
+          {/* === Unused — owned but not in built routine === */}
+          <div className="text-[9px] tracking-[0.22em] uppercase mb-2" style={{color:'var(--ink-soft)', fontWeight:700}}>Unused — owned but not in routine</div>
+          <div className="space-y-2 mb-4">
+            {unusedProducts.length === 0 ? (
+              <div className="rounded-[12px] border p-3 text-[12px] leading-snug" style={{borderColor: 'var(--line)', background:'var(--cream-deep)', color:'var(--ink-soft)'}}>
+                Every owned product is already scheduled in your routine.
+              </div>
+            ) : (
+              unusedProducts.slice(0, 8).map(p => {
+                const fam = (typeof benchProductFamily === 'function') ? benchProductFamily(p) : 'product';
+                const tier = p.priceTier || (typeof productTier === 'function' ? productTier(p) : '') || '$$';
+                return (
+                  <div key={p.id || `${p.brand}-${p.name}`} className="rounded-[14px] border p-3 flex items-start justify-between gap-3" style={{borderColor: 'var(--line)', background:'var(--cream-deep)'}}>
+                    <div className="min-w-0">
+                      <div className="text-[9px] tracking-[0.22em] uppercase mb-0.5" style={{color:'var(--ink-soft)'}}>{p.brand || fam}</div>
+                      <div className="text-[13px] leading-tight" style={{color:'var(--ink)', fontWeight:650}}>{p.name || p.displayName}</div>
+                      <span className="inline-flex mt-2 text-[8.5px] tracking-[0.13em] uppercase rounded-full border px-2 py-0.5" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>{fam}</span>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                      <div className="text-[11px] tracking-[0.18em] uppercase" style={{color:'var(--accent)', fontWeight:700}}>{tier}</div>
+                      <button
+                        type="button"
+                        onClick={() => setRegimenView('build')}
+                        className="text-[9px] tracking-[0.16em] uppercase rounded-full border px-2.5 py-1"
+                        style={{borderColor: 'var(--accent)', color:'var(--accent)', background:'var(--cream)', fontWeight:700}}
+                      >
+                        Add to routine
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* === Overlap — products that share an active family === */}
+          <div className="text-[9px] tracking-[0.22em] uppercase mb-2" style={{color:'var(--ink-soft)', fontWeight:700}}>Overlapping with active products</div>
+          {overlapGroups.length === 0 ? (
+            <div className="rounded-[12px] border p-3 text-[12px] leading-snug" style={{borderColor: 'var(--line)', background:'var(--cream-deep)', color:'var(--ink-soft)'}}>
+              No obvious duplicate lanes. Your current routine is not repeating the same job heavily.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {overlapGroups.slice(0, 8).map(group => (
+                <div key={group.family} className="rounded-[14px] border p-3" style={{borderColor: 'var(--line)', background:'var(--cream-deep)'}}>
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div>
+                      <div className="text-[8.5px] tracking-[0.2em] uppercase" style={{color:'var(--accent)', fontWeight:700}}>Repeated lane</div>
+                      <div className="text-[13px] leading-tight mt-0.5" style={{color:'var(--ink)', fontWeight:700}}>{group.label}</div>
+                    </div>
+                    <span className="text-[8.5px] tracking-[0.14em] uppercase rounded-full border px-2 py-1 flex-shrink-0" style={{borderColor: 'var(--line)', color:'var(--ink-soft)', background:'var(--cream)'}}>{group.items.length} products</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {group.items.slice(0, 4).map(p => (
+                      <div key={p.id || `${p.brand}-${p.name}`} className="rounded-[10px] border px-2.5 py-2" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
+                        <div className="text-[8px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)'}}>{p.brand || group.label}</div>
+                        <div className="text-[11.5px] leading-tight mt-0.5" style={{color:'var(--ink)', fontWeight:650}}>{p.name || p.displayName}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-[10.5px] leading-snug mt-2" style={{color:'var(--ink-soft)'}}>
+                    Decide whether each product has a different timing, texture, or purpose. If not, one can probably rotate out.
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Budget Picks pointer — temporary during Phase A migration */}
+          <div className="text-[9px] tracking-[0.18em] uppercase mt-4 text-center" style={{color:'var(--ink-soft)'}}>
+            Budget picks · still in Insights → Picks → Budget for now
+          </div>
+        </div>
+      </div>
+    );
+  })()}
 </div>
 );
