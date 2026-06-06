@@ -365,12 +365,15 @@ Example output:
     const q = (searchInput || '').trim();
     if (q.length < 2) return;
     if (isUrl(q)) return;
-    // June 2026 fix per Jenni: when the search input was just set
-    // programmatically by applySuggestion (the picked product name flows
-    // back into the input as a "chip"), DON'T re-fire the typeahead —
-    // it would find the same product locally and re-show the dropdown.
-    // form.name is the canonical "what was picked" marker.
-    if (form.name && q === form.name) return;
+    // June 2026 v2 per Jenni: suppress typeahead when the search input
+    // is showing the just-picked "Brand | Name" chip (or just the bare
+    // name as fallback when no brand). Without this guard, the input
+    // change from applySuggestion would re-fire the typeahead and re-
+    // show the dropdown.
+    if (form.name) {
+      const chip = form.brand ? `${form.brand} | ${form.name}` : form.name;
+      if (q === chip || q === form.name) return;
+    }
 
     // Stage 1: instant local match (cheap; just runs JS).
     // Dedupe state writes — only update when results actually change OR
@@ -891,7 +894,12 @@ Example response (just this, nothing else):
     // chip pattern; gives the user a visible anchor of what they selected.
     setNameSuggestions([]);
     setHasSearched(false);
-    setSearchInput(s.name || '');
+    // June 2026 v2 per Jenni: format the search-bar chip as "Brand | Name"
+    // (was just s.name). This removes the need for the separate editable
+    // header card below — both the brand and the product name are now
+    // visible in a single anchor at the top.
+    const chipValue = s.brand ? `${s.brand} | ${s.name || ''}` : (s.name || '');
+    setSearchInput(chipValue);
     bumpSearchReset();
     try {
       const filled = await deepFillProduct({ name: s.name, brand: s.brand, category: s.category });
@@ -2422,17 +2430,14 @@ ALTERNATIVES:
         )}
 
         {/* === EDITABLE HEADER CARD ===
-            Renders for:
-              - Edit mode (always)
-              - New products AFTER a suggestion has been picked (form has a
-                name OR brand). Before any pick, the search input above is the
-                canonical input and this card is hidden to avoid duplication.
-            June 2026 fix per Jenni: previously gated on `isEditing` alone,
-            which meant after picking a suggestion in the New Product flow
-            the form had name/brand stored but nothing in the UI displayed
-            them — search input was cleared on pick, and this card was
-            hidden. Now the card surfaces once name/brand land. */}
-        {(isEditing || !!form.name || !!form.brand) && (
+            Renders for edit mode only. June 2026 v2 per Jenni: new
+            products no longer need this card because the search bar
+            above now shows "Brand | Name" as a chip after pick. The
+            card was the "big box" the user wanted gone — it duplicated
+            what the search bar already displays. Edit mode keeps it
+            because the user is editing an existing product where the
+            search bar isn't the input surface. */}
+        {isEditing && (
         <div className="rounded-[12px] px-2.5 py-2 flex items-center gap-2" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
           <div className="flex-shrink-0 w-7 h-9 flex items-end justify-center" style={{color:'var(--ink-soft)'}}>
             <DashedBottleOutline />
