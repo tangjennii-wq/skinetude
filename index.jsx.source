@@ -4514,7 +4514,10 @@ function App() {
     const prev = prevActiveTabRef.current;
     if (prev === activeTab) return;
     // Reset the sub-tab(s) of the tab we just LEFT so it's fresh on next entry.
-    if (prev === 'regimen') setRegimenView('today');
+    // June 2026: regimen landing is now 'refine' (normalizes to 'build') per
+    // stratechery critic + Jenni — the JTBD for tapping Regimen is "do
+    // something to my routine," not "see today again." See project_regimen_canonical.
+    if (prev === 'regimen') setRegimenView('refine');
     if (prev === 'compare') setCompareSubTab('time');
     if (prev === 'journal') setJournalViewOverride(null);
     if (prev === 'pearls') setPearlsTab('signals');
@@ -4526,7 +4529,9 @@ function App() {
   // while the visible nav bars should always reset to a safe landing screen.
   // Fixes stale Journal/Compare sub-view state after moving between pages.
   const openTopLevelTab = (id) => {
-    if (id === 'regimen') setRegimenView('today');
+    // June 2026: regimen landing is now 'refine' (normalizes to 'build')
+    // so dock taps land on the "do something" surface, not "Today."
+    if (id === 'regimen') setRegimenView('refine');
     if (id === 'journal') {
       setJournalViewOverride(null);
       setJournalMode('today');
