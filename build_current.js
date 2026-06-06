@@ -61,6 +61,7 @@ const SRC_FILES = [
   'src/resolvers/routineResolvers.js',          // PR 4b: MAX_FACE_ROUTINE_SLOT_PRODUCTS, isBodyProduct, resolveTodayRitual, getProductsForTodayFromPattern
   'src/resolvers/benchResolvers.js',            // Phase A Tier C (June 2026): benchProductFamily, benchOverlapLabel, benchOverlapFamilyForProduct, computeBench — used by Regimen/bench sub-tab
   'src/resolvers/budgetResolvers.js',           // Phase A.2 Tier C (June 2026): budgetTagsForProduct, budgetConcernHits, budgetScoreFor, budgetSeedHash, computeBudgetPicks, compactDermLabel — used by Regimen/bench Budget Picks section
+  'src/resolvers/travelResolvers.js',           // Travel Phase 2.5 (June 2026): travelScore, suggestTravelRegimen — heuristic auto-build for travel packing list
   'src/resolvers/brandRanking.js',              // Phase 1 (May 2026): BRAND_PRIORITY_OVERRIDES + normalize/score/sort helpers for brand + product pickers
   'src/resolvers/extractPhotoDate.js',          // Wave 1.2 (May 2026): EXIF DateTimeOriginal extractor; consumed by BulkPhotoUploadModal
   // === Recommendation engine (May 2026) ===

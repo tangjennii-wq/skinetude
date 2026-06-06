@@ -102,6 +102,13 @@ const TravelSetupModal = ({
   })();
 
   const durationHint = deriveDurationHint(startDate, endDate);
+  const durationDays = (() => {
+    if (!startDate || !endDate) return 0;
+    try {
+      const ms = new Date(endDate + 'T00:00:00').getTime() - new Date(startDate + 'T00:00:00').getTime();
+      return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)) + 1);
+    } catch { return 0; }
+  })();
   const tzDeltaHours = estimateTzDelta(homeTz, destinationTz);
   const jetlagSignificant = Math.abs(tzDeltaHours) >= 3;
   const activeProductsList = (products || []).filter(p => !p.endDate);
@@ -110,6 +117,38 @@ const TravelSetupModal = ({
   const toggleProduct = (id) => {
     setProductIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
+
+  // === Travel Phase 2.5 — auto-build packing list (June 2026) ===
+  // Runs the suggestTravelRegimen heuristic against the current context
+  // (climate + duration + actionGoal + jetlag). Replaces productIds with
+  // the curated set; user can still uncheck items or add more via the
+  // shelf picker. Reachable via the "Suggest packing list" button OR
+  // auto-runs on first open if the user hasn't picked anything yet AND
+  // they've already set dates + climate (so the suggestion has signal).
+  const runAutoBuild = () => {
+    if (typeof suggestTravelRegimen !== 'function') return;
+    const suggested = suggestTravelRegimen({
+      products: activeProductsList,
+      locationKind: locationKind || 'normal',
+      durationDays: durationDays || 7,
+      actionGoal: userProfile?.actionGoal || '',
+      jetlag: jetlagSignificant,
+    });
+    setProductIds(suggested);
+    if (suggested.length > 0) toast(`Packed ${suggested.length} essentials ✈`, 'success');
+  };
+  // Auto-run on first open when modal is fresh (no products yet) AND we
+  // have enough signal (dates + climate). useRef guard so it only fires
+  // once per modal lifecycle, even on rerenders.
+  const autoBuildRanRef = useRef(false);
+  useEffect(() => {
+    if (autoBuildRanRef.current) return;
+    if (productIds.length > 0) return;            // user already has picks
+    if (!startDate || !endDate) return;            // no duration signal
+    if (!locationKind) return;                     // no climate signal
+    autoBuildRanRef.current = true;
+    runAutoBuild();
+  }, [startDate, endDate, locationKind]);
 
   const canSave = startDate && endDate && endDate >= startDate;
 
@@ -269,14 +308,29 @@ const TravelSetupModal = ({
             <div className="text-[9.5px] tracking-[0.26em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>
               What you're packing · {productIds.length}
             </div>
-            <button
-              type="button"
-              onClick={() => setShowProductPicker(v => !v)}
-              className="text-[10px] tracking-[0.16em] uppercase transition hover:opacity-70"
-              style={{color:'var(--accent)', fontWeight:600, background:'transparent', border:'none', cursor:'pointer'}}
-            >
-              {showProductPicker ? 'Done picking' : '+ Pick from shelf'}
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Travel Phase 2.5 (June 2026): one-tap auto-build. Pares
+                  the user's shelf to ~5–7 essentials biased by climate +
+                  duration + action goal + jetlag. Re-runnable. */}
+              <button
+                type="button"
+                onClick={runAutoBuild}
+                disabled={!startDate || !endDate || !locationKind}
+                className="text-[10px] tracking-[0.16em] uppercase transition hover:opacity-70 disabled:opacity-40"
+                style={{color:'var(--accent)', fontWeight:600, background:'transparent', border:'none', cursor:'pointer'}}
+                title={!startDate || !endDate ? 'Add dates first' : !locationKind ? 'Pick a climate first' : 'Auto-build essentials'}
+              >
+                ✨ Suggest
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowProductPicker(v => !v)}
+                className="text-[10px] tracking-[0.16em] uppercase transition hover:opacity-70"
+                style={{color:'var(--accent)', fontWeight:600, background:'transparent', border:'none', cursor:'pointer'}}
+              >
+                {showProductPicker ? 'Done picking' : '+ Pick from shelf'}
+              </button>
+            </div>
           </div>
           {selectedProducts.length > 0 && (
             <div className="space-y-1 mb-2">

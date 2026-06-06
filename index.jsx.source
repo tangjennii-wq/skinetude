@@ -4880,6 +4880,27 @@ function App() {
       });
     }
   }, [userProfile?.travel?.active, userProfile?.travel?.endDate]);
+  // === Auto-flip-ON effect (June 2026 Phase 2.5) ===
+  // Mirror of the auto-flip-off effect above. When today >= startDate AND
+  // travel.active is still false AND a packing list exists, flip active
+  // to true automatically. Lets the user pre-pack a trip days in advance
+  // and have travel mode turn on automatically on the morning of departure.
+  // Guarded by:
+  //   - Skip if active is already true (would be a no-op)
+  //   - Skip if no packing list (premature — let the user set it up first)
+  //   - Skip if today is past endDate (don't flip on then immediately off)
+  useEffect(() => {
+    const tr = userProfile?.travel;
+    if (!tr || tr.active) return;
+    if (!tr.startDate || !tr.endDate) return;
+    if (!Array.isArray(tr.products) || tr.products.length === 0) return;
+    const today = localDateISO();
+    if (today < tr.startDate) return;
+    if (today > tr.endDate) return;
+    setUserProfile(prev => ({ ...prev, travel: { ...(prev.travel || {}), active: true } }));
+    saveData('userProfile', { ...userProfile, travel: { ...(userProfile.travel || {}), active: true } }).catch(() => {});
+    try { toast(`Travel mode on · ${tr.destinationLabel || 'safe travels'} ✈`, 'success'); } catch (_) {}
+  }, [userProfile?.travel?.active, userProfile?.travel?.startDate, userProfile?.travel?.endDate, userProfile?.travel?.products?.length]);
   // === PROFILEMODAL WIZARD STATE — lifted to App level ===
   // ProfileModal was extracted (Phase 4, May 2026) to src/components/
   // ProfileModal.jsx, which fixed the underlying remount cascade. We keep

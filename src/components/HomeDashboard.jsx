@@ -731,6 +731,58 @@ CRITICAL OUTPUT REQUIREMENTS:
           </button>
         )}
 
+        {/* === UPCOMING TRAVEL PREVIEW BANNER (June 2026 Phase 2.5) ===
+            Shows when the user has pre-built a trip (startDate in future,
+            products[] populated) but travel.active is still false. Tappable
+            → opens TravelSetupModal so the user can refine the packing
+            list before departure. Differs from the active banner with
+            "Upcoming" eyebrow + days-until count. Hidden once auto-flip-ON
+            kicks in (then the active banner above takes over). */}
+        {(() => {
+          const tr = userProfile?.travel;
+          if (!tr || tr.active) return null;
+          if (!tr.startDate) return null;
+          if (!Array.isArray(tr.products) || tr.products.length === 0) return null;
+          const today = (() => {
+            try { return new Date().toISOString().slice(0, 10); } catch { return ''; }
+          })();
+          if (!today || tr.startDate <= today) return null;
+          let daysUntil = 0;
+          try {
+            const ms = new Date(tr.startDate + 'T00:00:00').getTime() - new Date(today + 'T00:00:00').getTime();
+            daysUntil = Math.max(0, Math.round(ms / 86400000));
+          } catch {}
+          let startLabel = tr.startDate;
+          try {
+            startLabel = new Date(tr.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          } catch {}
+          return (
+            <button
+              type="button"
+              onClick={() => { if (typeof setShowTravelSetupModal === 'function') setShowTravelSetupModal(true); }}
+              className="w-full rounded-[14px] border px-3 py-2.5 flex items-center justify-between gap-3 text-left transition hover:opacity-90"
+              style={{background:'color-mix(in srgb, var(--accent-blue) 6%, var(--cream))', borderColor:'color-mix(in srgb, var(--accent-blue) 22%, var(--line))', cursor:'pointer'}}
+              aria-label="Upcoming travel — tap to view or refine"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Icon name="Plane" size={13} style={{color:'var(--accent-blue)', flexShrink:0, opacity:0.7}} />
+                <div className="min-w-0">
+                  <div className="text-[9.5px] tracking-[0.22em] uppercase" style={{color:'var(--accent-blue)', fontWeight:700}}>
+                    Upcoming · in {daysUntil}d
+                  </div>
+                  <div className="text-[12px] leading-snug truncate" style={{color:'var(--ink)', fontWeight:600}}>
+                    {tr.destinationLabel || 'Trip'}
+                    <span style={{color:'var(--ink-soft)', fontWeight:400}}> · {startLabel} · {tr.products.length} packed</span>
+                  </div>
+                </div>
+              </div>
+              <span className="text-[9px] tracking-[0.2em] uppercase flex-shrink-0" style={{color:'var(--ink-soft)', borderBottom:'1px dotted var(--ink-soft)', fontWeight:650}}>
+                View
+              </span>
+            </button>
+          );
+        })()}
+
         {/* === SKIN CHECK-IN CARD — Codex spec, mockup-matched ===
             Horizontal layout: oval LEFT (~320px tall, vertically
             centered), content RIGHT (eyebrow + headline + body + CTAs).
