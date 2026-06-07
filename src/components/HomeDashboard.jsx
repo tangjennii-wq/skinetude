@@ -2298,12 +2298,47 @@ CRITICAL OUTPUT REQUIREMENTS:
             };
             const tc = (w) => w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : null;
             const scoreFor = (snap, k) => snap ? (SCORE_MAP[k]?.[tc(snap[k])] ?? null) : null;
+            // === BACKFILL FROM HISTORY (June 2026 per Jenni) ===
+            // The rail used to render "—" for any metric where today's snap
+            // was missing the value (AI didn't extract a domain, or the
+            // viewed date has no analyzed photo yet). Read as broken UI
+            // even though it was technically "pending." Now: walk back the
+            // log history once and remember the most recent value per key.
+            // When today's snap is missing a key, render the carried value
+            // with a subtle `carried` flag so the tile looks complete and
+            // the user knows the rail reflects their running state.
+            const findCarry = (() => {
+              const sortedLogs = [...(logs || [])]
+                .filter(l => l && l.metricSnapshot && l.id !== todayLog?.id)
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+              return (key) => {
+                for (const l of sortedLogs) {
+                  const v = scoreFor(l.metricSnapshot, key);
+                  if (v != null) return { value: v, fromDate: l.date };
+                }
+                return null;
+              };
+            })();
+            const resolveTile = (snapKey, tileKey) => {
+              const fresh = scoreFor(todaySnap, snapKey);
+              if (fresh != null) return { value: fresh, carried: false, fromDate: null };
+              const back = findCarry(snapKey);
+              if (back) return { value: back.value, carried: true, fromDate: back.fromDate };
+              return { value: null, carried: false, fromDate: null };
+            };
+            const tileState = {
+              hydration: resolveTile('hydration', 'hydration'),
+              barrier: resolveTile('barrier', 'barrier'),
+              redness: resolveTile('redness', 'redness'),
+              congestion: resolveTile('breakouts', 'congestion'),
+              texture: resolveTile('texture', 'texture'),
+            };
             const cur = {
-              hydration: scoreFor(todaySnap, 'hydration'),
-              barrier: scoreFor(todaySnap, 'barrier'),
-              redness: scoreFor(todaySnap, 'redness'),
-              congestion: scoreFor(todaySnap, 'breakouts'),
-              texture: scoreFor(todaySnap, 'texture'),
+              hydration: tileState.hydration.value,
+              barrier: tileState.barrier.value,
+              redness: tileState.redness.value,
+              congestion: tileState.congestion.value,
+              texture: tileState.texture.value,
             };
             const prev = priorSnap ? {
               hydration: scoreFor(priorSnap, 'hydration'),
@@ -2406,6 +2441,11 @@ CRITICAL OUTPUT REQUIREMENTS:
                     // they were reading as broken / noise.
                     const moved = direction.dir === 'pos' || direction.dir === 'neg';
                     const verb = verbFor(t.key, direction.dir, v);
+                    // === Backfill flag (June 2026 per Jenni) ===
+                    // Carried tiles render the most recent prior value with
+                    // slight opacity reduction + a tiny dot marker so the
+                    // rail looks complete but doesn't lie about freshness.
+                    const carried = !!(tileState[t.key]?.carried);
                     const verbColor =
                       verb.tone === 'pos' ? 'var(--accent-blue,#86CAE7)' :
                       verb.tone === 'neg' ? 'var(--rose,#c9a094)' :
@@ -2417,14 +2457,15 @@ CRITICAL OUTPUT REQUIREMENTS:
                         key={t.key}
                         className="flex flex-col items-center text-center min-w-0 py-1.5 px-0.5"
                         style={{
-                          opacity: isPending ? 0.85 : 1,
+                          opacity: isPending ? 0.85 : (carried ? 0.7 : 1),
                           transition: 'opacity 200ms ease',
                         }}
+                        title={carried ? 'Carried over from your last reading' : undefined}
                       >
                         <Icon
                           name={t.icon}
                           size={13}
-                          style={{color: t.iconColor, opacity: verb.tone === 'pending' ? 0.55 : 1}}
+                          style={{color: t.iconColor, opacity: verb.tone === 'pending' ? 0.55 : (carried ? 0.75 : 1)}}
                         />
                         <span
                           className="text-[7.5px] tracking-[0.04em] uppercase mt-1 w-full leading-tight"
@@ -2440,6 +2481,12 @@ CRITICAL OUTPUT REQUIREMENTS:
                           )}
                           {verb.word && (
                             <span className="text-[10px]" style={{color: verbColor, fontWeight: moved ? 500 : 600, opacity: verb.tone === 'pending' ? 0.55 : 1}}>{verb.word}</span>
+                          )}
+                          {/* Carried-over dot — tiny visual cue that this
+                              tile reflects a prior reading, not today's
+                              fresh value. June 2026 per Jenni. */}
+                          {carried && !moved && (
+                            <span className="text-[9px]" style={{color:'var(--ink-soft)', fontWeight:600}}>·</span>
                           )}
                         </div>
                       </div>
