@@ -216,6 +216,34 @@ const RegimenBuildView = ({
   // confusing banner during the initial wizard flow).
   const [routinePreviewOpen, setRoutinePreviewOpen] = useState(false);
   const [planJustUpdated, setPlanJustUpdated] = useState(false);
+  // === Multi-select Quick Refinements (June 2026 per Jenni) ===
+  // User picks up to 3 focuses (e.g. Barrier + Pores + Hydration) then
+  // taps "Run refinement" which fires one combined prompt. Cap at 3 so
+  // the refinement stays focused — beyond 3 the LLM loses tight intent
+  // and the cards re-stack as a generic "fix everything" pass.
+  const [quickRefineSelected, setQuickRefineSelected] = useState([]);
+  const toggleQuickRefine = (id) => {
+    setQuickRefineSelected(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id);
+      if (prev.length >= 3) {
+        if (typeof toast === 'function') toast('Pick up to 3 focuses', 'info');
+        return prev;
+      }
+      return [...prev, id];
+    });
+  };
+  // Move a focus up or down in the priority list. June 2026 per Jenni:
+  // tap-order sets initial rank; explicit ↑/↓ buttons let users reorder
+  // after the fact (e.g. realize Barrier should be #1 instead of Aging).
+  const moveQuickRefine = (idx, dir) => {
+    setQuickRefineSelected(prev => {
+      const j = idx + (dir === 'up' ? -1 : 1);
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[j]] = [next[j], next[idx]];
+      return next;
+    });
+  };
   const planSigRef = useRef(null);
   useEffect(() => {
     const sig = (() => {
@@ -640,32 +668,29 @@ const RegimenBuildView = ({
           )}
         </section>
       )}
-      {/* === REFINE PAGE (May 2026 v2 — consolidated) ===
-          Post-build users land on this calm routine-evolution
-          control center. THREE sections (cut from 4):
-            1. Quick Refinements — 7 AI-prompt intent cards
-               (irritation, glow, recovery, barrier, simplify,
-               travel, climate). Climate moved here from the old
-               Evolve section — it was always an AI prompt, not a
-               profile update.
-            2. Evolve Your Routine — discrete actions:
-               Add product / device / Rx / procedure (additive
-               events), plus one consolidated "Update your skin
-               profile" tile that replaces three deep-link tiles
-               (goals, sensitivity) AND the old standalone
-               "Reassess your skin profile" card. Single door,
-               full ProfileModal wizard behind it.
-            3. Fresh Start — prominent CTA with confirmation.
-          Pre-build users keep the wizard (block below). */}
+      {/* === REFINE PAGE (June 2026 — final list per Jenni + audit) ===
+          Post-build users land on this calm routine-evolution control
+          center. Quick Refinements are now MULTI-SELECT (up to 3) so the
+          user can pick a combination like Barrier + Pores + Hydration
+          rather than the old single-pick model. Focus list (8 options,
+          audit-driven):
+            Hydration / Barrier / Redness / Breakouts (was "Acne") /
+            Pores (NEW) / Hyperpigmentation (was "Pigment") /
+            Texture / Aging (NEW, covers fine-lines + sun-damage).
+          Simplify was retired in this pass — useful intent but earned
+          its own action in Evolve below; routing it through Refine made
+          the focus list lopsided. Plan rows (Trip / Event / Sick / etc.)
+          unchanged. */}
       {userHasBuiltPattern(products) && (buildPlanAccepted || !buildPlan) && (() => {
         const quickRefinements = [
-          { id: 'hydration',  label: 'Hydration',         icon: 'Droplets', prompt: 'My skin feels dry or dehydrated. Refine my current routine for more hydration without making it heavy.' },
-          { id: 'barrier',    label: 'Barrier',           icon: 'Shield',   prompt: 'My barrier feels compromised. Audit my routine and propose changes to reinforce ceramides, lipids, and reduce barrier stressors.' },
-          { id: 'irritation', label: 'Redness',           icon: 'Leaf',     prompt: 'My skin is irritated, red, or reactive. What should I pause, space out, or swap in my current routine?' },
-          { id: 'acne',       label: 'Acne',              icon: 'Target',   prompt: 'I am breaking out. Refine my routine for acne control without over-stripping my barrier.' },
-          { id: 'pigment',    label: 'Pigment',           icon: 'Sun',      prompt: 'I want to focus on hyperpigmentation and dark marks. Refine my routine for pigment support and SPF discipline.' },
-          { id: 'texture',    label: 'Texture',           icon: 'Sparkles', prompt: 'My texture feels uneven. Refine my active cadence for smoother skin without stacking too much irritation.' },
-          { id: 'simplify',   label: 'Simplify',          icon: 'Minus',    prompt: 'My routine feels heavy. What can I remove or consolidate without losing the effects I care about?' },
+          { id: 'hydration',  label: 'Hydration',           icon: 'Droplets', prompt: 'My skin feels dry or dehydrated. Refine my current routine for more hydration without making it heavy.' },
+          { id: 'barrier',    label: 'Barrier',             icon: 'Shield',   prompt: 'My barrier feels compromised. Audit my routine and propose changes to reinforce ceramides, lipids, and reduce barrier stressors.' },
+          { id: 'irritation', label: 'Redness',             icon: 'Leaf',     prompt: 'My skin is irritated, red, or reactive. What should I pause, space out, or swap in my current routine?' },
+          { id: 'breakouts',  label: 'Breakouts',           icon: 'Target',   prompt: 'I am breaking out. Refine my routine for acne control without over-stripping my barrier.' },
+          { id: 'pores',      label: 'Pores',               icon: 'Circle',   prompt: 'I want to focus on enlarged pores and congestion. Refine my routine around one decongestant (BHA, retinoid, or azelaic) with barrier support.' },
+          { id: 'pigment',    label: 'Hyperpigmentation',   icon: 'Sun',      prompt: 'I want to focus on hyperpigmentation and dark spots. Refine my routine for pigment support and SPF discipline.' },
+          { id: 'texture',    label: 'Texture',             icon: 'Sparkles', prompt: 'My texture feels uneven. Refine my active cadence for smoother skin without stacking too much irritation.' },
+          { id: 'aging',      label: 'Aging / Fine lines',  icon: 'Hourglass',prompt: 'I want to focus on fine lines, firmness, and signs of aging. Refine my routine for retinoid + peptide support without over-stripping the barrier.' },
         ];
         const planRows = [
           { id: 'travel', icon: 'Plane', title: 'Trip / travel week', sub: 'Pack-light routine, climate shift, fewer steps', prompt: 'I am traveling soon. Build a temporary week from my current routine: what to pack, what to pause, and how cadence should change.' },
@@ -843,19 +868,113 @@ const RegimenBuildView = ({
                 className="flex gap-2 overflow-x-auto -mx-5 px-5 pb-1"
                 style={{scrollSnapType:'x proximity', WebkitOverflowScrolling:'touch'}}
               >
-                {quickRefinements.map(qr => (
-                  <button
-                    key={qr.id}
-                    type="button"
-                    onClick={() => openRefineSheet(qr)}
-                    className="flex-shrink-0 rounded-[10px] px-2 py-2.5 flex flex-col items-center justify-center gap-1.5 transition hover:bg-[var(--cream)] hover:border-[var(--accent-soft)]"
-                    style={{background:'var(--cream)', border: '1px solid var(--line)', cursor:'pointer', minHeight:82, width:82, scrollSnapAlign:'start'}}
-                    title={qr.label}
-                  >
-                    <Icon name={qr.icon} size={15} style={{color:'var(--ink-soft)'}} />
-                    <div className="text-[9.5px] leading-tight text-center" style={{color:'var(--ink)', fontWeight:600, letterSpacing:'-0.005em'}}>{qr.label}</div>
-                  </button>
-                ))}
+                {quickRefinements.map(qr => {
+                  const selected = quickRefineSelected.includes(qr.id);
+                  return (
+                    <button
+                      key={qr.id}
+                      type="button"
+                      onClick={() => toggleQuickRefine(qr.id)}
+                      className="flex-shrink-0 rounded-[10px] px-2 py-2.5 flex flex-col items-center justify-center gap-1.5 transition"
+                      style={{
+                        background: selected ? 'var(--accent)' : 'var(--cream)',
+                        border: '1px solid ' + (selected ? 'var(--accent)' : 'var(--line)'),
+                        cursor:'pointer', minHeight:82, width:82, scrollSnapAlign:'start',
+                      }}
+                      title={qr.label}
+                      aria-pressed={selected}
+                    >
+                      <Icon name={qr.icon} size={15} style={{color: selected ? 'var(--cream)' : 'var(--ink-soft)'}} />
+                      <div className="text-[9.5px] leading-tight text-center" style={{color: selected ? 'var(--cream)' : 'var(--ink)', fontWeight:600, letterSpacing:'-0.005em'}}>{qr.label}</div>
+                    </button>
+                  );
+                })}
+              </div>
+              {/* === Priority order list (June 2026 per Jenni) ===
+                  When ≥1 focus is selected, show it ranked 1→3 with up/down
+                  arrows so the user can reorder. Tap order sets initial
+                  rank. The "Run refinement" prompt uses this order so the
+                  LLM weights rank-1 most heavily ("treat the first focus
+                  as the dominant lane"). */}
+              {quickRefineSelected.length > 0 && (
+                <div className="mt-3 rounded-[12px] border px-3 py-2.5" style={{background:'var(--cream)', borderColor:'var(--line)'}}>
+                  <div className="text-[9px] tracking-[0.22em] uppercase mb-1.5" style={{color:'var(--ink-soft)', fontWeight:700}}>Priority order</div>
+                  <div className="space-y-1">
+                    {quickRefineSelected.map((id, idx) => {
+                      const qr = quickRefinements.find(q => q.id === id);
+                      if (!qr) return null;
+                      return (
+                        <div key={id} className="flex items-center gap-2 px-2 py-1.5 rounded-[8px]" style={{background:'var(--cream-deep)'}}>
+                          <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[10px]" style={{background:'var(--accent)', color:'var(--cream)', fontWeight:700}}>{idx + 1}</span>
+                          <Icon name={qr.icon} size={12} style={{color:'var(--ink-soft)', flexShrink:0}} />
+                          <span className="text-[12px] flex-1 min-w-0 truncate" style={{color:'var(--ink)', fontWeight:600}}>{qr.label}</span>
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => moveQuickRefine(idx, 'up')}
+                            aria-label="Move up"
+                            className="w-6 h-6 rounded-full flex items-center justify-center transition disabled:opacity-30"
+                            style={{color:'var(--ink-soft)', cursor: idx === 0 ? 'not-allowed' : 'pointer'}}
+                          >
+                            <Icon name="ChevronUp" size={11} />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === quickRefineSelected.length - 1}
+                            onClick={() => moveQuickRefine(idx, 'down')}
+                            aria-label="Move down"
+                            className="w-6 h-6 rounded-full flex items-center justify-center transition disabled:opacity-30"
+                            style={{color:'var(--ink-soft)', cursor: idx === quickRefineSelected.length - 1 ? 'not-allowed' : 'pointer'}}
+                          >
+                            <Icon name="ChevronDown" size={11} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleQuickRefine(id)}
+                            aria-label="Remove"
+                            className="w-6 h-6 rounded-full flex items-center justify-center transition"
+                            style={{color:'var(--ink-soft)', cursor:'pointer'}}
+                          >
+                            <Icon name="X" size={10} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* June 2026: multi-select run button — fires a priority-ordered
+                  prompt from the selected focuses. Disabled until ≥1 picked.
+                  Picks order now respects quickRefineSelected (tap/reorder
+                  order) instead of the static quickRefinements array order. */}
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <div className="text-[10.5px]" style={{color:'var(--ink-soft)'}}>
+                  {quickRefineSelected.length === 0
+                    ? 'Pick up to 3 focuses'
+                    : `${quickRefineSelected.length} focus${quickRefineSelected.length === 1 ? '' : 'es'} selected · drag-rank above`}
+                </div>
+                <button
+                  type="button"
+                  disabled={quickRefineSelected.length === 0}
+                  onClick={() => {
+                    // Preserve user's priority order (1st pick = highest weight).
+                    const picks = quickRefineSelected
+                      .map(id => quickRefinements.find(qr => qr.id === id))
+                      .filter(Boolean);
+                    if (picks.length === 0) return;
+                    const labels = picks.map(p => p.label).join(' + ');
+                    const orderedList = picks.map((p, i) => `${i + 1}) ${p.label.toLowerCase()}`).join(', ');
+                    const promptsByRank = picks.map((p, i) => `Priority ${i + 1} (${p.label.toLowerCase()}): ${p.prompt}`).join(' ');
+                    openRefineSheet({
+                      id: picks.map(p => p.id).join('-'),
+                      label: labels,
+                      icon: picks[0].icon,
+                      prompt: `I want to focus on, in priority order: ${orderedList}. ${promptsByRank} Treat priority 1 as the dominant lane and weight changes accordingly; only secondary support for the others. Combine into ONE coherent refinement; don't stack conflicting active classes.`,
+                    });
+                  }}
+                  className="rounded-full px-4 py-1.5 text-[10.5px] tracking-[0.18em] uppercase transition disabled:opacity-40"
+                  style={{background: quickRefineSelected.length > 0 ? 'var(--accent)' : 'var(--cream-deep)', color: quickRefineSelected.length > 0 ? 'var(--cream)' : 'var(--ink-soft)', fontWeight:700, cursor: quickRefineSelected.length > 0 ? 'pointer' : 'not-allowed', border:'1px solid ' + (quickRefineSelected.length > 0 ? 'var(--accent)' : 'var(--line)')}}
+                >Run refinement</button>
               </div>
               <div className="mt-4 text-center">
                 <button
@@ -2217,139 +2336,86 @@ const RegimenBuildView = ({
                 <div className="text-[9.5px] tracking-[0.22em] uppercase px-2 py-1 rounded-full" style={{background:'var(--accent-blue)', color:'var(--ink)', fontWeight:600}}>Accepted</div>
               )}
             </div>
-            {/* === WEEK AT A GLANCE (May 2026 redesign per Jenni) ===
-                Themed strip + tap-to-expand inline day detail.
-                Today's day-of-week is expanded by default so the
-                user lands with their current ritual visible —
-                no extra tap required. Replaces the prior simple-
-                dot strip; the duplicate themed strip that used
-                to live under the per-product list was removed
-                since this one renders here always (pre- and
-                post-accept). Falls through to "Rest" labels for
-                days with no slotted actives, which is correct
-                for an empty/sparse plan. */}
-            {(() => {
-              const dayLetters = ['S','M','T','W','T','F','S'];
-              const dayFullLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-              const todayDow = new Date().getDay();
-              const FOCUS_PRIORITY_LOCAL = [
-                { family:'retinoid',label:'Retinoid' },{ family:'aha',label:'Exfoliate' },
-                { family:'bha',label:'Exfoliate' },{ family:'bpo',label:'Treat' },
-                { family:'vitc',label:'Brighten' },{ family:'azelaic',label:'Brighten' },
-                { family:'arbutin',label:'Brighten' },{ family:'tranexamic',label:'Brighten' },
-                { family:'kojic',label:'Brighten' },{ family:'bakuchiol',label:'Renew' },
-                { family:'peptide',label:'Firm' },{ family:'niacinamide',label:'Barrier' },
-                { family:'ceramide',label:'Recovery' },{ family:'panthenol',label:'Recovery' },
-                { family:'centella',label:'Calm' },{ family:'humectant',label:'Hydrate' },
-                { family:'spf',label:'Protect' },
-              ];
-              const getDayFocusLocal = (dayIdx) => {
-                const fams = new Set();
-                (buildPlan?.slotted || []).forEach(s => {
-                  if (!s.days.includes(dayIdx)) return;
-                  const fam = detectActiveFamily(s.product.activeIngredients || s.product.actives || '');
-                  if (fam) fams.add(fam);
-                });
-                if (fams.size === 0) return 'Rest';
-                for (const e of FOCUS_PRIORITY_LOCAL) {
-                  if (fams.has(e.family)) return e.label;
-                }
-                return 'Daily';
+            {/* === Week-at-a-glance strip removed June 2026 (per Jenni) ===
+                The 7-day strip + per-day expander was duplicating the
+                canonical by-day grid in the Rotation sub-tab (RegimenOccasionsView).
+                Refine should be about "edit the routine," not "preview the week"
+                — that lens lives in Rotation. */}
+            {/* === June 2026 (per Jenni): post-accept full daily plan ===
+                Before this, the accepted-state view rendered only
+                `buildPlan.slotted` which is actives-only by design (see
+                acceptPlan comment block — basics like cleanser / SPF /
+                moisturizer go into buildPlan.am[d] / pm[d] but never into
+                slotted). User couldn't tell what the full daily routine
+                was after accepting. Now: when accepted, render a Full Plan
+                card listing every unique product across am/pm across days
+                — with AM/PM/AM·PM tags + day codes — derived from the
+                union of buildPlan.am + buildPlan.pm IDs resolved through
+                products[]. The slotted list still renders pre-accept for
+                tweaking the AI's first pass. */}
+            {buildPlanAccepted && buildPlan && (() => {
+              const dayShortLabels = ['S','M','T','W','T','F','S'];
+              const collect = {};
+              const stamp = (slot, id, dow) => {
+                if (!id) return;
+                if (!collect[id]) collect[id] = { am: new Set(), pm: new Set() };
+                collect[id][slot].add(dow);
               };
-              const productsForDay = (dayIdx) => {
-                const am = [];
-                const pm = [];
-                (buildPlan?.slotted || []).forEach(s => {
-                  if (!s.days.includes(dayIdx)) return;
-                  if (s.am) am.push(s.product);
-                  if (s.pm) pm.push(s.product);
+              for (let d = 0; d < 7; d++) {
+                (buildPlan.am?.[d] || []).forEach(id => stamp('am', id, d));
+                (buildPlan.pm?.[d] || []).forEach(id => stamp('pm', id, d));
+              }
+              const rows = Object.entries(collect)
+                .map(([id, slots]) => {
+                  const product = (products || []).find(p => p.id === id);
+                  if (!product) return null;
+                  const amDays = [...slots.am].sort((a, b) => a - b);
+                  const pmDays = [...slots.pm].sort((a, b) => a - b);
+                  const allDays = [...new Set([...amDays, ...pmDays])].sort((a, b) => a - b);
+                  const slotTag = amDays.length && pmDays.length ? 'AM · PM'
+                    : amDays.length ? 'AM' : pmDays.length ? 'PM' : '—';
+                  const dayCodes = allDays.length === 7 ? 'Daily'
+                    : allDays.length === 0 ? '—'
+                    : allDays.map(d => dayShortLabels[d]).join('·');
+                  return { product, slotTag, dayCodes, amDays, pmDays };
+                })
+                .filter(Boolean)
+                .sort((a, b) => {
+                  // Cleanser → toner → essence → serum → moisturizer → oil → SPF
+                  const order = ['cleanser','toner','essence','serum','treatment','moisturizer','oil','sunscreen','spf'];
+                  const ai = order.findIndex(o => (a.product.category || '').toLowerCase().includes(o));
+                  const bi = order.findIndex(o => (b.product.category || '').toLowerCase().includes(o));
+                  return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
                 });
-                return { am, pm };
-              };
+              if (rows.length === 0) return null;
               return (
-                <div className="mb-4 pb-4 border-b" style={{borderColor: 'var(--line)'}}>
-                  <div className="text-[9px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--ink-soft)', fontWeight:600}}>Week at a glance</div>
-                  <div className="grid grid-cols-7 gap-1">
-                    {dayLetters.map((letter, d) => {
-                      const focus = getDayFocusLocal(d);
-                      const isToday = d === todayDow;
-                      const isSelected = postAcceptDay === d;
-                      const hasActive = focus !== 'Rest' && focus !== 'Daily';
-                      return (
-                        <button
-                          key={d}
-                          type="button"
-                          onClick={() => setPostAcceptDay(prev => prev === d ? null : d)}
-                          className="flex flex-col items-center gap-1 py-1.5 px-0.5 transition"
-                          style={{cursor:'pointer'}}
-                        >
-                          <span
-                            className="w-7 h-7 rounded-full flex items-center justify-center text-[10.5px]"
-                            style={{
-                              background: isSelected ? 'var(--accent)' : (isToday ? 'var(--cream)' : 'transparent'),
-                              color: isSelected ? 'var(--cream)' : 'var(--ink)',
-                              border: '1px solid ' + (isSelected || isToday ? 'var(--accent)' : 'var(--line)'),
-                              fontWeight: 600}}
-                          >{letter}</span>
-                          <span className="text-[8px] tracking-[0.04em] uppercase leading-tight text-center" style={{color: hasActive ? 'var(--accent)' : 'var(--ink-soft)', opacity: hasActive ? 0.8 : 0.5, fontWeight:500, minHeight:'9px'}}>
-                            {focus === 'Daily' ? '·' : focus}
-                          </span>
-                        </button>
-                      );
-                    })}
+                <div className="rounded-[14px] border p-3 mb-4" style={{background:'var(--cream)', borderColor:'var(--line)'}}>
+                  <div className="flex items-baseline justify-between mb-2">
+                    <div className="text-[10px] tracking-[0.22em] uppercase" style={{color:'var(--accent)', fontWeight:700}}>Full daily plan</div>
+                    <div className="text-[10px]" style={{color:'var(--ink-soft)'}}>{rows.length} products</div>
                   </div>
-                  {postAcceptDay !== null && (() => {
-                    const { am, pm } = productsForDay(postAcceptDay);
-                    const focusLbl = getDayFocusLocal(postAcceptDay);
-                    return (
-                      <div className="mt-2 rounded-[12px] px-3 py-2.5" style={{background:'var(--cream)', border: '1px solid var(--line)'}}>
-                        <div className="flex items-baseline justify-between mb-1.5">
-                          <div>
-                            <span className="text-[9px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>{dayFullLabels[postAcceptDay]}{postAcceptDay === todayDow ? ' · today' : ''}</span>
-                            <span className="text-[11px] ml-2" style={{color:'var(--accent)', fontWeight:600, letterSpacing:'-0.01em'}}>{focusLbl}</span>
-                          </div>
-                          <button
-                            onClick={() => setPostAcceptDay(null)}
-                            className="text-[10px] tracking-[0.18em] uppercase"
-                            style={{color:'var(--ink-soft)', fontWeight:600, cursor:'pointer'}}
-                            type="button"
-                          >Close</button>
+                  <div className="space-y-1.5">
+                    {rows.map((r, i) => (
+                      <div key={r.product.id} className="rounded-[10px] border px-3 py-2 flex items-center gap-3" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[8.5px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{r.product.brand || (r.product.category || '').toUpperCase()}</div>
+                          <div className="text-[12.5px] leading-tight" style={{color:'var(--ink)', fontWeight:650}}>{r.product.name || r.product.displayName}</div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <div className="text-[8.5px] tracking-[0.22em] uppercase mb-1 flex items-center gap-1" style={{color:'var(--ink-soft)', fontWeight:600}}>
-                              <Icon name="Sun" size={9} /> AM
-                            </div>
-                            {am.length === 0 ? (
-                              <div className="text-[10.5px]" style={{color:'var(--ink-soft)', opacity:0.6}}>—</div>
-                            ) : am.map(p => (
-                              <div key={p.id} className="text-[11px] leading-tight mb-0.5 truncate" style={{color:'var(--ink)', fontWeight:500}}>{p.name}</div>
-                            ))}
-                          </div>
-                          <div>
-                            <div className="text-[8.5px] tracking-[0.22em] uppercase mb-1 flex items-center gap-1" style={{color:'var(--ink-soft)', fontWeight:600}}>
-                              <Icon name="Moon" size={9} /> PM
-                            </div>
-                            {pm.length === 0 ? (
-                              <div className="text-[10.5px]" style={{color:'var(--ink-soft)', opacity:0.6}}>—</div>
-                            ) : pm.map(p => (
-                              <div key={p.id} className="text-[11px] leading-tight mb-0.5 truncate" style={{color:'var(--ink)', fontWeight:500}}>{p.name}</div>
-                            ))}
-                          </div>
+                        <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                          <span className="text-[8.5px] tracking-[0.14em] uppercase rounded-full px-2 py-0.5" style={{background:'var(--accent-blue)', color:'var(--ink)', fontWeight:700}}>{r.slotTag}</span>
+                          <span className="text-[9px]" style={{color:'var(--ink-soft)'}}>{r.dayCodes}</span>
                         </div>
                       </div>
-                    );
-                  })()}
+                    ))}
+                  </div>
                 </div>
               );
             })()}
-            {buildPlan.slotted.length > 0 ? (
+            {buildPlan.slotted.length > 0 && !buildPlanAccepted ? (
               <div className="space-y-2 mb-4">
-                {!buildPlanAccepted && (
-                  <p className="text-[10.5px] mb-1" style={{color:'var(--ink-soft)'}}>
-                    AI's first pass — tweak any day or slot, then accept.
-                  </p>
-                )}
+                <p className="text-[10.5px] mb-1" style={{color:'var(--ink-soft)'}}>
+                  AI's first pass — tweak any day or slot, then accept.
+                </p>
                 {buildPlan.slotted.map((s, i) => {
                   const dayShortLabels = ['S','M','T','W','T','F','S'];
                   const expanded = isBuildCardExpanded(s.product.id, i);

@@ -12255,11 +12255,11 @@ If the user references something not in their data ("started retinol 6 weeks ago
             },
             pigment: {
               id: 'pigment',
-              label: 'Pigment',
+              label: 'Hyperpigmentation',
               icon: 'Sun',
-              observed: 'Pigment or dark marks are the clearest signal.',
+              observed: 'Pigment or dark spots are the clearest signal.',
               tryThis: 'Tighten pigment support and SPF discipline.',
-              prompt: 'I want to focus on hyperpigmentation and dark marks. Refine my routine for pigment support and SPF discipline.',
+              prompt: 'I want to focus on hyperpigmentation and dark spots. Refine my routine for pigment support and SPF discipline.',
             },
             texture: {
               id: 'texture',
@@ -12268,6 +12268,26 @@ If the user references something not in their data ("started retinol 6 weeks ago
               observed: 'Texture is the clearest repeated signal.',
               tryThis: 'Smooth the active cadence without stacking irritation.',
               prompt: 'My texture feels uneven. Refine my active cadence for smoother skin without stacking too much irritation.',
+            },
+            // === June 2026 — pores + aging added to mirror Refine focus list ===
+            // Pore signals previously fell through the `clarify/exfoliate` lane
+            // via the insightDecisionMap aliases. Now Signals→Refine routes
+            // pore-tagged observations directly to the Pores focus prompt.
+            pores: {
+              id: 'pores',
+              label: 'Pores',
+              icon: 'Circle',
+              observed: 'Enlarged pores or congestion are the clearest signal.',
+              tryThis: 'Pick one decongestant lane and protect recovery nights.',
+              prompt: 'I want to focus on enlarged pores and congestion. Refine my routine around one decongestant (BHA, retinoid, or azelaic) with barrier support.',
+            },
+            aging: {
+              id: 'aging',
+              label: 'Aging / Fine lines',
+              icon: 'Hourglass',
+              observed: 'Fine lines and firmness are the recurring focus.',
+              tryThis: 'Retinoid + peptide cadence without over-stripping the barrier.',
+              prompt: 'I want to focus on fine lines, firmness, and signs of aging. Refine my routine for retinoid + peptide support without over-stripping the barrier.',
             },
           };
           const insightSignalKey = topInsightConcern ? topInsightConcern[0] : null;
@@ -15376,6 +15396,63 @@ If the user references something not in their data ("started retinol 6 weeks ago
           give garbage. */}
       {refineSheetOpen && refineIntent && (() => {
         const close = () => { setRefineSheetOpen(false); setRefineIntent(null); setRefinePickerSelections({}); setRefinePlanAnswers({}); };
+        // === Refine F (June 2026 per Jenni) ===
+        // Both Apply paths inside this sheet (shelf-apply at ~15605 and
+        // fallback-build at ~15915) used to write only setProducts, then
+        // bump coverRoutineRebuildToken — but that token drives AI cover
+        // art, NOT the routine resolution. resolveTodayRitual reads
+        // today's regimenLog first (log-branch beats plan-branch), so
+        // the cover kept showing the OLD products until the user
+        // manually re-logged or the next day rolled over.
+        // Fix: after setProducts(updated), derive today's AM/PM IDs from
+        // the updated products' cadence + useTimes and overwrite today's
+        // log. Preserves done/skipped/extras for IDs that survive.
+        const rewriteTodayLogFromProducts = (updated) => {
+          try {
+            const todayKey = localDateISO();
+            const todayDow = new Date().getDay();
+            const idsForSlot = (slot) => updated.filter(p => {
+              if (p.endDate) return false;
+              if (!Array.isArray(p.cadence?.days) || !p.cadence.days.includes(todayDow)) return false;
+              if (!Array.isArray(p.useTimes) || !p.useTimes.includes(slot)) return false;
+              return true;
+            }).map(p => p.id);
+            const todayAmIds = idsForSlot('am');
+            const todayPmIds = idsForSlot('pm');
+            const existingLog = (regimenLogs || []).find(r => r.date === todayKey);
+            const nextLog = existingLog
+              ? {
+                  ...existingLog,
+                  amProducts: todayAmIds,
+                  pmProducts: todayPmIds,
+                  amDone: (existingLog.amDone || []).filter(id => todayAmIds.includes(id)),
+                  pmDone: (existingLog.pmDone || []).filter(id => todayPmIds.includes(id)),
+                  amSkipped: (existingLog.amSkipped || []).filter(id => todayAmIds.includes(id)),
+                  pmSkipped: (existingLog.pmSkipped || []).filter(id => todayPmIds.includes(id)),
+                }
+              : {
+                  id: Date.now(),
+                  date: todayKey,
+                  amProducts: todayAmIds,
+                  pmProducts: todayPmIds,
+                  amDone: [], pmDone: [],
+                  amSkipped: [], pmSkipped: [],
+                  amExtras: [], pmExtras: [],
+                  devices: [], sleep: '', supplements: [],
+                  notes: '',
+                  submitted: false,
+                };
+            const newRegimenLogs = existingLog
+              ? (regimenLogs || []).map(r => r.date === todayKey ? nextLog : r)
+              : [nextLog, ...(regimenLogs || [])];
+            setRegimenLogs(newRegimenLogs);
+            saveData('regimenLogs', newRegimenLogs).catch(err => {
+              console.warn('[refine apply: regimenLogs save failed]', err);
+            });
+          } catch (err) {
+            console.warn('[refine apply: today log refresh failed]', err);
+          }
+        };
         // === FAMILY MAP LOOKUP — drives picker vs Counsel-only branching ===
         const familyPriority = REFINE_INTENT_FAMILIES[refineIntent.id] || null;
         // === SHELF SCORING ===
@@ -15584,6 +15661,9 @@ If the user references something not in their data ("started retinol 6 weeks ago
             });
             setProducts(updated);
             saveData('products', updated);
+            // June 2026 (Refine F): rewrite today's regimenLog so the
+            // cover reflects the new routine immediately.
+            rewriteTodayLogFromProducts(updated);
             setCoverRoutineRebuildToken(t => t + 1);
             const summary = buildApplySummary(applications, 'added to your week');
             close();
@@ -15894,6 +15974,9 @@ If the user references something not in their data ("started retinol 6 weeks ago
             });
             setProducts(updated);
             saveData('products', updated);
+            // June 2026 (Refine F): rewrite today's regimenLog so the
+            // cover reflects the new routine immediately.
+            rewriteTodayLogFromProducts(updated);
             setCoverRoutineRebuildToken(t => t + 1);
             const visibleManaged = updated
               .filter(p => isRoutineBuiltProduct(p) && p.cadence && Array.isArray(p.cadence.days) && p.cadence.days.length > 0)
