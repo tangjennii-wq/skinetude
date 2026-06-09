@@ -32,11 +32,18 @@ const CheckInPhotoStrip = ({ photos = [], onEdit, regions = [], onRegionChange }
   const queueLen = photos.length;
   const photoCountLabel = `${queueLen} ${queueLen === 1 ? 'PHOTO' : 'PHOTOS'}`;
   const [selectedPhotoIdx, setSelectedPhotoIdx] = React.useState(0);
+  const [lightboxIndex, setLightboxIndex] = React.useState(null);
   const supportsRegions = typeof onRegionChange === 'function';
   const visiblePhotos = photos.slice(0, 5);
   const selectedIdx = Math.min(selectedPhotoIdx, Math.max(queueLen - 1, 0));
   const selectedRegion = regions[selectedIdx] || 'full-face';
   const selectedRegionLabel = getRegionLabel(selectedRegion);
+  const lightboxPhotos = photos.map((p, i) => ({
+    item: p,
+    src: p.dataUrl || p.photoPath || p.photo,
+    label: `Photo ${i + 1}`,
+    sub: getRegionLabel(regions[i] || 'full-face'),
+  }));
 
   React.useEffect(() => {
     if (selectedPhotoIdx >= queueLen && queueLen > 0) setSelectedPhotoIdx(0);
@@ -48,7 +55,7 @@ const CheckInPhotoStrip = ({ photos = [], onEdit, regions = [], onRegionChange }
         <div className="text-[9.5px] tracking-[0.28em] uppercase" style={{color:'var(--accent)', fontWeight:600}}>{photoCountLabel}</div>
         {supportsRegions && queueLen > 1 && (
           <div className="text-[9px] tracking-[0.22em] uppercase text-right" style={{color:'var(--muted)', fontWeight:700}}>
-            Tap to label
+            Tap to view
           </div>
         )}
       </div>
@@ -59,9 +66,10 @@ const CheckInPhotoStrip = ({ photos = [], onEdit, regions = [], onRegionChange }
             const overflow = photos.length - 5;
             const selected = supportsRegions && selectedIdx === i;
             return (
-              <div
+              <button
+                type="button"
                 key={i}
-                className="relative flex-shrink-0"
+                className="relative flex-shrink-0 p-0 m-0"
                 style={{
                   width: 52, height: 52,
                   marginLeft: i === 0 ? 0 : -10,
@@ -73,10 +81,15 @@ const CheckInPhotoStrip = ({ photos = [], onEdit, regions = [], onRegionChange }
                   transformOrigin: 'center center',
                   transition: 'transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease',
                   zIndex: selected ? 20 : 10 - i,
-                  cursor: supportsRegions ? 'pointer' : 'default',
+                  background: 'transparent',
+                  cursor: 'zoom-in',
                 }}
-                onClick={supportsRegions ? () => setSelectedPhotoIdx(i) : undefined}
-                title={supportsRegions ? 'Tap to set region' : undefined}
+                onClick={() => {
+                  setSelectedPhotoIdx(i);
+                  setLightboxIndex(i);
+                }}
+                title="Open larger photo"
+                aria-label={`Open photo ${i + 1}`}
               >
                 <Photo
                   item={p}
@@ -96,7 +109,7 @@ const CheckInPhotoStrip = ({ photos = [], onEdit, regions = [], onRegionChange }
                     }}
                   >+{overflow}</span>
                 )}
-              </div>
+              </button>
             );
           })}
         </div>
@@ -151,6 +164,13 @@ const CheckInPhotoStrip = ({ photos = [], onEdit, regions = [], onRegionChange }
             ? 'Same rating + context. Extras can change in Journal.'
             : 'Same rating + context for this set.'}
         </p>
+      )}
+      {lightboxIndex != null && (
+        <PhotoLightbox
+          photos={lightboxPhotos}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
       )}
     </div>
   );

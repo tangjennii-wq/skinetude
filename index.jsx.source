@@ -6546,6 +6546,7 @@ Return JSON in EXACTLY this shape (no markdown fences, no commentary):
   const [expandedShelfProductId, setExpandedShelfProductId] = useState(null); // compact list expand-on-click
   const [showInactiveProducts, setShowInactiveProducts] = useState(false); // inactive shelf section, collapsed by default
   const [productCompareId, setProductCompareId] = useState(null); // null or product.id — drives the Before/After modal
+  const [productCompareLightboxPhotos, setProductCompareLightboxPhotos] = useState(null);
 
   // === SHELF · AUTO-ANALYZE ON EXPAND ===
   // First time the user expands a product card on the Shelf, auto-fire the AI
@@ -8829,9 +8830,28 @@ structure exactly. Let the WORDS inside it be in voice.
   // user-self-report only (the existing `sensitivity` chip in
   // OBSERVATION_CHIPS_BASE). Legacy logs that already have a
   // sensitivity field stay readable; new logs simply won't have one.
+  // === ANTI-HEDGE PROMPT (June 2026 per Jenni — "scores feel too low") ===
+  // Composite scores were clustering at 6/10 for skin that subjectively
+  // reads better than that. Root cause: when Gemini was uncertain it
+  // defaulted to the middle bucket (Mild / Balanced / Uneven / Few /
+  // Holding) — all of which map to ~55 on the 100/80/55/30/10 scale,
+  // and 55 → ~5.5/10 → 6. Five domains hedged to mid = permanent 6.
+  // Fix: explicit visible-state criteria per bucket so the model has
+  // concrete features to commit on, plus a default-up rule. Middle is
+  // still reachable — just no longer the safe default.
   const GEMINI_METRIC_PROMPT = `Look at this skincare progress photo and rate the visible skin. Reply with ONLY this JSON, no prose, no code fences, no markdown:
 {"redness":"<Clear|Low|Mild|Moderate|High>","hydration":"<Plump|Good|Balanced|Dry|Parched>","texture":"<Smooth|Even|Uneven|Rough|Bumpy>","breakouts":"<Clear|Few|Some|Many|Severe>","barrier":"<Strong|Steady|Holding|Compromised|Stripped>"}
-Pick the SINGLE most accurate level per metric. Use the exact capitalized word. Output ONLY the JSON object.`;
+
+Pick the SINGLE most accurate level per metric. Use the exact capitalized word. Output ONLY the JSON object.
+
+CRITICAL RATING RULES — do NOT default to the middle bucket out of uncertainty:
+- Redness: "Clear" = no visible erythema. "Low" = subtle pink on cheeks/nose, no inflammation. "Mild" ONLY if visible flush spans ≥30% of face. "Moderate" / "High" require obvious inflammation.
+- Hydration: "Plump" = light reflects evenly, skin looks bouncy. "Good" = no visible dryness, healthy sheen. "Balanced" ONLY if you see localized tightness or matte zones. "Dry" / "Parched" require visible flaking or crepey texture.
+- Texture: "Smooth" = no surface irregularity at normal viewing distance. "Even" = uniform pore size, no relief. "Uneven" ONLY if visible bumps, raised areas, or relief variation. "Rough" / "Bumpy" require obvious surface disruption.
+- Breakouts: "Clear" = no active lesions. "Few" = 1–3 small spots. "Some" ONLY if ≥4 lesions OR any inflammatory pustule. "Many" / "Severe" require widespread or cystic involvement.
+- Barrier: "Strong" = healthy glow, no visible irritation. "Steady" = balanced look, no compromise signs. "Holding" ONLY if you see localized redness around features OR mild scaling. "Compromised" / "Stripped" require obvious barrier breakdown (peeling, crusts, gloss).
+
+Default UP, not to the middle. If the photo is closer to the upper bucket than the middle, commit to the upper bucket. The middle bucket should be reserved for skin with VISIBLE issues, not skin that looks fine.`;
   const METRIC_KEYS = ['redness', 'hydration', 'texture', 'breakouts', 'barrier'];
   const extractMetricsWithGemini = async (photoB64) => {
     if (!photoB64) return null;
@@ -16942,8 +16962,37 @@ If the user references something not in their data ("started retinol 6 weeks ago
         if (!product) return null;
         const a = findProductCompareAnchors(product, products, regimenLogs, logs);
         const fmt = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-        const close = () => setProductCompareId(null);
+        const close = () => {
+          setProductCompareId(null);
+          setProductCompareLightboxPhotos(null);
+        };
         const slugify = (s) => (s || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        const photoSrcOf = (l) => {
+          if (!l) return null;
+          if (typeof l.photo === 'string' && l.photo.startsWith('data:')) return l.photo;
+          return l.photo || null;
+        };
+        const openProductCompareLightbox = () => {
+          if (!a.anchorPhotoLog && !a.latestPhotoLog) return;
+          setProductCompareLightboxPhotos([
+            {
+              item: a.anchorPhotoLog,
+              src: photoSrcOf(a.anchorPhotoLog),
+              label: 'Before',
+              sub: fmt(a.anchorPhotoLog?.date),
+              area: a.anchorPhotoLog?.area || 'full-face',
+              score: Number(a.anchorPhotoLog?.rating) || 0,
+            },
+            {
+              item: a.latestPhotoLog,
+              src: photoSrcOf(a.latestPhotoLog),
+              label: 'After · today',
+              sub: fmt(a.latestPhotoLog?.date),
+              area: a.latestPhotoLog?.area || 'full-face',
+              score: Number(a.latestPhotoLog?.rating) || 0,
+            },
+          ].filter(p => p.item || p.src));
+        };
         const handleExport = async (e) => {
           const card = e.currentTarget.closest('.export-target');
           if (!card) { toast('Couldn’t find the card to export', 'error'); return; }
@@ -16979,11 +17028,19 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   <div className="grid grid-cols-2 gap-3 md:gap-4">
                     {/* BEFORE */}
                     <div className="border" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
-                      <div className="aspect-square overflow-hidden" style={{background:'var(--cream-deep)'}}>
-                        <Photo item={a.anchorPhotoLog} alt="" className="w-full h-full object-cover"
-                          renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-serif italic text-5xl" style={{color:'var(--ink-soft)'}}>{a.anchorPhotoLog.rating}</span></div>}
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={openProductCompareLightbox}
+                        aria-label="Zoom product before and after photos"
+                        className="block w-full p-0 m-0 border-0 transition hover:opacity-95"
+                        style={{background:'transparent', cursor:'zoom-in'}}
+                      >
+                        <div className="aspect-square overflow-hidden" style={{background:'var(--cream-deep)'}}>
+                          <Photo item={a.anchorPhotoLog} alt="" className="w-full h-full object-cover"
+                            renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-serif italic text-5xl" style={{color:'var(--ink-soft)'}}>{a.anchorPhotoLog.rating}</span></div>}
+                          />
+                        </div>
+                      </button>
                       <div className="px-3 py-2.5">
                         <div className="text-[10px] tracking-[0.25em] uppercase mb-0.5" style={{color:'var(--accent)'}}>Before</div>
                         <div className="font-serif italic text-base" style={{color:'var(--ink)'}}>{fmt(a.anchorPhotoLog.date)}</div>
@@ -16994,11 +17051,19 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     </div>
                     {/* AFTER */}
                     <div className="border" style={{borderColor: 'var(--line)', background:'var(--cream)'}}>
-                      <div className="aspect-square overflow-hidden" style={{background:'var(--cream-deep)'}}>
-                        <Photo item={a.latestPhotoLog} alt="" className="w-full h-full object-cover"
-                          renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-serif italic text-5xl" style={{color:'var(--ink-soft)'}}>{a.latestPhotoLog.rating}</span></div>}
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={openProductCompareLightbox}
+                        aria-label="Zoom product before and after photos"
+                        className="block w-full p-0 m-0 border-0 transition hover:opacity-95"
+                        style={{background:'transparent', cursor:'zoom-in'}}
+                      >
+                        <div className="aspect-square overflow-hidden" style={{background:'var(--cream-deep)'}}>
+                          <Photo item={a.latestPhotoLog} alt="" className="w-full h-full object-cover"
+                            renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-serif italic text-5xl" style={{color:'var(--ink-soft)'}}>{a.latestPhotoLog.rating}</span></div>}
+                          />
+                        </div>
+                      </button>
                       <div className="px-3 py-2.5">
                         <div className="text-[10px] tracking-[0.25em] uppercase mb-0.5" style={{color:'var(--accent)'}}>After · today</div>
                         <div className="font-serif italic text-base" style={{color:'var(--ink)'}}>{fmt(a.latestPhotoLog.date)}</div>
@@ -17083,6 +17148,12 @@ If the user references something not in their data ("started retinol 6 weeks ago
           </Modal>
         );
       })()}
+      {productCompareLightboxPhotos && productCompareLightboxPhotos.length > 0 && (
+        <PhotoLightbox
+          photos={productCompareLightboxPhotos}
+          onClose={() => setProductCompareLightboxPhotos(null)}
+        />
+      )}
       {/* === COMPARE TIME PICKER === handles either side (Before or After) on the Time tab. */}
       {compareTimePickerFor && (() => {
         const side = compareTimePickerFor; // 'before' | 'after'

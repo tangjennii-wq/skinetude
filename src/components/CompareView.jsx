@@ -52,22 +52,19 @@ const CompareView = ({
   const photoSrcOf = (l) => {
     if (!l) return null;
     if (typeof l.photo === 'string' && l.photo.startsWith('data:')) return l.photo;
-    // Fallback: if hosted, the Photo component resolves photoPath; we don't
-    // have direct access to that resolver here. Return the data URL if any,
-    // else null (caller renders the small-card Photo as today).
     return l.photo || null;
   };
   const openCompareLightbox = () => {
     const bSrc = photoSrcOf(beforeLog);
     const aSrc = photoSrcOf(afterLog);
-    if (!bSrc && !aSrc) return;
+    if (!beforeLog && !afterLog) return;
     const photos = [];
-    if (bSrc) photos.push({
-      src: bSrc, label: 'Before', sub: fmt(beforeLog.date),
+    if (beforeLog) photos.push({
+      item: beforeLog, src: bSrc, label: 'Before', sub: fmt(beforeLog.date),
       area: beforeLog?.area || 'full-face', score: aiScoreOut10(beforeLog) || 0,
     });
-    if (aSrc) photos.push({
-      src: aSrc, label: compareTimeAfterId && afterLog?.id !== afterDefaultLog?.id ? 'After' : 'After · today',
+    if (afterLog) photos.push({
+      item: afterLog, src: aSrc, label: compareTimeAfterId && afterLog?.id !== afterDefaultLog?.id ? 'After' : 'After · today',
       sub: fmt(afterLog.date),
       area: afterLog?.area || 'full-face', score: aiScoreOut10(afterLog) || 0,
     });
