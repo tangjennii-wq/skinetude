@@ -7934,6 +7934,13 @@ Write 1–2 sentences only. Lowercase or sentence-cased prose, not headlines.`;
     processCloudQueue(userId);
   };
 
+  const persistLocalOnly = async (key, data) => {
+    const userKey = user
+      ? user.email.replace(/[^a-zA-Z0-9]/g, '')
+      : 'guest';
+    await storage.set(`${key}:${userKey}`, JSON.stringify(data));
+  };
+
   // === SMOKE-TEST DEBUG HOOKS (May 2026 v2) ===
   // When window.__SMOKE_TEST__ is set, expose the queue + state so
   // Playwright tests can drive the REAL closure (not a re-implementation).
@@ -14118,7 +14125,12 @@ If the user references something not in their data ("started retinol 6 weeks ago
             // per Codex bug fix on saveData).
             const updated = [...newLogs, ...logs].sort((a,b) => new Date(b.date) - new Date(a.date));
             setLogs(updated);
-            await saveData('logs', updated);
+            const shouldDeferCloudPhotoSave = !!(user?.cloud && user?.id && supabaseClient && newLogs.some(l => l.photo));
+            if (shouldDeferCloudPhotoSave) {
+              await persistLocalOnly('logs', updated);
+            } else {
+              await saveData('logs', updated);
+            }
             toast(`${shots.length} photo${shots.length > 1 ? 's' : ''} added ✨`);
             // Upload to Supabase Storage in the background if cloud user.
             // Mirrors the per-log path swap pattern used elsewhere so we
@@ -14136,11 +14148,20 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   if (path) {
                     setLogs(prev => {
                       const next = prev.map(l => l.id === log.id ? { ...l, photoPath: path, photo: undefined } : l);
-                      saveData('logs', next).catch(() => {});
+                      saveData('logs', next).catch(e => {
+                        console.error('[guided capture] photoPath save failed:', e);
+                        toast(`Cloud save error: ${e?.message || 'unknown'}`, 'error');
+                      });
                       return next;
                     });
+                  } else {
+                    console.warn('[guided capture] photo upload returned no path');
+                    toast('Photo saved locally. Cloud photo upload did not finish.', 'error');
                   }
-                } catch (e) { /* swallow — local copy is still good */ }
+                } catch (e) {
+                  console.error('[guided capture] photo upload failed:', e);
+                  toast('Photo saved locally. Cloud photo upload failed.', 'error');
+                }
               }
             }
             // === ONBOARDING BASELINE BRIDGE (May 2026) ===
@@ -16427,7 +16448,8 @@ If the user references something not in their data ("started retinol 6 weeks ago
           const updated = [...batch, ...logs.filter(l => !editedIds.has(l.id))].sort((a, b) => new Date(b.date) - new Date(a.date));
           setLogs(updated);
           setCoverRoutineRebuildToken(t => t + 1);
-          saveData('logs', updated).catch(e => {
+          const shouldDeferCloudPhotoSave = !!(user?.cloud && user?.id && supabaseClient && newLogs.some(l => l.photo));
+          (shouldDeferCloudPhotoSave ? persistLocalOnly('logs', updated) : saveData('logs', updated)).catch(e => {
             console.error('[CheckIn] saveData failed:', e);
             toast(`Save error: ${e?.message || 'unknown'}`, 'error');
           });
@@ -16448,12 +16470,19 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 if (path) {
                   setLogs(prev => {
                     const next = prev.map(l => l.id === log.id ? { ...l, photoPath: path, photo: undefined } : l);
-                    saveData('logs', next).catch(() => {});
+                    saveData('logs', next).catch(e => {
+                      console.error('[CheckIn] photoPath save failed:', e);
+                      toast(`Cloud save error: ${e?.message || 'unknown'}`, 'error');
+                    });
                     return next;
                   });
                 } else if (error) {
                   console.warn('[CheckIn] photo cloud upload failed:', error);
+                  toast('Photo saved locally. Cloud photo upload did not finish.', 'error');
                 }
+              }).catch(e => {
+                console.error('[CheckIn] photo cloud upload exception:', e);
+                toast('Photo saved locally. Cloud photo upload failed.', 'error');
               })();
             });
           }

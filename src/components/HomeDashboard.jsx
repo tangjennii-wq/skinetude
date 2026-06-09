@@ -2050,39 +2050,83 @@ CRITICAL OUTPUT REQUIREMENTS:
                       Photo = check-in surface only; this row = analysis
                       surface. */}
                   {todayLog?.id != null && (
-                    <div className="inline-flex items-center gap-1.5" style={{whiteSpace: 'nowrap'}}>
-                      {todayAvg != null && (
-                        // Score 52/18 — paired with the View analysis
-                        // link, so badge reads as part of a row rather
-                        // than its own hero element.
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); openTodayAnalysis(); }}
-                          className="flex items-center justify-center transition hover:scale-105 focus:outline-none"
-                          style={{
-                            width: 50,
-                            height: 50,
-                            borderRadius: '50%',
-                            background: 'var(--cream)',
-                            border: '2px solid var(--accent)',
-                            boxShadow: '0 2px 8px rgba(28,25,23,0.12)',
-                            cursor: 'pointer',
-                            flexShrink: 0,
-                          }}
-                          aria-label={`Skin read ${(todayAvg / 10).toFixed(1)} out of 10. Tap to view analysis.`}
-                          title={`${(todayAvg / 10).toFixed(1)} / 10 · tap to view analysis`}
-                        >
-                          <span style={{
-                            fontSize: 18,
-                            lineHeight: 1,
-                            fontWeight: 700,
-                            color: 'var(--accent)',
-                            letterSpacing: '-0.025em',
-                          }}>
-                            {(todayAvg / 10).toFixed(1)}
-                          </span>
-                        </button>
-                      )}
+                    <div className="inline-flex items-center gap-3" style={{whiteSpace: 'nowrap'}}>
+                      {todayAvg != null && (() => {
+                        // === Composite word descriptor (June 2026 per Jenni) ===
+                        // Pairs the hero number with a one-word read. The word
+                        // answers "what's going on?" in one glance — landing
+                        // faster than the integer and avoiding the "6/10 feels
+                        // like failure" trap. The number stays for trend
+                        // tracking; together they're more honest than either
+                        // alone.
+                        //   90+  → Glowing      (great skin day)
+                        //   65+  → Steady       (calm, healthy default)
+                        //   45+  → Holding      (neutral, no alarm)
+                        //   25+  → Off          (flag, worth watching)
+                        //    <25 → Reactive     (clinical attention)
+                        // Future iteration: vary by baseline mode (Calibrating
+                        // when establishing, Settling during purge, etc.).
+                        const compositeWord = (v) => {
+                          if (v >= 90) return 'Glowing';
+                          if (v >= 65) return 'Steady';
+                          if (v >= 45) return 'Holding';
+                          if (v >= 25) return 'Off';
+                          return 'Reactive';
+                        };
+                        const word = compositeWord(todayAvg);
+                        const scoreOutOf10 = (todayAvg / 10).toFixed(1);
+                        return (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); openTodayAnalysis(); }}
+                              className="flex items-center justify-center transition hover:scale-105 focus:outline-none"
+                              style={{
+                                width: 68,
+                                height: 68,
+                                borderRadius: '50%',
+                                background: 'var(--cream)',
+                                border: '2px solid var(--accent)',
+                                boxShadow: '0 2px 8px rgba(28,25,23,0.12)',
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                              }}
+                              aria-label={`${word} · ${scoreOutOf10} out of 10. Tap to view analysis.`}
+                              title={`${word} · ${scoreOutOf10} / 10 · tap to view analysis`}
+                            >
+                              <span style={{
+                                fontSize: 26,
+                                lineHeight: 1,
+                                fontWeight: 700,
+                                color: 'var(--accent)',
+                                letterSpacing: '-0.025em',
+                              }}>
+                                {scoreOutOf10}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); openTodayAnalysis(); }}
+                              className="font-sans transition hover:opacity-80 focus:outline-none"
+                              style={{
+                                fontSize: 24,
+                                lineHeight: 1.05,
+                                fontWeight: 700,
+                                letterSpacing: '-0.02em',
+                                color: 'var(--ink)',
+                                background: 'transparent',
+                                border: 0,
+                                cursor: 'pointer',
+                                padding: 0,
+                              }}
+                              aria-label={`Today reads ${word}. Tap to view analysis.`}
+                              title={`${word} · tap to view analysis`}
+                            >
+                              {word}
+                            </button>
+                          </>
+                        );
+                      })()}
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); openTodayAnalysis(); }}
