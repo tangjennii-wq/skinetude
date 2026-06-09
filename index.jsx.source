@@ -7941,6 +7941,39 @@ Write 1–2 sentences only. Lowercase or sentence-cased prose, not headlines.`;
     await storage.set(`${key}:${userKey}`, JSON.stringify(data));
   };
 
+  const resolveCloudUserForSave = async () => {
+    if (!supabaseClient) return null;
+    try {
+      const sessionResult = await Promise.race([
+        supabaseClient.auth.getSession(),
+        new Promise(resolve => setTimeout(
+          () => resolve({ data: { session: null }, error: { message: 'getSession timeout' } }),
+          1200
+        )),
+      ]);
+      const sbUser = sessionResult?.data?.session?.user;
+      if (!sbUser?.id || !sbUser?.email) return null;
+      if (user?.email && user.email.toLowerCase() !== sbUser.email.toLowerCase()) {
+        console.warn('[saveData] Supabase session email does not match local user; skipping cloud save');
+        return null;
+      }
+      const sessionUser = {
+        email: sbUser.email,
+        name: sbUser.user_metadata?.name || sbUser.email.split('@')[0],
+        id: sbUser.id,
+        cloud: true,
+      };
+      if (!user?.cloud || user.id !== sessionUser.id) {
+        setUser(sessionUser);
+        storage.set('session', JSON.stringify(sessionUser)).catch(() => {});
+      }
+      return sessionUser;
+    } catch (e) {
+      console.warn('[saveData] Could not resolve Supabase session for cloud save:', e?.message || e);
+      return null;
+    }
+  };
+
   // === SMOKE-TEST DEBUG HOOKS (May 2026 v2) ===
   // When window.__SMOKE_TEST__ is set, expose the queue + state so
   // Playwright tests can drive the REAL closure (not a re-implementation).
@@ -8123,8 +8156,15 @@ Write 1–2 sentences only. Lowercase or sentence-cased prose, not headlines.`;
         console.error('Local storage failed:', e);
       }
     }
-    // Also push to Supabase if user is cloud-backed
-    if (user && user.cloud && user.id && supabaseClient) {
+    // Also push to Supabase if user is cloud-backed.
+    // If we booted from cached local session before Supabase auth
+    // rehydrated, `user.cloud/id` can be missing even though a live
+    // Supabase session exists. Resolve once here before deciding the
+    // save is local-only.
+    const cloudUser = (user && user.cloud && user.id && supabaseClient)
+      ? user
+      : await resolveCloudUserForSave();
+    if (cloudUser && cloudUser.id && supabaseClient) {
       // Map saveData keys to the Supabase JSON shape
       // userProfile + onboardingState added May 2026 — without these,
       // finishOnboarding's saveData calls write to localStorage only and
@@ -8140,7 +8180,7 @@ Write 1–2 sentences only. Lowercase or sentence-cased prose, not headlines.`;
       if (supaKey) {
         // Was: saveToSupabase(user.id, { [supaKey]: data })  ← fire-and-forget race.
         // Now: queue layer coalesces + serializes upserts (see enqueueCloudSave).
-        enqueueCloudSave(user.id, { [supaKey]: data });
+        enqueueCloudSave(cloudUser.id, { [supaKey]: data });
       }
     }
   };
