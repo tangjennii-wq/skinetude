@@ -1128,7 +1128,10 @@ Example response (just this, nothing else):
         }
         if (nextLogs) {
           setRegimenLogs(nextLogs);
-          saveData('regimenLogs', nextLogs).catch(e => console.error('[product regimen-add]', e));
+          saveData('regimenLogs', nextLogs).catch(e => {
+            console.error('[product regimen-add]', e);
+            toast(`Save error: ${e?.message || 'unknown'}`, 'error');
+          });
         }
       }
       // Close ProductModal + clear its hoisted state (regimen editor remains mounted).
@@ -1752,7 +1755,10 @@ ALTERNATIVES:
                 ];
               }
               setRegimenLogs(nextLogs);
-              saveData('regimenLogs', nextLogs).catch(e => console.error('[brand bulk-add → regimen]', e));
+              saveData('regimenLogs', nextLogs).catch(e => {
+                console.error('[brand bulk-add → regimen]', e);
+                toast(`Save error: ${e?.message || 'unknown'}`, 'error');
+              });
             }
             const todayKey = localDateISO();
             if (ctxDate === todayKey) {

@@ -83,6 +83,7 @@ const createPhotoLogs = ({
       capturedAt: shot.capturedAt || new Date().toISOString(),
       source: shot.source || defaultSource,
       rating: shot.rating !== undefined ? shot.rating : (baseFields.rating ?? null),
+      ratingScale: shot.ratingScale !== undefined ? shot.ratingScale : baseFields.ratingScale,
       notes: shot.notes !== undefined ? shot.notes : (baseFields.notes ?? ''),
       concerns: Array.isArray(shot.concerns) ? shot.concerns : (baseFields.concerns ?? []),
       noticed: Array.isArray(shot.noticed) ? shot.noticed : (baseFields.noticed ?? []),

@@ -16488,39 +16488,90 @@ If the user references something not in their data ("started retinol 6 weeks ago
           // 'right-cheek', 't-zone', 'chin', 'eye-area', 'spot'). Default is 'full-face'
           // so older callers / single-photo flows behave identically.
           const regions = Array.isArray(form.photoRegions) ? form.photoRegions : [];
-          const batchRecords = checkInDetailsQueue.map((shot, i) => {
+          const buildPhotoDate = (shot, i) => {
+            if (i === 0 && userOverrideDate) return userOverrideDate.split('T')[0];
+            const captured = shot.capturedAt || new Date().toISOString();
+            return captured.split('T')[0];
+          };
+          const editRecords = [];
+          const newShotRows = [];
+          checkInDetailsQueue.forEach((shot, i) => {
             const photoDate = (() => {
-              if (i === 0 && userOverrideDate) return userOverrideDate.split('T')[0];
-              const captured = shot.capturedAt || new Date().toISOString();
-              return captured.split('T')[0];
+              return buildPhotoDate(shot, i);
             })();
             const isEdit = !!shot.existingLogId;
-            const baseLog = isEdit ? (logs.find(l => l.id === shot.existingLogId) || shot.existingLog || {}) : {};
-            const log = {
-              ...baseLog,
-              id: isEdit ? shot.existingLogId : Date.now() + i, // unique per queue item
-              date: photoDate,
-              area: regions[i] || 'full-face',
+            if (isEdit) {
+              const baseLog = logs.find(l => l.id === shot.existingLogId) || shot.existingLog || {};
+              editRecords.push({
+                order: i,
+                isEdit: true,
+                log: {
+                  ...baseLog,
+                  id: shot.existingLogId,
+                  date: photoDate,
+                  area: regions[i] || baseLog.area || 'full-face',
+                  rating: form.rating != null ? form.rating : null,
+                  ratingScale: '10',
+                  notes: form.notes || '',
+                  concerns: Array.isArray(form.concerns) ? form.concerns : [],
+                  noticed: Array.isArray(form.noticed) ? form.noticed : [],
+                  contextFactors: Array.isArray(form.contextFactors) ? form.contextFactors : [],
+                  angle: shot.angle || baseLog.angle,
+                  source: shot.source || baseLog.source || 'capture',
+                  capturedAt: shot.capturedAt || baseLog.capturedAt || new Date().toISOString(),
+                  photo: shot.dataUrl || shot.photo || baseLog.photo,
+                  photoPath: shot.photoPath || baseLog.photoPath || null,
+                  usedProducts: baseLog.usedProducts || [],
+                  usedTags: baseLog.usedTags || [],
+                  ratingExplanation: baseLog.ratingExplanation || null,
+                  suggestedRating: baseLog.suggestedRating || null,
+                  aiAnalysis: baseLog.aiAnalysis || null,
+                  analyzing: !!baseLog.analyzing,
+                  analyzingStartedAt: baseLog.analyzingStartedAt,
+                }
+              });
+              return;
+            }
+            newShotRows.push({
+              order: i,
+              shot: {
+                dataUrl: shot.dataUrl || shot.photo,
+                photoPath: shot.photoPath || null,
+                date: photoDate,
+                area: regions[i] || 'full-face',
+                angle: shot.angle,
+                capturedAt: shot.capturedAt || new Date().toISOString(),
+                source: shot.source || 'capture',
+                rating: form.rating != null ? form.rating : null,
+                ratingScale: '10',
+                notes: form.notes || '',
+                concerns: Array.isArray(form.concerns) ? form.concerns : [],
+                noticed: Array.isArray(form.noticed) ? form.noticed : [],
+                contextFactors: Array.isArray(form.contextFactors) ? form.contextFactors : [],
+              }
+            });
+          });
+          const { newLogs: createdLogs, fireAnalysis } = createPhotoLogs({
+            shots: newShotRows.map(row => row.shot),
+            defaultDate: localDateISO(),
+            baseFields: {
               rating: form.rating != null ? form.rating : null,
+              ratingScale: '10',
               notes: form.notes || '',
               concerns: Array.isArray(form.concerns) ? form.concerns : [],
               noticed: Array.isArray(form.noticed) ? form.noticed : [],
               contextFactors: Array.isArray(form.contextFactors) ? form.contextFactors : [],
-              angle: shot.angle || baseLog.angle,
-              source: shot.source || baseLog.source || 'capture',
-              capturedAt: shot.capturedAt || baseLog.capturedAt || new Date().toISOString(),
-              photo: shot.dataUrl || shot.photo || baseLog.photo,
-              photoPath: shot.photoPath || baseLog.photoPath || null,
-              usedProducts: baseLog.usedProducts || [],
-              usedTags: baseLog.usedTags || [],
-              ratingExplanation: baseLog.ratingExplanation || null,
-              suggestedRating: baseLog.suggestedRating || null,
-              aiAnalysis: baseLog.aiAnalysis || null,
-              analyzing: isEdit ? !!baseLog.analyzing : apiKeyOn,
-              analyzingStartedAt: isEdit ? baseLog.analyzingStartedAt : (apiKeyOn ? Date.now() : undefined),
-            };
-            return { log, isEdit };
+            },
+            apiKeyOn,
+            source: 'capture',
+            travel: !!(userProfile?.travel?.active),
           });
+          const createRecords = createdLogs.map((log, idx) => ({
+            order: newShotRows[idx]?.order ?? idx,
+            isEdit: false,
+            log,
+          }));
+          const batchRecords = [...editRecords, ...createRecords].sort((a, b) => a.order - b.order);
           const batch = batchRecords.map(r => r.log);
           const editedIds = new Set(batchRecords.filter(r => r.isEdit).map(r => r.log.id));
           const newLogs = batchRecords.filter(r => !r.isEdit).map(r => r.log);
@@ -16599,15 +16650,10 @@ If the user references something not in their data ("started retinol 6 weeks ago
           // generate analysis." indefinitely. Now we kick off retryLogAnalysis
           // for every fresh log immediately after save so the metric chips
           // (redness/hydration/texture/etc.) auto-populate on the cover.
-          // Sequential await avoids double-burning Anthropic credits on
-          // a multi-photo batch.
+          // createPhotoLogs owns the worker pool + logHint wiring so this
+          // path matches bulk upload and onboarding.
           if (apiKeyOn && typeof retryLogAnalysis === 'function') {
-            (async () => {
-              for (const log of newLogs) {
-                try { await retryLogAnalysis(log.id, log); /* logHint avoids stale-closure miss */ }
-                catch (e) { console.warn('[CheckIn auto-analysis]', log.id, e?.message); }
-              }
-            })();
+            fireAnalysis(retryLogAnalysis);
           }
         };
         const cancelQueue = () => {

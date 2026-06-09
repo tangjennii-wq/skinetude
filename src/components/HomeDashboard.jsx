@@ -3689,6 +3689,16 @@ CRITICAL OUTPUT REQUIREMENTS:
             const skippedSetForCta = new Set(skippedListForCta);
             const skippedCount = ctaList.filter(p => p && p.id && skippedSetForCta.has(p.id)).length;
             const hasSomeSkipped = skippedCount > 0 && ctaList.length > 0;
+            const mergeIds = (...lists) => {
+              const seen = new Set();
+              const out = [];
+              lists.flat().forEach(id => {
+                if (!id || seen.has(id)) return;
+                seen.add(id);
+                out.push(id);
+              });
+              return out;
+            };
             // Done IDs (manually checked circles) for the current slot.
             const doneKeyForCta = ctaSlot === 'pm' ? 'pmDone' : 'amDone';
             const doneListForCta = sourceCheckIn && Array.isArray(sourceCheckIn[doneKeyForCta]) ? sourceCheckIn[doneKeyForCta] : [];
@@ -3727,6 +3737,8 @@ CRITICAL OUTPUT REQUIREMENTS:
               const amIds = amList.map(p => p && p.id).filter(Boolean);
               const pmIds = pmList.map(p => p && p.id).filter(Boolean);
               const existing = (regimenLogs || []).find(r => r.date === viewDate);
+              const nextAmIds = mergeIds(existing?.amProducts || [], amIds);
+              const nextPmIds = mergeIds(existing?.pmProducts || [], pmIds);
               const prevAmDone = existing && Array.isArray(existing.amDone) ? existing.amDone : [];
               const prevPmDone = existing && Array.isArray(existing.pmDone) ? existing.pmDone : [];
               const prevAmSkipped = existing && Array.isArray(existing.amSkipped) ? existing.amSkipped : [];
@@ -3737,7 +3749,7 @@ CRITICAL OUTPUT REQUIREMENTS:
               // any explicitly skipped (the "Yes, I did my regimen"
               // catch-all path).
               const commitSkipped = ctaSlot === 'am' ? prevAmSkipped : prevPmSkipped;
-              const commitPlanned = ctaSlot === 'am' ? amIds : pmIds;
+              const commitPlanned = ctaSlot === 'am' ? nextAmIds : nextPmIds;
               const priorDoneForSlot = ctaSlot === 'am' ? prevAmDone : prevPmDone;
               const userMarkedPartial = priorDoneForSlot.length > 0 && priorDoneForSlot.length < commitPlanned.length;
               const skippedSet = new Set(commitSkipped);
@@ -3758,8 +3770,8 @@ CRITICAL OUTPUT REQUIREMENTS:
                 ...(existing || {}),
                 id: existing?.id || Date.now(),
                 date: viewDate,
-                amProducts: existing?.amProducts || amIds,
-                pmProducts: existing?.pmProducts || pmIds,
+                amProducts: nextAmIds,
+                pmProducts: nextPmIds,
                 amDone: ctaSlot === 'am' ? commitDone : prevAmDone,
                 pmDone: ctaSlot === 'pm' ? commitDone : prevPmDone,
                 amSkipped: ctaSlot === 'am' ? commitSkipped : prevAmSkipped,

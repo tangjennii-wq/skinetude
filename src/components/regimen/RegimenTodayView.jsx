@@ -145,6 +145,16 @@ const RegimenTodayView = ({
     (Array.isArray(todayLog[activeSlotDoneKey]) && todayLog[activeSlotDoneKey].length > 0)
     || activeSlotProducts.length > 0
   ));
+  const mergeIds = (...lists) => {
+    const seen = new Set();
+    const out = [];
+    lists.flat().forEach(id => {
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      out.push(id);
+    });
+    return out;
+  };
 
   // Mirror cover's repeatYesterday — copies yesterday's picks into today
   // and marks today as submitted in regimenLogs.
@@ -280,8 +290,12 @@ const RegimenTodayView = ({
       ...(existing || {}),
       id: existing?.id || Date.now(),
       date: viewDate,
-      amProducts: existing?.amProducts || (slot === 'am' ? [] : amProducts.map(p => p.id).filter(Boolean)),
-      pmProducts: existing?.pmProducts || (slot === 'pm' ? [] : pmProducts.map(p => p.id).filter(Boolean)),
+      amProducts: slot === 'am'
+        ? []
+        : mergeIds(existing?.amProducts || [], amProducts.map(p => p.id).filter(Boolean)),
+      pmProducts: slot === 'pm'
+        ? []
+        : mergeIds(existing?.pmProducts || [], pmProducts.map(p => p.id).filter(Boolean)),
       [slotKey]: [],
       [doneKey]: [],
       [skippedKey]: [],
@@ -308,20 +322,22 @@ const RegimenTodayView = ({
     const amIds = amProducts.map(p => p && p.id).filter(Boolean);
     const pmIds = pmProducts.map(p => p && p.id).filter(Boolean);
     const existing = (regimenLogs || []).find(r => r.date === viewDate);
+    const nextAmIds = mergeIds(existing?.amProducts || [], amIds);
+    const nextPmIds = mergeIds(existing?.pmProducts || [], pmIds);
     const prevAmDone = existing && Array.isArray(existing.amDone) ? existing.amDone : [];
     const prevPmDone = existing && Array.isArray(existing.pmDone) ? existing.pmDone : [];
     const prevAmSkipped = existing && Array.isArray(existing.amSkipped) ? existing.amSkipped : [];
     const prevPmSkipped = existing && Array.isArray(existing.pmSkipped) ? existing.pmSkipped : [];
     const commitSkipped = ritualSlot === 'am' ? prevAmSkipped : prevPmSkipped;
-    const commitPlanned = ritualSlot === 'am' ? amIds : pmIds;
+    const commitPlanned = ritualSlot === 'am' ? nextAmIds : nextPmIds;
     const skippedSet = new Set(commitSkipped);
     const commitDone = commitPlanned.filter(id => !skippedSet.has(id));
     const nextLog = {
       ...(existing || {}),
       id: existing?.id || Date.now(),
       date: viewDate,
-      amProducts: existing?.amProducts || amIds,
-      pmProducts: existing?.pmProducts || pmIds,
+      amProducts: nextAmIds,
+      pmProducts: nextPmIds,
       amDone: ritualSlot === 'am' ? commitDone : prevAmDone,
       pmDone: ritualSlot === 'pm' ? commitDone : prevPmDone,
       amSkipped: ritualSlot === 'am' ? commitSkipped : prevAmSkipped,
@@ -425,7 +441,7 @@ const RegimenTodayView = ({
     const updated = {
       ...baseLog,
       [slotKey]: (baseLog[slotKey] || []).filter(id => id !== p.id),
-      [otherKey]: baseLog[otherKey] || []};
+      [otherKey]: mergeIds(baseLog[otherKey] || [])};
     const exists = (regimenLogs || []).some(r => r.date === today);
     const newLogs = exists
       ? regimenLogs.map(r => r.date === today ? updated : r)
