@@ -64,6 +64,7 @@ const HomeDashboard = ({
   setOpenLesson,
   setRemoveScopePrompt,
   setUsedSomethingElseSheet,
+  setShelfQuickAddOpen,
   setShowProcedureModal,
   setShowScoreExplainer,
   scoreExplainerSeen,
@@ -3955,6 +3956,21 @@ CRITICAL OUTPUT REQUIREMENTS:
                         <span className="truncate">{ctaLabel}</span>
                       </button>
                     )}
+                    {/* === June 2026 (per Jenni): direct Shelf entry ===
+                        Most users adding to today are adding from their own
+                        shelf. Was 3 taps (Something else? → From shelf →
+                        +AM/+PM); now 1 tap → opens the shelf-quickadd sheet
+                        directly with the current slot pre-set. */}
+                    <button
+                      onClick={() => { if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen({ open: true, slot: ctaSlot, date: viewDate }); }}
+                      className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:opacity-90"
+                      style={{background:'var(--accent)', color:'var(--cream)', border:'1px solid var(--accent)', fontWeight:700, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'}}
+                      title="Quick-add from your shelf or devices to today"
+                      type="button"
+                    >
+                      <Icon name="Layers" size={12} />
+                      <span className="truncate">Shelf</span>
+                    </button>
                     <button
                       onClick={() => setUsedSomethingElseSheet({ open: true, slot: ctaSlot, date: viewDate })}
                       className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)]"

@@ -11417,6 +11417,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
             scoreExplainerSeen={scoreExplainerSeen}
             setScoreExplainerSeen={setScoreExplainerSeen}
             setUserProfile={setUserProfile}
+            setShelfQuickAddOpen={setShelfQuickAddOpen}
             setShowTravelSetupModal={setShowTravelSetupModal}
           />
         )}
@@ -17597,6 +17598,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
         const todayLog = (regimenLogs || []).find(r => r.date === todayKey);
         const amIds = new Set((todayLog?.amProducts) || []);
         const pmIds = new Set((todayLog?.pmProducts) || []);
+        const deviceIdsUsed = new Set((todayLog?.devices) || []);
         const activeProductsList = (products || []).filter(p => !p.endDate);
         const filterMap = {
           all: null,
@@ -17610,6 +17612,44 @@ If the user references something not in their data ("started retinol 6 weeks ago
         };
         const q = shelfQuickAddSearch.trim().toLowerCase();
         const matchKeys = filterMap[shelfQuickAddFilter];
+        // === Recently-used map (June 2026 per Jenni) ===
+        // Walks the last 14 days of regimenLogs and counts how often each
+        // product appeared in am/pm slots. Products that show up recently +
+        // frequently float to the top of the shelf-quickadd list so the
+        // user can tap their staples in one tap. Items not used recently
+        // fall back to alphabetical order.
+        const recentUsage = (() => {
+          const map = new Map(); // id → { count, lastUsed }
+          const horizon = Date.now() - 14 * 86400000;
+          (regimenLogs || []).forEach(log => {
+            if (!log || !log.date) return;
+            const t = new Date(log.date + 'T00:00:00').getTime();
+            if (isNaN(t) || t < horizon) return;
+            const allIds = new Set([
+              ...((log.amProducts) || []),
+              ...((log.pmProducts) || []),
+              ...((log.amDone) || []),
+              ...((log.pmDone) || []),
+            ]);
+            allIds.forEach(id => {
+              const prev = map.get(id) || { count: 0, lastUsed: 0 };
+              map.set(id, { count: prev.count + 1, lastUsed: Math.max(prev.lastUsed, t) });
+            });
+          });
+          return map;
+        })();
+        const sortByRecency = (a, b) => {
+          const ar = recentUsage.get(a.id);
+          const br = recentUsage.get(b.id);
+          if (ar && !br) return -1;
+          if (!ar && br) return 1;
+          if (ar && br) {
+            // Most recently used first; tiebreak on frequency.
+            if (br.lastUsed !== ar.lastUsed) return br.lastUsed - ar.lastUsed;
+            if (br.count !== ar.count) return br.count - ar.count;
+          }
+          return (a.brand || a.name || '').localeCompare(b.brand || b.name || '');
+        };
         const visible = activeProductsList
           .filter(p => {
             if (!matchKeys) return true;
@@ -17620,7 +17660,27 @@ If the user references something not in their data ("started retinol 6 weeks ago
             if (!q) return true;
             return (p.brand || '').toLowerCase().includes(q) || (p.name || '').toLowerCase().includes(q);
           })
-          .sort((a, b) => (a.brand || a.name || '').localeCompare(b.brand || b.name || ''));
+          .sort(sortByRecency);
+        // === Devices (June 2026 per Jenni) ===
+        // User's homeDevices show up in the same sheet alongside products.
+        // Each device gets the same +AM / +PM toggle pair so they can be
+        // logged without leaving this flow. Devices are normalized into a
+        // product-shaped object so the existing row render works.
+        const deviceItems = (homeDevices || [])
+          .map(d => ({
+            id: d.id || `device-${(d.name || '').toLowerCase().replace(/\s+/g, '-')}`,
+            name: d.name || d.label || 'Device',
+            brand: d.brand || 'Device',
+            category: 'device',
+            isDevice: true,
+            displayName: d.displayName || d.name,
+          }))
+          .filter(d => {
+            if (q && !d.name.toLowerCase().includes(q) && !(d.brand || '').toLowerCase().includes(q)) return false;
+            if (matchKeys && shelfQuickAddFilter !== 'all') return false; // hide devices when filtered to a product category
+            return true;
+          })
+          .sort(sortByRecency);
 
         // === AUTO-SAVE TOGGLE ===
         // Mutates today's regimenLog directly. If today has no log yet, creates
@@ -17628,6 +17688,35 @@ If the user references something not in their data ("started retinol 6 weeks ago
         // the Edit Today modal if they want a "logged" check-in record). Persists
         // via saveData and triggers cover rebuild + product art generation so
         // bottles paint in if needed.
+        // === Device-use toggle (June 2026 per Jenni) ===
+        // Writes to today's regimenLog.devices array (single list, not
+        // AM/PM-split because the existing data model treats device usage
+        // as slot-agnostic). Tapping a device row in the shelf-quickadd
+        // sheet either adds or removes the device from today's log.
+        const toggleDeviceUse = (deviceId) => {
+          const baseLog = todayLog || {
+            id: Date.now(),
+            date: todayKey,
+            amProducts: [],
+            pmProducts: [],
+            amDone: [],
+            pmDone: [],
+            notes: '',
+            submitted: false,
+            devices: [],
+          };
+          const currentDevices = Array.isArray(baseLog.devices) ? baseLog.devices : [];
+          const isUsed = currentDevices.includes(deviceId);
+          const nextDevices = isUsed
+            ? currentDevices.filter(id => id !== deviceId)
+            : [...currentDevices, deviceId];
+          const nextLog = { ...baseLog, devices: nextDevices };
+          const next = (regimenLogs || []).some(r => r.date === todayKey)
+            ? (regimenLogs || []).map(r => r.date === todayKey ? nextLog : r)
+            : [nextLog, ...(regimenLogs || [])];
+          setRegimenLogs(next);
+          try { saveData('regimenLogs', next).catch(() => {}); } catch (_) {}
+        };
         const toggleSlot = (productId, slot) => {
           const slotKey = slot === 'am' ? 'amProducts' : 'pmProducts';
           const otherKey = slot === 'am' ? 'pmProducts' : 'amProducts';
@@ -17798,7 +17887,8 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     </div>
                   </div>
                 ) : (
-                  visible.map(p => {
+                  <>
+                  {visible.map(p => {
                     const inAm = amIds.has(p.id);
                     const inPm = pmIds.has(p.id);
                     const art = null;
@@ -17865,7 +17955,45 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         </div>
                       </div>
                     );
-                  })
+                  })}
+                  {/* === Devices (June 2026 per Jenni) ===
+                      Renders the user's homeDevices in the same sheet under
+                      a "Devices" eyebrow. Devices use a single +Use / ✓Used
+                      toggle because the data model stores them slot-agnostic
+                      (regimenLog.devices is a single array, not am/pm-split). */}
+                  {deviceItems.length > 0 && (
+                    <>
+                      <div className="text-[9px] tracking-[0.22em] uppercase mt-2 mb-1 px-3" style={{color:'var(--ink-soft)', fontWeight:700}}>Devices</div>
+                      {deviceItems.map(d => {
+                        const isUsed = deviceIdsUsed.has(d.id);
+                        return (
+                          <div key={d.id} className="quickadd-row">
+                            <div className="h-11 flex items-end justify-center overflow-hidden">
+                              <Icon name="Cpu" size={20} style={{color:'var(--ink-soft)'}} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-medium text-[13px] truncate" style={{color:'var(--ink)'}}>{d.name}</div>
+                              <div className="text-[10.5px] truncate" style={{color:'var(--ink-soft)'}}>Device</div>
+                            </div>
+                            <div className="flex gap-1.5 items-center justify-end">
+                              <button
+                                onClick={() => toggleDeviceUse(d.id)}
+                                className={'slot-toggle' + (isUsed ? ' added' : '')}
+                                type="button"
+                                title={isUsed ? 'Remove from today' : 'Mark as used today'}
+                                aria-label={isUsed ? `Remove ${d.name} from today` : `Mark ${d.name} used today`}
+                                aria-pressed={isUsed}
+                              >
+                                <Icon name={isUsed ? 'Check' : 'Plus'} size={11} />
+                                <span>{isUsed ? 'USED' : 'USE'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+                  </>
                 )}
               </div>
 
@@ -17892,15 +18020,18 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     for (const id of currentPm) if (!initial.pm.has(id)) changes++;
                     for (const id of initial.pm) if (!currentPm.has(id)) changes++;
                   }
+                  // June 2026 per Jenni: rename CTA to "Save to today's regimen"
+                  // for explicit closure. Each tap still auto-saves underneath;
+                  // this button is the visible Save anchor + close action.
                   const label = changes > 0
-                    ? `Done · ${changes} change${changes === 1 ? '' : 's'}`
-                    : 'Done';
+                    ? `Save to today · ${changes} change${changes === 1 ? '' : 's'}`
+                    : 'Save to today’s regimen';
                   return (
                     <button
                       onClick={closeSheet}
                       className="pill-primary"
                       type="button"
-                      aria-label={changes > 0 ? `Close shelf, ${changes} changes made` : 'Close shelf'}
+                      aria-label={changes > 0 ? `Save to today, ${changes} changes made` : 'Save to today\'s regimen'}
                     >
                       <Icon name="Check" size={13} />
                       <span>{label}</span>
