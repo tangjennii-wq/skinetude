@@ -90,6 +90,12 @@ const HomeDashboard = ({
   // the orphaned bottom-of-card link row that was duplicating top-nav
   // moves.
   const [coverHeroMenuOpen, setCoverHeroMenuOpen] = useState(false);
+  const persistRegimenLogs = (nextLogs, label) => {
+    saveData('regimenLogs', nextLogs).catch(e => {
+      console.error(`[home regimen ${label}] saveData failed:`, e);
+      toast(`Save error: ${e?.message || 'unknown'}`, 'error');
+    });
+  };
   // === PROCEDURE PROGRESS EXPORT (May 31 2026 per Jenni) ===
   // Ref attached to the Procedure Progress <section> so the kebab's
   // "Export / share" can render the card to a JPG via html2canvas
@@ -2793,7 +2799,7 @@ CRITICAL OUTPUT REQUIREMENTS:
           ? regimenLogs.map(r => r.date === viewDate ? next : r)
           : [next, ...(regimenLogs || [])];
         setRegimenLogs(newList);
-        saveData('regimenLogs', newList);
+        persistRegimenLogs(newList, 'repeat');
         setCoverRoutineRebuildToken(t => t + 1);
         const sourceLabel = repeatSourceLog === yesterdayCheckIn ? 'yesterday' : `last logged (${repeatSourceLog.date})`;
         toast(`Logged — same as ${sourceLabel} ✨`, 'info');
@@ -2803,7 +2809,7 @@ CRITICAL OUTPUT REQUIREMENTS:
       const undoRepeatYesterday = () => {
         const newList = (regimenLogs || []).filter(r => r.date !== viewDate);
         setRegimenLogs(newList);
-        saveData('regimenLogs', newList);
+        persistRegimenLogs(newList, 'undo-repeat');
         setCoverRoutineRebuildToken(t => t + 1);
         toast('Undone', 'info');
       };
@@ -3025,14 +3031,14 @@ CRITICAL OUTPUT REQUIREMENTS:
           };
           const newList = [...(regimenLogs || []), emptyLog];
           setRegimenLogs(newList);
-          saveData('regimenLogs', newList);
+          persistRegimenLogs(newList, 'clear-empty-slot');
           setCoverRoutineRebuildToken(t => t + 1);
           toast(`Cleared ${ritualSlot.toUpperCase()} for today`, 'info');
           return;
         }
         const newList = (regimenLogs || []).map(r => r.date === todayKeyLocal ? { ...r, [slotKey]: [] } : r);
         setRegimenLogs(newList);
-        saveData('regimenLogs', newList);
+        persistRegimenLogs(newList, 'clear-slot');
         setCoverRoutineRebuildToken(t => t + 1);
         toast(`Cleared ${ritualSlot.toUpperCase()} routine`, 'info');
       };
@@ -3053,14 +3059,14 @@ CRITICAL OUTPUT REQUIREMENTS:
           };
           const newList = [...(regimenLogs || []), newLog];
           setRegimenLogs(newList);
-          saveData('regimenLogs', newList);
+          persistRegimenLogs(newList, 'restore-empty-slot');
           setCoverRoutineRebuildToken(t => t + 1);
           toast(`Restored ${ritualSlot.toUpperCase()} from your weekly plan`, 'info');
           return;
         }
         const newList = (regimenLogs || []).map(r => r.date === todayKeyLocal ? { ...r, [slotKey]: patIds } : r);
         setRegimenLogs(newList);
-        saveData('regimenLogs', newList);
+        persistRegimenLogs(newList, 'restore-slot');
         setCoverRoutineRebuildToken(t => t + 1);
         toast(`Restored ${ritualSlot.toUpperCase()} from your weekly plan`, 'info');
       };
@@ -3239,7 +3245,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                               ? (regimenLogs || []).map(r => r.date === todayStr ? log : r)
                               : [log, ...(regimenLogs || [])];
                             setRegimenLogs(nextLogs);
-                            saveData('regimenLogs', nextLogs);
+                            persistRegimenLogs(nextLogs, 'fill-scheduled');
                             setCoverRoutineRebuildToken(t => t + 1);
                             toast('Filled in from your schedule ✨', 'success');
                           } catch (e) {
@@ -3510,7 +3516,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                           ? regimenLogs.map(r => r.date === viewDate ? updatedLog : r)
                           : [updatedLog, ...regimenLogs];
                         setRegimenLogs(next);
-                        saveData('regimenLogs', next).catch(() => {});
+                        persistRegimenLogs(next, 'toggle-product-done');
                       }}
                     />
                   </div>
@@ -3823,7 +3829,7 @@ CRITICAL OUTPUT REQUIREMENTS:
               const next = regimenLogs.map(r => r.date === viewDate ? nextLog : r);
               setRegimenLogs(next);
               setCoverRoutineRebuildToken(t => t + 1);
-              saveData('regimenLogs', next).catch(() => {});
+              persistRegimenLogs(next, 'undo-slot-log');
               toast(`${ctaSlot.toUpperCase()} log undone`, 'info');
             };
             const buildStandingRoutine = () => {
@@ -3852,14 +3858,14 @@ CRITICAL OUTPUT REQUIREMENTS:
                 };
                 const next = [newLog, ...(regimenLogs || [])];
                 setRegimenLogs(next);
-                saveData('regimenLogs', next);
+                persistRegimenLogs(next, 'restore-empty-cta-slot');
                 setCoverRoutineRebuildToken(t => t + 1);
                 toast(`Restored ${ctaSlot.toUpperCase()} from your weekly plan`, 'info');
                 return;
               }
               const next = (regimenLogs || []).map(r => r.date === viewDate ? { ...r, [slotKey]: patIds } : r);
               setRegimenLogs(next);
-              saveData('regimenLogs', next);
+              persistRegimenLogs(next, 'restore-cta-slot');
               setCoverRoutineRebuildToken(t => t + 1);
               toast(`Restored ${ctaSlot.toUpperCase()} from your weekly plan`, 'info');
             };

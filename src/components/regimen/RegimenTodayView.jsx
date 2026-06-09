@@ -39,6 +39,12 @@ const RegimenTodayView = ({
   const [mechExpandedForRow, setMechExpandedForRow] = useState({});
   const [evidenceExpandedForRow, setEvidenceExpandedForRow] = useState({});
   const [ritualActionsOpen, setRitualActionsOpen] = useState(false);
+  const persistRegimenLogs = (nextLogs, label) => {
+    saveData('regimenLogs', nextLogs).catch(e => {
+      console.error(`[regimen today ${label}] saveData failed:`, e);
+      toast(`Save error: ${e?.message || 'unknown'}`, 'error');
+    });
+  };
   return (() => {
   const todayKey = localDateISO();
   // ritualViewDate drives which day's regimen we show + edit.
@@ -176,7 +182,7 @@ const RegimenTodayView = ({
       submitted: true};
     const newList = [next, ...(regimenLogs || [])];
     setRegimenLogs(newList);
-    saveData('regimenLogs', newList);
+    persistRegimenLogs(newList, 'repeat-yesterday');
     setCoverRoutineRebuildToken(t => t + 1);
     toast('Logged — same as yesterday ✨', 'info');
   };
@@ -187,7 +193,7 @@ const RegimenTodayView = ({
   const undoRepeatYesterday = () => {
     const newList = (regimenLogs || []).filter(r => r.date !== todayKey);
     setRegimenLogs(newList);
-    saveData('regimenLogs', newList);
+    persistRegimenLogs(newList, 'undo-repeat');
     setCoverRoutineRebuildToken(t => t + 1);
     toast('Cleared today’s routine ✨', 'info');
   };
@@ -216,7 +222,7 @@ const RegimenTodayView = ({
         submitted: false};
       const newList = [...(regimenLogs || []), emptyLog];
       setRegimenLogs(newList);
-      saveData('regimenLogs', newList);
+      persistRegimenLogs(newList, 'clear-empty-slot');
       setCoverRoutineRebuildToken(t => t + 1);
       toast(`Cleared ${slot.toUpperCase()} for today`, 'info');
       return;
@@ -226,7 +232,7 @@ const RegimenTodayView = ({
       return { ...r, [slotKey]: [] };
     });
     setRegimenLogs(newList);
-    saveData('regimenLogs', newList);
+    persistRegimenLogs(newList, 'clear-slot');
     setCoverRoutineRebuildToken(t => t + 1);
     toast(`Cleared ${slot.toUpperCase()} routine`, 'info');
   };
@@ -263,7 +269,7 @@ const RegimenTodayView = ({
         submitted: false};
       const newList = [...(regimenLogs || []), newLog];
       setRegimenLogs(newList);
-      saveData('regimenLogs', newList);
+      persistRegimenLogs(newList, 'restore-new-slot');
       setCoverRoutineRebuildToken(t => t + 1);
       toast(`Restored ${slot.toUpperCase()} from your weekly plan`, 'info');
       return;
@@ -273,7 +279,7 @@ const RegimenTodayView = ({
       return { ...r, [slotKey]: patSlotIds };
     });
     setRegimenLogs(newList);
-    saveData('regimenLogs', newList);
+    persistRegimenLogs(newList, 'restore-slot');
     setCoverRoutineRebuildToken(t => t + 1);
     toast(`Restored ${slot.toUpperCase()} from your weekly plan`, 'info');
   };
@@ -314,7 +320,7 @@ const RegimenTodayView = ({
       ? (regimenLogs || []).map(r => r.date === viewDate ? nextLog : r)
       : [nextLog, ...(regimenLogs || [])];
     setRegimenLogs(next);
-    saveData('regimenLogs', next);
+    persistRegimenLogs(next, 'skip-slot');
     setCoverRoutineRebuildToken(t => t + 1);
     toast(`${slot.toUpperCase()} regimen logged`, 'success');
   };
@@ -356,10 +362,7 @@ const RegimenTodayView = ({
       : [nextLog, ...(regimenLogs || [])];
     setRegimenLogs(next);
     setCoverRoutineRebuildToken(t => t + 1);
-    saveData('regimenLogs', next).catch(e => {
-      console.error('[regimen today quick-log] saveData failed:', e);
-      toast(`Save error: ${e?.message || 'unknown'}`, 'error');
-    });
+    persistRegimenLogs(next, 'quick-log');
     toast(`${ritualSlot.toUpperCase()} regimen logged`, 'success');
   };
   const undoActiveSlotLog = () => {
@@ -375,7 +378,7 @@ const RegimenTodayView = ({
     const next = (regimenLogs || []).map(r => r.date === viewDate ? nextLog : r);
     setRegimenLogs(next);
     setCoverRoutineRebuildToken(t => t + 1);
-    saveData('regimenLogs', next).catch(() => {});
+    persistRegimenLogs(next, 'undo-slot-log');
     toast(`${ritualSlot.toUpperCase()} log undone`, 'info');
   };
 

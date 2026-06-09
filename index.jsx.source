@@ -5025,10 +5025,6 @@ function App() {
   }, [showLauncher]);
   const [launcherInput, setLauncherInput] = useState('');
   const [launcherLoading, setLauncherLoading] = useState(false);
-  // Today's Regimen popup
-  const [showTodaysRegimen, setShowTodaysRegimen] = useState(false);
-  const [sampleRegimenConcern, setSampleRegimenConcern] = useState('redness');
-
   // Toast helper
   // Dedupe registry — keyed by message text, value is timestamp. Same toast
   // within 2s is silently dropped (kills "Build routine" / "Saved" stacks of
@@ -7263,7 +7259,6 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
       else if (showSupabaseModal) { setShowSupabaseModal(false); handled = true; }
       else if (showYouModal) { setShowYouModal(false); handled = true; }
       else if (showBulkUploadModal) { setShowBulkUploadModal(false); handled = true; }
-      else if (showTodaysRegimen) { setShowTodaysRegimen(false); handled = true; }
       else if (showLauncher) { setShowLauncher(false); handled = true; }
       else if (skinReadDrawerLogId) { setSkinReadDrawerLogId(null); handled = true; }
       else if (ritualSuggestSheet) { setRitualSuggestSheet(null); handled = true; }
@@ -7287,7 +7282,7 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
   }, [
     showProductModal, showLogModal, showCheckInModal, showProcedureModal, showProfileModal,
     showEventModal, showColorModal, showApiKeyModalRaw, showSupabaseModal, showYouModal,
-    showBulkUploadModal, showTodaysRegimen, showLauncher,
+    showBulkUploadModal, showLauncher,
     skinReadDrawerLogId, ritualSuggestSheet, addRitualSheet, editRegimenShelfOpen, shelfQuickAddOpen, ritualDaySheet,
     productCompareId, journalDayDetail, openLesson, chatPanel, showCoverPickerForDate,
     activeTab,
@@ -8967,173 +8962,6 @@ Pick the SINGLE most accurate level per metric. Use the exact capitalized word. 
   // === API KEY MODAL ===
 
   // === SUPABASE CONFIG MODAL ===
-
-  // === TODAY'S REGIMEN MODAL ===
-  // Shows the user's AM/PM regimen for TODAY only — pulled from the built
-  // weekly rotation, NOT every product on the shelf. If no log + no built
-  // pattern, surfaces empty state so the user knows to build first.
-  // BUG FIX May 2026: previous filter (`p.frequency !== 'pm-only'`) showed
-  // EVERY active product unless explicitly tagged pm-only — so a user with
-  // 18 products on shelf saw all 18 in their AM list. New filter respects
-  // cadence.days for today's DoW + useTimes per slot.
-  const TodaysRegimenModal = () => {
-    const activeProducts = products.filter(p => !p.endDate);
-    const todayDOW = new Date().getDay();
-    const todayKey = localDateISO();
-    const todayLog = (regimenLogs || []).find(r => r.date === todayKey);
-    const productById = Object.fromEntries(activeProducts.map(p => [p.id, p]));
-    // Source priority: today's log → built pattern → empty.
-    let amProducts, pmProducts;
-    if (todayLog) {
-      amProducts = (todayLog.amProducts || []).map(id => productById[id]).filter(Boolean);
-      pmProducts = (todayLog.pmProducts || []).map(id => productById[id]).filter(Boolean);
-    } else if (userHasBuiltPattern(products)) {
-      const pat = getProductsForTodayFromPattern(activeProducts, todayDOW);
-      amProducts = pat.am;
-      pmProducts = pat.pm;
-    } else {
-      amProducts = [];
-      pmProducts = [];
-    }
-    const hasProducts = amProducts.length > 0 || pmProducts.length > 0;
-
-    // Sample regimens by primary concern — category-level recommendations
-    const samples = {
-      redness: {
-        label: 'Redness / sensitive',
-        am: ['Gentle non-foaming cleanser', 'Niacinamide 5%', 'Ceramide moisturizer', 'Mineral SPF 30+ (zinc oxide)'],
-        pm: ['Gentle cleanser', 'Centella or beta-glucan calming layer', 'Ceramide moisturizer'],
-        note: 'Avoid retinoids and acids during active flare. Reintroduce slowly once skin is calm.',
-      },
-      dryness: {
-        label: 'Dryness',
-        am: ['Cream cleanser', 'Hyaluronic acid serum (apply to damp skin)', 'Ceramide-rich moisturizer', 'Mineral SPF 30+'],
-        pm: ['Cream cleanser', 'Squalane or oil-based emollient', 'Ceramide moisturizer + occlusive (slugging) for severe dryness'],
-        note: 'Reduce hot showers and over-cleansing. Humidifier in low-humidity environments helps more than another product.',
-      },
-      acne: {
-        label: 'Active breakouts',
-        am: ['Salicylic acid 2% wash (60-second contact)', 'Niacinamide 5%', 'Lightweight moisturizer', 'Non-comedogenic SPF 30+'],
-        pm: ['Salicylic acid wash or gentle cleanser', 'Adapalene 0.1% (or tretinoin if Rx)', 'Light moisturizer'],
-        note: 'BPO 2.5% wash 2–3x/week if inflammatory acne. Cortisone injection for stubborn cysts beats any spot treatment.',
-      },
-      hyperpigmentation: {
-        label: 'Dark spots / melasma',
-        am: ['Gentle cleanser', 'Vitamin C 15–20%', 'Niacinamide 5%', 'Ceramide moisturizer', 'Tinted mineral SPF (iron oxides for visible-light protection)'],
-        pm: ['Gentle cleanser', 'Tranexamic acid 3–5% or alpha arbutin 2%', 'Retinoid (tretinoin or adapalene)', 'Ceramide moisturizer'],
-        note: 'Tinted SPF is non-negotiable — visible light drives melasma; untinted SPF doesn\'t block it.',
-      },
-      antiaging: {
-        label: 'Fine lines / photoaging',
-        am: ['Gentle cleanser', 'Vitamin C 15–20% (L-ascorbic acid + E + ferulic)', 'Ceramide moisturizer', 'Broad-spectrum SPF 30+'],
-        pm: ['Gentle cleanser', 'Tretinoin 0.025–0.05% or adapalene 0.1% (build tolerance gradually)', 'Ceramide-rich moisturizer'],
-        note: 'Consistency dominates intensity. Daily sunscreen + nightly retinoid + vitamin C in AM is the four-pillar stack.',
-      },
-    };
-    const concernOpts = Object.keys(samples);
-    const active = samples[sampleRegimenConcern] || samples.redness;
-
-    return (
-      <Modal eyebrow="Check-in" title="Today's regimen" onClose={() => setShowTodaysRegimen(false)}>
-        {hasProducts ? (
-          <div className="space-y-6">
-            <p className="text-sm font-light italic" style={{color:'var(--ink-soft)'}}>Your active products, organized for AM and PM. Use this as your daily reference.</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <div className="flex items-center gap-2 mb-3"><Icon name="Sun" size={14} /><div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Morning</div></div>
-                {amProducts.length === 0 ? (
-                  <p className="text-sm font-light italic" style={{color:'var(--ink-soft)'}}>No AM products yet.</p>
-                ) : (
-                  <ol className="space-y-2 text-sm" style={{color:'var(--ink)'}}>
-                    {amProducts.map((p, i) => (
-                      <li key={p.id} className="flex gap-3">
-                        <span className="text-[10px] tracking-[0.2em] uppercase mt-1.5 flex-shrink-0" style={{color:'var(--ink-soft)'}}>{i + 1}</span>
-                        <div>
-                          <div className="font-serif italic text-base" style={{color:'var(--ink)'}}>{p.brand || p.name}</div>
-                          {p.brand && p.name && p.brand !== p.name && (
-                            <div className="text-[11px]" style={{color:'var(--ink-soft)'}}>{p.name}</div>
-                          )}
-                          <div className="text-xs font-light" style={{color:'var(--ink-soft)'}}>{p.category}{p.activeIngredients ? ` · ${p.activeIngredients}` : ''}</div>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-3"><Icon name="Moon" size={14} /><div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Evening</div></div>
-                {pmProducts.length === 0 ? (
-                  <p className="text-sm font-light italic" style={{color:'var(--ink-soft)'}}>No PM products yet.</p>
-                ) : (
-                  <ol className="space-y-2 text-sm" style={{color:'var(--ink)'}}>
-                    {pmProducts.map((p, i) => (
-                      <li key={p.id} className="flex gap-3">
-                        <span className="text-[10px] tracking-[0.2em] uppercase mt-1.5 flex-shrink-0" style={{color:'var(--ink-soft)'}}>{i + 1}</span>
-                        <div>
-                          <div className="font-serif italic text-base" style={{color:'var(--ink)'}}>{p.brand || p.name}</div>
-                          {p.brand && p.name && p.brand !== p.name && (
-                            <div className="text-[11px]" style={{color:'var(--ink-soft)'}}>{p.name}</div>
-                          )}
-                          <div className="text-xs font-light" style={{color:'var(--ink-soft)'}}>{p.category}{p.activeIngredients ? ` · ${p.activeIngredients}` : ''}</div>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-            </div>
-            <div className="pt-4 border-t flex flex-wrap gap-3 items-center justify-between" style={{borderColor: 'var(--line)'}}>
-              <p className="text-xs font-light italic" style={{color:'var(--ink-soft)'}}>Want a tailored AI-ordered routine?</p>
-              <button onClick={() => { setShowTodaysRegimen(false); setActiveTab('regimen'); setRegimenView('today'); }} className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1" style={{color:'var(--ink)', borderBottom:'1px dotted var(--ink)'}}>
-                Build full routine <Icon name="ArrowRight" size={11} />
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-5">
-            <p className="text-sm font-light italic" style={{color:'var(--ink-soft)'}}>You haven't added products to your shelf yet. Pick a primary concern below to see a defensible category-level starter routine, or add your real products and we'll build around those.</p>
-            <div className="flex flex-wrap gap-2">
-              {concernOpts.map(c => (
-                <button key={c} onClick={() => setSampleRegimenConcern(c)} className="text-[11px] tracking-[0.15em] uppercase px-3 py-1.5 border transition" style={{
-                  background: sampleRegimenConcern === c ? 'var(--ink)' : 'transparent',
-                  color: sampleRegimenConcern === c ? 'var(--cream)' : 'var(--ink-soft)',
-                  borderColor: sampleRegimenConcern === c ? 'var(--ink)' : 'var(--line)'
-                }}>{samples[c].label}</button>
-              ))}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-              <div>
-                <div className="flex items-center gap-2 mb-3"><Icon name="Sun" size={14} /><div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Morning</div></div>
-                <ol className="space-y-2.5 text-sm" style={{color:'var(--ink)'}}>
-                  {active.am.map((step, i) => (
-                    <li key={i} className="flex gap-3">
-                      <span className="text-[10px] tracking-[0.2em] uppercase mt-1.5 flex-shrink-0" style={{color:'var(--ink-soft)'}}>{i + 1}</span>
-                      <span className="font-serif italic text-base leading-snug">{step}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-3"><Icon name="Moon" size={14} /><div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Evening</div></div>
-                <ol className="space-y-2.5 text-sm" style={{color:'var(--ink)'}}>
-                  {active.pm.map((step, i) => (
-                    <li key={i} className="flex gap-3">
-                      <span className="text-[10px] tracking-[0.2em] uppercase mt-1.5 flex-shrink-0" style={{color:'var(--ink-soft)'}}>{i + 1}</span>
-                      <span className="font-serif italic text-base leading-snug">{step}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            </div>
-            <div className="border-l-2 pl-4 py-1" style={{borderColor:'var(--ink)'}}>
-              <p className="text-xs font-light italic leading-relaxed" style={{color:'var(--ink)'}}>{active.note}</p>
-            </div>
-            <button onClick={() => { setShowTodaysRegimen(false); setShowProductModal(true); }} className="w-full py-3 tracking-[0.2em] text-[10px] uppercase transition" style={{background:'var(--ink)', color:'var(--cream)'}}>Add your first product</button>
-          </div>
-        )}
-      </Modal>
-    );
-  };
 
   // === YOU MODAL (profile — hormonal context, cycle data, color profile) ===
   // (Clinical Skin Profile wizard moved May 2026 to
@@ -19245,7 +19073,10 @@ If the user references something not in their data ("started retinol 6 weeks ago
             ? (regimenLogs || []).map(r => r.date === dateISO ? next : r)
             : [next, ...(regimenLogs || [])];
           setRegimenLogs(newList);
-          saveData('regimenLogs', newList);
+          saveData('regimenLogs', newList).catch(e => {
+            console.error('[regimen suggestion apply] saveData failed:', e);
+            toast(`Save error: ${e?.message || 'unknown'}`, 'error');
+          });
           setCoverRoutineRebuildToken(t => t + 1);
           const msg = addedCount === 0
             ? 'Already in your routine'
@@ -19892,7 +19723,10 @@ If the user references something not in their data ("started retinol 6 weeks ago
               }, ...(regimenLogs || [])];
             }
             setRegimenLogs(next);
-            saveData('regimenLogs', next);
+            saveData('regimenLogs', next).catch(e => {
+              console.error('[add regimen sheet] saveData failed:', e);
+              toast(`Save error: ${e?.message || 'unknown'}`, 'error');
+            });
             setCoverRoutineRebuildToken(t => t + 1);
             toast(`Added to ${slotContext.toUpperCase()}`, 'info');
             if (!addRitualKeepOpen) setAddRitualSheet(null);
@@ -20810,7 +20644,6 @@ If the user references something not in their data ("started retinol 6 weeks ago
         );
       })()}
 
-      {showTodaysRegimen && <TodaysRegimenModal />}
       {showSearch && <SearchModal />}
       {/* === GEMINI WORK STAYS SILENT IN UI ===
           The product art floating chip was removed. Per Jenni: no
