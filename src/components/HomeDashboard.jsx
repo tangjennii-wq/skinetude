@@ -3964,23 +3964,64 @@ CRITICAL OUTPUT REQUIREMENTS:
                     </button>
                   </>
                 ) : (
+                  // === Commit-pill-first layout (June 2026 per Jenni) ===
+                  // Standalone full-width commit pill with circle indicator
+                  // that fills as the user marks more rows done. Bottom grid
+                  // is the edit-actions pair (Shelf + Used something else?).
+                  // Was a crowded 3-button layout where commit + add + add
+                  // shared real estate. Splitting commit (decisive action)
+                  // from add (modifying action) reads cleaner.
                   <div className="mt-3 space-y-2">
+                    {(() => {
+                      const allDone = totalCount > 0 && doneCount === totalCount;
+                      const partialDone = doneCount > 0 && doneCount < totalCount;
+                      const circleFill = slotSubmitted ? 'var(--accent-blue)'
+                        : allDone ? 'var(--accent)'
+                        : 'transparent';
+                      const circleIconName = (slotSubmitted || allDone) ? 'Check' : null;
+                      const circleBorder = slotSubmitted ? 'var(--accent-blue)'
+                        : allDone ? 'var(--accent)'
+                        : 'rgba(255,255,255,0.85)';
+                      return (
+                        <button
+                          type="button"
+                          onClick={slotSubmitted ? undoSlotLog : logRitualNow}
+                          className="w-full rounded-full py-3 px-4 flex items-center justify-center gap-2 transition hover:opacity-90"
+                          style={{
+                            background: slotSubmitted ? 'var(--cream-deep)' : 'var(--accent)',
+                            color: slotSubmitted ? 'var(--ink)' : 'var(--cream)',
+                            border: '1px solid ' + (slotSubmitted ? 'var(--line)' : 'var(--accent)'),
+                            fontWeight: 700, fontSize: 12.5, letterSpacing: '0.02em', cursor: 'pointer',
+                          }}
+                          title={slotSubmitted
+                            ? `Tap to undo today's ${ctaSlot.toUpperCase()} commit`
+                            : (allDone ? `Save ${ctaSlot.toUpperCase()} — all done` : `Save ${ctaSlot.toUpperCase()} (${doneCount}/${totalCount} done)`)}
+                          aria-label={slotSubmitted ? `${ctaSlot.toUpperCase()} logged today, tap to undo` : `Save ${ctaSlot.toUpperCase()} regimen`}
+                        >
+                          <span
+                            className="inline-flex items-center justify-center flex-shrink-0"
+                            style={{
+                              width: 16, height: 16, borderRadius: '50%',
+                              background: circleFill,
+                              border: '1.5px solid ' + circleBorder,
+                              color: (slotSubmitted || allDone) ? 'var(--cream)' : 'transparent',
+                            }}
+                          >
+                            {circleIconName && <Icon name={circleIconName} size={9} strokeWidth={3} />}
+                          </span>
+                          <span className="truncate">
+                            {slotSubmitted
+                              ? `Done today · undo`
+                              : allDone
+                                ? `Save ${ctaSlot.toUpperCase()} · all done`
+                                : partialDone
+                                  ? `Save ${doneCount}/${totalCount}`
+                                  : `Yes, I did ${ctaSlot.toUpperCase()}`}
+                          </span>
+                        </button>
+                      );
+                    })()}
                     <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={slotSubmitted ? undoSlotLog : logRitualNow}
-                        className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:opacity-90"
-                        style={{
-                          background: slotSubmitted ? 'var(--cream-deep)' : 'var(--accent)',
-                          color: slotSubmitted ? 'var(--ink)' : 'var(--cream)',
-                          border: '1px solid ' + (slotSubmitted ? 'var(--line)' : 'var(--accent)'),
-                          fontWeight:700, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'
-                        }}
-                        title={slotSubmitted ? `Undo today's ${ctaSlot.toUpperCase()} log` : `Log ${ctaSlot.toUpperCase()} regimen`}
-                        type="button"
-                      >
-                        <Icon name={ctaIcon} size={12} />
-                        <span className="truncate">{ctaLabel}</span>
-                      </button>
                       {/* === June 2026 (per Jenni): direct Shelf entry ===
                           Most users adding to today are adding from their own
                           shelf. Was 3 taps (Something else? → From shelf →
@@ -3996,17 +4037,17 @@ CRITICAL OUTPUT REQUIREMENTS:
                         <Icon name="Layers" size={12} />
                         <span className="truncate">Shelf</span>
                       </button>
+                      <button
+                        onClick={() => setUsedSomethingElseSheet({ open: true, slot: ctaSlot, date: viewDate })}
+                        className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)]"
+                        style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'}}
+                        title="Add a one-off product, procedure, supplement, or note for today only"
+                        type="button"
+                      >
+                        <Icon name="Plus" size={12} />
+                        <span className="truncate">Something else?</span>
+                      </button>
                     </div>
-                    <button
-                      onClick={() => setUsedSomethingElseSheet({ open: true, slot: ctaSlot, date: viewDate })}
-                      className="w-full rounded-full py-2.5 px-3 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)]"
-                      style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'}}
-                      title="Add a one-off product, procedure, supplement, or note for today only"
-                      type="button"
-                    >
-                      <Icon name="Plus" size={12} />
-                      <span className="truncate">Something else?</span>
-                    </button>
                   </div>
                 )}
                 {/* === REFINE ROUTINE LINK (June 2026 per Jenni — bottom right) ===
