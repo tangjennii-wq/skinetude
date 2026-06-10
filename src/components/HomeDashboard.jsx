@@ -3489,64 +3489,6 @@ CRITICAL OUTPUT REQUIREMENTS:
                   step" path is two taps (skip + save). The previous
                   model required the user to check every row before
                   saving, which collapsed the daily-execution loop. */}
-              {/* === Top commit pill (June 2026 per Jenni) ===
-                  Was a redundant section eyebrow ("AM REGIMEN") + a
-                  commit button in the bottom row. Consolidated: the
-                  spot above the product list now IS the commit action.
-                  Context-aware: shows a circle indicator that fills as
-                  the user marks more done, transforming into a check
-                  when fully complete. Submitted state shows a muted
-                  "Done today · undo" pill so the user can recover. */}
-              {!isEmptySlot && (() => {
-                const allDone = totalCount > 0 && doneCount === totalCount;
-                const partialDone = doneCount > 0 && doneCount < totalCount;
-                const circleColor = slotSubmitted ? 'var(--accent-blue)'
-                  : allDone ? 'var(--accent)'
-                  : partialDone ? 'var(--accent)'
-                  : 'var(--ink-soft)';
-                const circleFill = slotSubmitted ? 'var(--accent-blue)'
-                  : allDone ? 'var(--accent)'
-                  : 'transparent';
-                const circleIcon = slotSubmitted || allDone ? 'Check' : null;
-                return (
-                  <button
-                    type="button"
-                    onClick={slotSubmitted ? undoSlotLog : logRitualNow}
-                    className="w-full rounded-full py-2.5 px-4 mb-3 flex items-center justify-center gap-2 transition hover:opacity-90"
-                    style={{
-                      background: slotSubmitted ? 'var(--cream-deep)' : 'var(--accent)',
-                      color: slotSubmitted ? 'var(--ink)' : 'var(--cream)',
-                      border: '1px solid ' + (slotSubmitted ? 'var(--line)' : 'var(--accent)'),
-                      fontWeight: 700, fontSize: 12.5, letterSpacing: '0.02em', cursor: 'pointer',
-                    }}
-                    title={slotSubmitted
-                      ? `Tap to undo today's ${ctaSlot.toUpperCase()} commit`
-                      : (allDone ? `Save ${ctaSlot.toUpperCase()} — all done` : `Save ${ctaSlot.toUpperCase()} (${doneCount}/${totalCount} done)`)}
-                    aria-label={slotSubmitted ? `${ctaSlot.toUpperCase()} logged today, tap to undo` : `Save ${ctaSlot.toUpperCase()} regimen`}
-                  >
-                    <span
-                      className="inline-flex items-center justify-center flex-shrink-0"
-                      style={{
-                        width: 16, height: 16, borderRadius: '50%',
-                        background: circleFill,
-                        border: '1.5px solid ' + (slotSubmitted ? 'var(--accent-blue)' : (allDone ? 'var(--accent)' : 'rgba(255,255,255,0.85)')),
-                        color: slotSubmitted ? 'var(--cream)' : (allDone ? 'var(--cream)' : 'transparent'),
-                      }}
-                    >
-                      {circleIcon && <Icon name={circleIcon} size={9} strokeWidth={3} />}
-                    </span>
-                    <span className="truncate">
-                      {slotSubmitted
-                        ? `Done today · undo`
-                        : allDone
-                          ? `Save ${ctaSlot.toUpperCase()} · all done`
-                          : partialDone
-                            ? `Save ${doneCount}/${totalCount}`
-                            : `Yes, I did ${ctaSlot.toUpperCase()}`}
-                    </span>
-                  </button>
-                );
-              })()}
               {(() => {
                 // === DONE TRACKING (May 29 2026 per Jenni) ===
                 // Circles now reflect explicit DONE state (not "absent
@@ -4022,28 +3964,42 @@ CRITICAL OUTPUT REQUIREMENTS:
                     </button>
                   </>
                 ) : (
-                  // Non-empty slot: edit-actions row only. Commit pill now
-                  // lives ABOVE the product list (June 2026 per Jenni) so
-                  // this row is clean two-button: Shelf + Used something else.
-                  <div className="grid grid-cols-2 gap-2 mt-3">
-                    {/* === June 2026 (per Jenni): direct Shelf entry ===
-                        Most users adding to today are adding from their own
-                        shelf. Was 3 taps (Something else? → From shelf →
-                        +AM/+PM); now 1 tap → opens the shelf-quickadd sheet
-                        directly with the current slot pre-set. */}
-                    <button
-                      onClick={() => { if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen({ open: true, slot: ctaSlot, date: viewDate }); }}
-                      className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:opacity-90"
-                      style={{background:'var(--accent)', color:'var(--cream)', border:'1px solid var(--accent)', fontWeight:700, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'}}
-                      title="Quick-add from your shelf or devices to today"
-                      type="button"
-                    >
-                      <Icon name="Layers" size={12} />
-                      <span className="truncate">Shelf</span>
-                    </button>
+                  <div className="mt-3 space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={slotSubmitted ? undoSlotLog : logRitualNow}
+                        className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:opacity-90"
+                        style={{
+                          background: slotSubmitted ? 'var(--cream-deep)' : 'var(--accent)',
+                          color: slotSubmitted ? 'var(--ink)' : 'var(--cream)',
+                          border: '1px solid ' + (slotSubmitted ? 'var(--line)' : 'var(--accent)'),
+                          fontWeight:700, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'
+                        }}
+                        title={slotSubmitted ? `Undo today's ${ctaSlot.toUpperCase()} log` : `Log ${ctaSlot.toUpperCase()} regimen`}
+                        type="button"
+                      >
+                        <Icon name={ctaIcon} size={12} />
+                        <span className="truncate">{ctaLabel}</span>
+                      </button>
+                      {/* === June 2026 (per Jenni): direct Shelf entry ===
+                          Most users adding to today are adding from their own
+                          shelf. Was 3 taps (Something else? → From shelf →
+                          +AM/+PM); now 1 tap → opens the shelf-quickadd sheet
+                          directly with the current slot pre-set. */}
+                      <button
+                        onClick={() => { if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen({ open: true, slot: ctaSlot, date: viewDate }); }}
+                        className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:opacity-90"
+                        style={{background:'var(--accent)', color:'var(--cream)', border:'1px solid var(--accent)', fontWeight:700, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'}}
+                        title="Quick-add from your shelf or devices to today"
+                        type="button"
+                      >
+                        <Icon name="Layers" size={12} />
+                        <span className="truncate">Shelf</span>
+                      </button>
+                    </div>
                     <button
                       onClick={() => setUsedSomethingElseSheet({ open: true, slot: ctaSlot, date: viewDate })}
-                      className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)]"
+                      className="w-full rounded-full py-2.5 px-3 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)]"
                       style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'}}
                       title="Add a one-off product, procedure, supplement, or note for today only"
                       type="button"
