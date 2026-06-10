@@ -923,9 +923,12 @@ const RegimenTodayView = ({
           }
           return (
             <div className="mb-3">
-              <div className="text-[9px] tracking-[0.3em] uppercase mb-1.5 flex items-baseline justify-between" style={{color:'var(--ink-soft)'}}>
-                <span>{ritualSlot.toUpperCase()} regimen</span>
-                <span className="font-sans text-[10px] normal-case tracking-normal" style={{color:'var(--ink-soft)'}}>{slotList.length}</span>
+              {/* === June 2026 (per Jenni): redundant eyebrow retired ===
+                  The "AM regimen" / "PM regimen" eyebrow duplicated the
+                  AM/PM segmented toggle two lines above. The product count
+                  pill moves to the top-right of the list container instead. */}
+              <div className="text-[10px] mb-1.5 flex items-baseline justify-end" style={{color:'var(--ink-soft)'}}>
+                <span className="font-sans">{slotList.length} products</span>
               </div>
               <div className="regimen-shelf-list">
                 {slotList.map((p, i) => {

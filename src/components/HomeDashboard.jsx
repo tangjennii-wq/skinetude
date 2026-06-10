@@ -3489,6 +3489,64 @@ CRITICAL OUTPUT REQUIREMENTS:
                   step" path is two taps (skip + save). The previous
                   model required the user to check every row before
                   saving, which collapsed the daily-execution loop. */}
+              {/* === Top commit pill (June 2026 per Jenni) ===
+                  Was a redundant section eyebrow ("AM REGIMEN") + a
+                  commit button in the bottom row. Consolidated: the
+                  spot above the product list now IS the commit action.
+                  Context-aware: shows a circle indicator that fills as
+                  the user marks more done, transforming into a check
+                  when fully complete. Submitted state shows a muted
+                  "Done today · undo" pill so the user can recover. */}
+              {!isEmptySlot && (() => {
+                const allDone = totalCount > 0 && doneCount === totalCount;
+                const partialDone = doneCount > 0 && doneCount < totalCount;
+                const circleColor = slotSubmitted ? 'var(--accent-blue)'
+                  : allDone ? 'var(--accent)'
+                  : partialDone ? 'var(--accent)'
+                  : 'var(--ink-soft)';
+                const circleFill = slotSubmitted ? 'var(--accent-blue)'
+                  : allDone ? 'var(--accent)'
+                  : 'transparent';
+                const circleIcon = slotSubmitted || allDone ? 'Check' : null;
+                return (
+                  <button
+                    type="button"
+                    onClick={slotSubmitted ? undoSlotLog : logRitualNow}
+                    className="w-full rounded-full py-2.5 px-4 mb-3 flex items-center justify-center gap-2 transition hover:opacity-90"
+                    style={{
+                      background: slotSubmitted ? 'var(--cream-deep)' : 'var(--accent)',
+                      color: slotSubmitted ? 'var(--ink)' : 'var(--cream)',
+                      border: '1px solid ' + (slotSubmitted ? 'var(--line)' : 'var(--accent)'),
+                      fontWeight: 700, fontSize: 12.5, letterSpacing: '0.02em', cursor: 'pointer',
+                    }}
+                    title={slotSubmitted
+                      ? `Tap to undo today's ${ctaSlot.toUpperCase()} commit`
+                      : (allDone ? `Save ${ctaSlot.toUpperCase()} — all done` : `Save ${ctaSlot.toUpperCase()} (${doneCount}/${totalCount} done)`)}
+                    aria-label={slotSubmitted ? `${ctaSlot.toUpperCase()} logged today, tap to undo` : `Save ${ctaSlot.toUpperCase()} regimen`}
+                  >
+                    <span
+                      className="inline-flex items-center justify-center flex-shrink-0"
+                      style={{
+                        width: 16, height: 16, borderRadius: '50%',
+                        background: circleFill,
+                        border: '1.5px solid ' + (slotSubmitted ? 'var(--accent-blue)' : (allDone ? 'var(--accent)' : 'rgba(255,255,255,0.85)')),
+                        color: slotSubmitted ? 'var(--cream)' : (allDone ? 'var(--cream)' : 'transparent'),
+                      }}
+                    >
+                      {circleIcon && <Icon name={circleIcon} size={9} strokeWidth={3} />}
+                    </span>
+                    <span className="truncate">
+                      {slotSubmitted
+                        ? `Done today · undo`
+                        : allDone
+                          ? `Save ${ctaSlot.toUpperCase()} · all done`
+                          : partialDone
+                            ? `Save ${doneCount}/${totalCount}`
+                            : `Yes, I did ${ctaSlot.toUpperCase()}`}
+                    </span>
+                  </button>
+                );
+              })()}
               {(() => {
                 // === DONE TRACKING (May 29 2026 per Jenni) ===
                 // Circles now reflect explicit DONE state (not "absent
@@ -3964,48 +4022,10 @@ CRITICAL OUTPUT REQUIREMENTS:
                     </button>
                   </>
                 ) : (
-                  // Non-empty slot: paired pill row. Left pill flips between
-                  // logged (muted, tap to undo) and primary CTA (accent, tap
-                  // to mark all done). Right pill is "Something else?" — the
-                  // entry point for one-offs (procedures, devices, travel, etc.).
+                  // Non-empty slot: edit-actions row only. Commit pill now
+                  // lives ABOVE the product list (June 2026 per Jenni) so
+                  // this row is clean two-button: Shelf + Used something else.
                   <div className="grid grid-cols-2 gap-2 mt-3">
-                    {slotSubmitted ? (
-                      <button
-                        type="button"
-                        onClick={undoSlotLog}
-                        className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:opacity-80"
-                        style={{
-                          background: 'var(--cream-deep)',
-                          color: 'var(--ink)',
-                          border: '1px solid var(--line)',
-                          fontWeight: 600, fontSize: 12, letterSpacing: '0.02em',
-                          cursor: 'pointer',
-                        }}
-                        aria-label={`${ctaSlot.toUpperCase()} regimen logged for today — tap to undo`}
-                        title={`Tap to undo today's ${ctaSlot.toUpperCase()} commit`}
-                      >
-                        <Icon name="Check" size={13} style={{color:'var(--accent-blue)'}} />
-                        <span className="truncate">{ctaLabel}</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={logRitualNow}
-                        className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:opacity-90"
-                        style={{
-                          background: 'var(--accent)',
-                          color: 'var(--cream)',
-                          border: '1px solid var(--accent)',
-                          fontWeight: 600, fontSize: 12, letterSpacing: '0.02em', cursor: 'pointer',
-                        }}
-                        title={hasSomeSkipped
-                          ? `Save today's ${ctaSlot.toUpperCase()} check-in (${ctaList.length - skippedCount} done, ${skippedCount} skipped)`
-                          : `Mark all ${ctaSlot.toUpperCase()} products as done for today`}
-                        type="button"
-                      >
-                        <Icon name={ctaIcon} size={13} />
-                        <span className="truncate">{ctaLabel}</span>
-                      </button>
-                    )}
                     {/* === June 2026 (per Jenni): direct Shelf entry ===
                         Most users adding to today are adding from their own
                         shelf. Was 3 taps (Something else? → From shelf →
