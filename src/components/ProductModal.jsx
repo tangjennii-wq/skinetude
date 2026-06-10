@@ -551,8 +551,10 @@ Up to 10 products. If you genuinely cannot identify any product, return [].`;
         actives: String(p.actives || '').trim(),
         confidence: String(p.confidence || 'medium').toLowerCase(),
         checked: true,
-        amSel: false,
-        pmSel: false,
+        saveToShelf: true,
+        saveToToday: !!productModalRegimenContext,
+        amSel: productModalRegimenContext?.slot !== 'pm',
+        pmSel: productModalRegimenContext?.slot === 'pm',
         savingState: 'idle'};
     }).filter(p => p.name || p.brand);
   };
@@ -662,11 +664,12 @@ Example response (just this, nothing else):
           confidence: String(p.confidence || 'medium').toLowerCase(),
           // ALL detected items default to checked — user can uncheck what's wrong.
           checked: true,
-          // amSel / pmSel — explicit AM/PM picks per detected product. Both default false
-          // so the user MUST tap to put the product into Today's Regimen. Saving with
-          // neither set keeps the product on the shelf only.
-          amSel: false,
-          pmSel: false,
+          // Shelf is the default. Today is opt-in unless the scan was launched
+          // from a regimen slot, in which case the caller already gave intent.
+          saveToShelf: true,
+          saveToToday: !!productModalRegimenContext,
+          amSel: productModalRegimenContext?.slot !== 'pm',
+          pmSel: productModalRegimenContext?.slot === 'pm',
           savingState: 'idle'};
       }).filter(p => p.name || p.brand);
 
@@ -793,15 +796,19 @@ Example response (just this, nothing else):
   // Save selected detected products. Each one gets added to shelf with quick fields,
   // then enriched with deepFillProduct in background to round out actives/main/concerns/tags.
   const saveScannedProducts = async () => {
-    const toSave = detectedProducts.filter(p => p.checked && p.name);
+    const toSave = detectedProducts.filter(p =>
+      p.checked
+      && p.name
+      && (p.saveToShelf !== false || (p.saveToToday && (p.amSel || p.pmSel)))
+      && (!p.saveToToday || p.amSel || p.pmSel)
+    );
     if (toSave.length === 0) return;
     const validCats = ['cleanser','toner','serum','moisturizer','sunscreen','treatment','exfoliant','mask','oil','other'];
     const newProducts = toSave.map(p => {
-      // Build useTimes from the explicit AM/PM picks. If neither is set, useTimes = []
-      // so the product lands on the shelf only (hidden from Today's Regimen).
+      // Scan AM/PM picks are for today's regimen log, not the standing weekly
+      // routine. Keep useTimes empty so scanning does not silently schedule
+      // products every week.
       const useTimes = [];
-      if (p.amSel) useTimes.push('am');
-      if (p.pmSel) useTimes.push('pm');
       // Route through sanitizer so cadence.days is guaranteed + useTimes
       // is lowercase. Without this, Today's filter would miss the new row.
       return sanitizeProductForSave({
@@ -829,6 +836,59 @@ Example response (just this, nothing else):
     const updated = [...newProducts, ...products];
     setProducts(updated);
     await saveData('products', updated);
+    const todayAssignments = newProducts.reduce((acc, np, i) => {
+      const row = toSave[i] || {};
+      if (!row.saveToToday) return acc;
+      if (row.amSel) acc.am.push(np.id);
+      if (row.pmSel) acc.pm.push(np.id);
+      return acc;
+    }, { am: [], pm: [] });
+    const savingToToday = todayAssignments.am.length > 0 || todayAssignments.pm.length > 0;
+    if (savingToToday && typeof setRegimenLogs === 'function') {
+      const ctxDate = productModalRegimenContext?.date || localDateISO();
+      const existingLog = (regimenLogs || []).find(r => r.date === ctxDate);
+      const mergeIds = (current, additions) => {
+        const seen = new Set(current || []);
+        const next = [...(current || [])];
+        (additions || []).forEach(id => {
+          if (seen.has(id)) return;
+          seen.add(id);
+          next.push(id);
+        });
+        return next;
+      };
+      const nextLog = existingLog ? {
+        ...existingLog,
+        amProducts: mergeIds(existingLog.amProducts || [], todayAssignments.am),
+        pmProducts: mergeIds(existingLog.pmProducts || [], todayAssignments.pm),
+        amDone: existingLog.amDone || [],
+        pmDone: existingLog.pmDone || [],
+        amExtras: existingLog.amExtras || [],
+        pmExtras: existingLog.pmExtras || [],
+      } : {
+        id: Date.now() + newProducts.length + 1,
+        date: ctxDate,
+        amProducts: [...todayAssignments.am],
+        pmProducts: [...todayAssignments.pm],
+        amDone: [],
+        pmDone: [],
+        amExtras: [],
+        pmExtras: [],
+        notes: '',
+        submitted: false,
+      };
+      const nextLogs = existingLog
+        ? (regimenLogs || []).map(r => r.date === ctxDate ? nextLog : r)
+        : [nextLog, ...(regimenLogs || [])];
+      setRegimenLogs(nextLogs);
+      try {
+        await saveData('regimenLogs', nextLogs);
+      } catch (e) {
+        console.error('[scan products → today regimen]', e);
+        toast(`Save error: ${e?.message || 'unknown'}`, 'error');
+        throw e;
+      }
+    }
     if (user?.cloud && user?.id && supabaseClient) {
       newProducts.forEach(np => {
         if (!np.photo) return;
@@ -859,10 +919,6 @@ Example response (just this, nothing else):
     }
     // Inputs to AI recommendations changed → trigger reactive ritual regen.
     setCoverRoutineRebuildToken(t => t + 1);
-    // STAY OPEN — return to the entry-mode picker (scan vs manual) so the
-    // user can immediately add the next product. Most multi-add sessions
-    // happen in batches (a shelf scan, then a few manual entries). Toast
-    // confirms the save; user closes via the X when they're done.
     setProductEntryMode('choose');
     setProductScanPhoto(null);
     setProductScanning(false);
@@ -874,7 +930,15 @@ Example response (just this, nothing else):
     setProductForm(null);
     setProductSearchInput('');
     setProductNameSuggestions([]);
-    toast(`Saved ${newProducts.length} ✨ Add another or close`, 'info');
+    if (savingToToday) {
+      if (!productModalRegimenContext) setActiveTab && setActiveTab('home');
+      setShowProductModal(false);
+      setProductModalRegimenContext && setProductModalRegimenContext(null);
+      toast(`Saved ${newProducts.length} and added to today ✨`, 'success');
+    } else {
+      // Shelf-only scans stay open so the user can add another batch.
+      toast(`Saved ${newProducts.length} ✨ Add another or close`, 'info');
+    }
     // Background deep-fill to enrich each
     if (getApiKey()) {
       newProducts.forEach(async (np) => {
@@ -2183,7 +2247,7 @@ ALTERNATIVES:
                 <button
                   type="button"
                   onClick={saveScannedProducts}
-                  disabled={detectedProducts.filter(p => p.checked && p.name).length === 0}
+                  disabled={detectedProducts.filter(p => p.checked && p.name && (p.saveToShelf !== false || p.saveToToday) && (!p.saveToToday || p.amSel || p.pmSel)).length === 0}
                   className="h-8 rounded-full px-3 text-[9px] tracking-[0.12em] uppercase flex items-center gap-1 transition hover:opacity-90 disabled:opacity-40 cursor-pointer whitespace-nowrap"
                   style={{background:'var(--accent)', color:'var(--cream)', cursor:'pointer'}}
                 >
@@ -2255,6 +2319,47 @@ ALTERNATIVES:
                               {validCats.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                             </select>
 
+                            <button
+                              type="button"
+                              onClick={() => updateDetected({ saveToShelf: p.saveToToday ? true : p.saveToShelf === false })}
+                              disabled={!!p.saveToToday}
+                              className="h-8 min-w-14 text-[9px] tracking-[0.12em] uppercase px-2 rounded-full border transition cursor-pointer whitespace-nowrap disabled:opacity-60"
+                              style={{
+                                background: p.saveToShelf !== false ? 'var(--ink)' : 'transparent',
+                                color: p.saveToShelf !== false ? 'var(--cream)' : 'var(--ink-soft)',
+                                borderColor: p.saveToShelf !== false ? 'var(--ink)' : 'var(--line)',
+                                cursor: p.saveToToday ? 'default' : 'pointer'
+                              }}
+                            >
+                              Shelf
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5 items-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = !p.saveToToday;
+                                const defaultSlot = productModalRegimenContext?.slot || (new Date().getHours() >= 15 ? 'pm' : 'am');
+                                updateDetected({
+                                  saveToToday: next,
+                                  saveToShelf: next ? true : p.saveToShelf,
+                                  amSel: next && !p.amSel && !p.pmSel ? defaultSlot === 'am' : p.amSel,
+                                  pmSel: next && !p.amSel && !p.pmSel ? defaultSlot === 'pm' : p.pmSel,
+                                });
+                              }}
+                              className="h-8 text-[9px] tracking-[0.12em] uppercase px-2 rounded-full border transition cursor-pointer whitespace-nowrap flex items-center justify-center gap-1"
+                              style={{
+                                background: p.saveToToday ? 'var(--accent)' : 'transparent',
+                                color: p.saveToToday ? 'var(--cream)' : 'var(--ink-soft)',
+                                borderColor: p.saveToToday ? 'var(--accent)' : 'var(--line)',
+                                cursor:'pointer'
+                              }}
+                            >
+                              <Icon name="CalendarCheck" size={10} />
+                              Today
+                            </button>
+
                             <div className="flex items-center justify-end gap-1">
                               {['am','pm'].map(slot => {
                                 const active = slot === 'am' ? !!p.amSel : !!p.pmSel;
@@ -2262,7 +2367,9 @@ ALTERNATIVES:
                                   <button
                                     key={slot}
                                     type="button"
-                                    onClick={() => updateDetected(slot === 'am' ? { amSel: !p.amSel } : { pmSel: !p.pmSel })}
+                                    onClick={() => updateDetected(slot === 'am'
+                                      ? { saveToToday: true, saveToShelf: true, amSel: !p.amSel }
+                                      : { saveToToday: true, saveToShelf: true, pmSel: !p.pmSel })}
                                     className="h-8 min-w-10 text-[9px] tracking-[0.12em] uppercase px-2 rounded-full border transition cursor-pointer whitespace-nowrap"
                                     style={{background: active ? 'var(--accent)' : 'transparent', color: active ? 'var(--cream)' : 'var(--ink-soft)', borderColor: active ? 'var(--accent)' : 'var(--line)', cursor:'pointer'}}
                                   >{slot}</button>
