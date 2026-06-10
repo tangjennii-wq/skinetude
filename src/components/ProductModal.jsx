@@ -158,11 +158,11 @@ const ProductModal = ({
   const isTouchDevice = typeof window !== 'undefined' && (('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
   const openProductScanCamera = () => {
     setScanError('');
-    // Mobile: native file input with capture="environment" opens the phone camera
-    // and returns directly to this modal. Desktop: open the in-app getUserMedia
-    // camera instead of Finder. If camera APIs are unavailable, fall back to files.
+    // Product scan needs the in-app multi-shot camera so users can take
+    // several label photos before analyzing. Native capture on mobile
+    // returns one file and dismisses, which breaks the batch flow.
     const hasBrowserCamera = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
-    if (!isTouchDevice && hasBrowserCamera) {
+    if (hasBrowserCamera) {
       setScanShowCamera(true);
       return;
     }
@@ -772,7 +772,7 @@ Example response (just this, nothing else):
           const k = `${(p.brand || '').toLowerCase().trim()}::${(p.name || '').toLowerCase().trim()}`;
           if (seen.has(k)) continue;
           seen.add(k);
-          combined.push(p);
+          combined.push({ ...p, scanPhoto: photo });
         }
       } catch (err) {
         console.warn('[scan-batch] photo', i + 1, 'failed:', err?.message);
@@ -820,7 +820,7 @@ Example response (just this, nothing else):
         useTimes,
         frequency: 'daily',
         notes: '',
-        photo: null,
+        photo: p.scanPhoto || null,
         photoPath: null,
         status: 'active',
         aiAnalysis: null,
@@ -829,6 +829,34 @@ Example response (just this, nothing else):
     const updated = [...newProducts, ...products];
     setProducts(updated);
     await saveData('products', updated);
+    if (user?.cloud && user?.id && supabaseClient) {
+      newProducts.forEach(np => {
+        if (!np.photo) return;
+        (async () => {
+          const { path, error } = await uploadPhotoToStorage(user.id, np.photo);
+          if (path) {
+            setProducts(prev => {
+              const next = prev.map(p => {
+                if (p.id !== np.id) return p;
+                const { photo, ...rest } = p;
+                return { ...rest, photoPath: path };
+              });
+              saveData('products', next).catch(e => {
+                console.error('[scan product photoPath save]', e);
+                toast(`Save error: ${e?.message || 'unknown'}`, 'error');
+              });
+              return next;
+            });
+          } else if (error) {
+            console.error('[scan product photo upload]', error);
+            toast('Product saved locally. Cloud photo upload failed.', 'error');
+          }
+        })().catch(e => {
+          console.error('[scan product photo upload]', e);
+          toast('Product saved locally. Cloud photo upload failed.', 'error');
+        });
+      });
+    }
     // Inputs to AI recommendations changed → trigger reactive ritual regen.
     setCoverRoutineRebuildToken(t => t + 1);
     // STAY OPEN — return to the entry-mode picker (scan vs manual) so the
@@ -1973,7 +2001,7 @@ ALTERNATIVES:
               {scanShowCamera && (
                 <CameraCaptureModal
                   mode="product"
-                  multi={false}
+                  multi={true}
                   onClose={() => setScanShowCamera(false)}
                   onCapture={async (dataUrl, shots) => {
                     await processScanCameraResult(dataUrl, shots);
@@ -2071,7 +2099,7 @@ ALTERNATIVES:
               {scanShowCamera && (
                 <CameraCaptureModal
                   mode="product"
-                  multi={false}
+                  multi={true}
                   onClose={() => setScanShowCamera(false)}
                   onCapture={async (dataUrl, shots) => {
                     await processScanCameraResult(dataUrl, shots);
