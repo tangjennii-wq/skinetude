@@ -2066,30 +2066,30 @@ ALTERNATIVES:
                   Reading {productScanBatchProgress ? `${productScanBatchProgress.current} of ${productScanBatchProgress.total}` : 'labels'}…
                 </div>
               ) : (
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex gap-1.5 flex-nowrap">
                   <button
                     type="button"
                     onClick={openProductScanCamera}
-                    className="flex-shrink-0 px-3 py-2 rounded-full text-[10px] tracking-[0.15em] uppercase border transition hover:bg-[var(--cream-deep)] cursor-pointer flex items-center gap-1.5"
+                    className="flex-shrink-0 h-8 px-2.5 rounded-full text-[9px] tracking-[0.12em] uppercase border transition hover:bg-[var(--cream-deep)] cursor-pointer flex items-center gap-1 whitespace-nowrap"
                     style={{borderColor: 'var(--line)', color:'var(--ink)', background:'var(--cream)', cursor:'pointer'}}
                   >
-                    <Icon name="Plus" size={11} /> Take another
+                    <Icon name="Plus" size={10} /> More
                   </button>
                   <button
                     type="button"
                     onClick={() => scanGalleryRef.current?.click()}
-                    className="flex-shrink-0 px-3 py-2 rounded-full text-[10px] tracking-[0.15em] uppercase border transition hover:bg-[var(--cream-deep)] cursor-pointer flex items-center gap-1.5"
+                    className="flex-shrink-0 h-8 px-2.5 rounded-full text-[9px] tracking-[0.12em] uppercase border transition hover:bg-[var(--cream-deep)] cursor-pointer flex items-center gap-1 whitespace-nowrap"
                     style={{borderColor: 'var(--line)', color:'var(--ink)', background:'var(--cream)', cursor:'pointer'}}
                   >
-                    <Icon name="Image" size={11} /> From library
+                    <Icon name="Image" size={10} /> Library
                   </button>
                   <button
                     type="button"
                     onClick={analyzeAllScanPhotos}
-                    className="flex-1 px-4 py-2 rounded-full text-[10px] tracking-[0.15em] uppercase transition hover:opacity-90 cursor-pointer flex items-center justify-center gap-1.5"
+                    className="min-w-0 flex-1 h-8 px-2.5 rounded-full text-[9px] tracking-[0.12em] uppercase transition hover:opacity-90 cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap"
                     style={{background:'var(--accent)', color:'var(--cream)', cursor:'pointer'}}
                   >
-                    <Icon name="Sparkles" size={11} /> Analyze & review {productScanBatch.length}
+                    <Icon name="Sparkles" size={10} /> Analyze {productScanBatch.length}
                   </button>
                 </div>
               )}
@@ -2137,23 +2137,23 @@ ALTERNATIVES:
                 <div className="leading-snug" style={{color:'var(--ink-soft)', fontSize:11}}>
                   Try better light or tighter shots — or add by name/brand below.
                 </div>
-                <div className="mt-2 flex gap-2 flex-wrap">
+                <div className="mt-2 flex gap-1.5 flex-nowrap overflow-x-auto no-scrollbar pb-0.5">
                   <button
                     type="button"
                     onClick={() => { setScanError(''); setProductScanBatch([]); }}
-                    className="text-[10px] tracking-[0.15em] uppercase px-3 py-1.5 rounded-full transition cursor-pointer"
+                    className="h-8 flex-shrink-0 text-[9px] tracking-[0.12em] uppercase px-2.5 rounded-full transition cursor-pointer whitespace-nowrap"
                     style={{background:'var(--accent)', color:'var(--cream)', cursor:'pointer'}}
                   >Retake photos</button>
                   <button
                     type="button"
                     onClick={() => { setScanError(''); setEntryMode('manual'); }}
-                    className="text-[10px] tracking-[0.15em] uppercase px-3 py-1.5 rounded-full transition cursor-pointer border"
+                    className="h-8 flex-shrink-0 text-[9px] tracking-[0.12em] uppercase px-2.5 rounded-full transition cursor-pointer border whitespace-nowrap"
                     style={{borderColor: 'var(--line)', color:'var(--ink)', background:'var(--cream)', cursor:'pointer'}}
                   >Search by name</button>
                   <button
                     type="button"
                     onClick={() => { setScanError(''); setEntryMode('brand'); }}
-                    className="text-[10px] tracking-[0.15em] uppercase px-3 py-1.5 rounded-full transition cursor-pointer border"
+                    className="h-8 flex-shrink-0 text-[9px] tracking-[0.12em] uppercase px-2.5 rounded-full transition cursor-pointer border whitespace-nowrap"
                     style={{borderColor: 'var(--line)', color:'var(--ink)', background:'var(--cream)', cursor:'pointer'}}
                   >Search by brand</button>
                 </div>
@@ -2173,10 +2173,10 @@ ALTERNATIVES:
                 <p className="text-[10.5px] leading-snug" style={{color:'var(--ink-soft)'}}>Confirm what we found before saving to your shelf.</p>
               </div>
 
-              <div className="flex items-center justify-between gap-2 mb-2.5">
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
-                  <Icon name="Check" size={10} style={{color:'var(--accent)'}} />
-                  <span className="text-[10px] tracking-[0.18em] uppercase" style={{color:'var(--ink-soft)'}}>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 mb-2">
+                <div className="min-w-0 h-8 flex items-center gap-1.5 px-2 rounded-full" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+                  <Icon name="Check" size={9} className="flex-shrink-0" style={{color:'var(--accent)'}} />
+                  <span className="min-w-0 text-[9px] tracking-[0.12em] uppercase truncate whitespace-nowrap" style={{color:'var(--ink-soft)'}}>
                     {detectedProducts.filter(p => p.checked).length} selected
                   </span>
                 </div>
@@ -2184,10 +2184,10 @@ ALTERNATIVES:
                   type="button"
                   onClick={saveScannedProducts}
                   disabled={detectedProducts.filter(p => p.checked && p.name).length === 0}
-                  className="rounded-full px-3 py-1.5 text-[10px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-90 disabled:opacity-40 cursor-pointer"
+                  className="h-8 rounded-full px-3 text-[9px] tracking-[0.12em] uppercase flex items-center gap-1 transition hover:opacity-90 disabled:opacity-40 cursor-pointer whitespace-nowrap"
                   style={{background:'var(--accent)', color:'var(--cream)', cursor:'pointer'}}
                 >
-                  Save selected <Icon name="ArrowRight" size={11} />
+                  Save selected <Icon name="ArrowRight" size={10} />
                 </button>
               </div>
 
@@ -2206,17 +2206,17 @@ ALTERNATIVES:
                 </button>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {detectedProducts.map((p, i) => {
                   const validCats = ['cleanser','toner','serum','moisturizer','sunscreen','treatment','exfoliant','mask','oil','other'];
                   const updateDetected = (patch) => setDetectedProducts(prev => prev.map((x, j) => j === i ? { ...x, ...patch } : x));
                   return (
                     <div
                       key={i}
-                      className="rounded-[14px] p-2.5 border"
-                      style={{borderColor: p.checked ? 'var(--accent)' : 'var(--line)', background: p.checked ? 'rgba(126, 24, 62, 0.035)' : 'var(--cream)'}}
+                      className="rounded-lg p-2 border"
+                      style={{borderColor: p.checked ? 'rgba(229,60,45,0.32)' : 'var(--line)', background: p.checked ? 'rgba(229,60,45,0.025)' : 'var(--cream)'}}
                     >
-                      <div className="flex items-start gap-2.5">
+                      <div className="flex items-start gap-2">
                         <button
                           type="button"
                           onClick={() => updateDetected({ checked: !p.checked })}
@@ -2233,29 +2233,29 @@ ALTERNATIVES:
                             value={p.name || ''}
                             onChange={(v) => updateDetected({ name: v })}
                             placeholder="Product name"
-                            className="w-full font-sans text-[13px] leading-tight bg-transparent border-0 border-b focus:outline-none px-0 py-0.5"
-                            style={{color:'var(--ink)', borderColor: 'var(--line)', fontWeight:600}}
+                            className="w-full font-sans leading-tight bg-transparent border-0 border-b focus:outline-none px-0 py-0.5"
+                            style={{color:'var(--ink)', borderColor: 'var(--line)', fontWeight:600, fontSize:16}}
                           />
                           <StableInput
                             resetKey={`scan-brand-${i}-${p.brand || ''}`}
                             value={p.brand || ''}
                             onChange={(v) => updateDetected({ brand: v })}
                             placeholder="Brand"
-                            className="w-full text-[10.5px] tracking-[0.05em] bg-transparent border-0 border-b focus:outline-none px-0 py-0.5"
-                            style={{color:'var(--ink-soft)', borderColor: 'var(--line)'}}
+                            className="w-full tracking-[0.06em] bg-transparent border-0 border-b focus:outline-none px-0 py-0"
+                            style={{color:'var(--ink-soft)', borderColor: 'var(--line)', fontSize:16}}
                           />
 
-                          <div className="grid grid-cols-2 gap-1.5">
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5 items-center">
                             <select
                               value={validCats.includes(p.category) ? p.category : 'other'}
                               onChange={(e) => updateDetected({ category: e.target.value })}
-                              className="w-full px-2 py-1.5 text-[10.5px] rounded-md border bg-transparent focus:outline-none"
-                              style={{borderColor: 'var(--line)', color:'var(--ink)'}}
+                              className="w-full h-8 px-2 rounded-md border bg-transparent focus:outline-none"
+                              style={{borderColor: 'var(--line)', color:'var(--ink)', fontSize:16}}
                             >
                               {validCats.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                             </select>
 
-                            <div className="flex items-center justify-end gap-1.5">
+                            <div className="flex items-center justify-end gap-1">
                               {['am','pm'].map(slot => {
                                 const active = slot === 'am' ? !!p.amSel : !!p.pmSel;
                                 return (
@@ -2263,7 +2263,7 @@ ALTERNATIVES:
                                     key={slot}
                                     type="button"
                                     onClick={() => updateDetected(slot === 'am' ? { amSel: !p.amSel } : { pmSel: !p.pmSel })}
-                                    className="text-[9px] tracking-[0.15em] uppercase px-2 py-1 rounded-full border transition cursor-pointer"
+                                    className="h-8 min-w-10 text-[9px] tracking-[0.12em] uppercase px-2 rounded-full border transition cursor-pointer whitespace-nowrap"
                                     style={{background: active ? 'var(--accent)' : 'transparent', color: active ? 'var(--cream)' : 'var(--ink-soft)', borderColor: active ? 'var(--accent)' : 'var(--line)', cursor:'pointer'}}
                                   >{slot}</button>
                                 );
@@ -2273,8 +2273,8 @@ ALTERNATIVES:
 
                           {(p.actives || p.confidence) && (
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              {p.actives && <span className="text-[9px] truncate max-w-full" style={{color:'var(--ink-soft)'}}>{p.actives}</span>}
-                              {p.confidence && <span className="text-[8.5px] tracking-[0.12em] uppercase px-1.5 py-0.5 rounded-full" style={{border: '1px solid var(--line)', color:p.confidence === 'low' ? 'var(--rose)' : 'var(--ink-soft)'}}>{p.confidence}</span>}
+                              {p.actives && <span className="text-[9px] truncate max-w-full leading-tight" style={{color:'var(--ink-soft)'}}>{p.actives}</span>}
+                              {p.confidence && <span className="text-[8.5px] tracking-[0.12em] uppercase px-1.5 py-0.5 rounded-full leading-none" style={{border: '1px solid var(--line)', color:p.confidence === 'low' ? 'var(--rose)' : 'var(--ink-soft)'}}>{p.confidence}</span>}
                             </div>
                           )}
                         </div>
