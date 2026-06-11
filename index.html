@@ -2230,7 +2230,14 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
   panel.innerHTML = ''
     + '<div class="rx-drawer-header">'
     +   '<div class="rx-drawer-eyebrow">Your study</div>'
-    +   '<div class="rx-drawer-title" id="rxTitle">Shelf</div>'
+    +   '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">'
+    +     '<div class="rx-drawer-title" id="rxTitle">Shelf</div>'
+    +     '<button id="rxAddBtn" type="button" aria-label="Add product to shelf"'
+    +       ' style="background:var(--accent);color:var(--cream);border:none;border-radius:999px;'
+    +       'padding:8px 14px;font-family:Figtree,sans-serif;font-weight:700;font-size:10.5px;'
+    +       'letter-spacing:0.16em;text-transform:uppercase;cursor:pointer;flex-shrink:0;'
+    +       'transition:opacity 0.18s;">+ Add</button>'
+    +   '</div>'
     +   '<div class="rx-cat-chips" id="rxCatChips"></div>'
     + '</div>'
     + '<div class="rx-drawer-body" id="rxBody"></div>';
@@ -2273,14 +2280,24 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
       if(sourceShelf.length === 0){
         return '<div class="rx-empty-state">'
              +   '<strong>No saved picks yet.</strong>'
-             +   'Tap the heart on any Suggested Match to save it for later. They will appear here.'
+             +   'Tap the heart on any Suggested Match, or add one manually.'
+             +   '<button type="button" class="rx-empty-add" data-slot="am"'
+             +     ' style="margin-top:14px;background:var(--accent);color:var(--cream);border:none;'
+             +     'border-radius:999px;padding:10px 18px;font-family:Figtree,sans-serif;font-weight:700;'
+             +     'font-size:11px;letter-spacing:0.16em;text-transform:uppercase;cursor:pointer;">'
+             +     '+ Add a product</button>'
              + '</div>';
       }
     } else if(sourceShelf.length === 0 && data !== DEMO){
       // Empty state when wired to real data but shelf is empty
       return '<div class="rx-empty-state">'
            +   '<strong>Your shelf is empty.</strong>'
-           +   'Add products to start building a routine. Use the + button on any page.'
+           +   'Add your first product to start building.'
+           +   '<button type="button" class="rx-empty-add" data-slot="am"'
+           +     ' style="margin-top:14px;background:var(--accent);color:var(--cream);border:none;'
+           +     'border-radius:999px;padding:10px 18px;font-family:Figtree,sans-serif;font-weight:700;'
+           +     'font-size:11px;letter-spacing:0.16em;text-transform:uppercase;cursor:pointer;">'
+           +     '+ Add your first product</button>'
            + '</div>';
     }
 
@@ -2297,7 +2314,12 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
       var label = (STEPS.find(function(s){return s.key === state.cat;}) || {label: state.cat}).label;
       return '<div class="rx-empty-state">'
            +   '<strong>No ' + escapeHtml(label.toLowerCase()) + ' on your shelf.</strong>'
-           +   'Try a different category, or add one from the main app.'
+           +   'Try another category, or add one.'
+           +   '<button type="button" class="rx-empty-add" data-slot="am"'
+           +     ' style="margin-top:14px;background:var(--accent);color:var(--cream);border:none;'
+           +     'border-radius:999px;padding:10px 18px;font-family:Figtree,sans-serif;font-weight:700;'
+           +     'font-size:11px;letter-spacing:0.16em;text-transform:uppercase;cursor:pointer;">'
+           +     '+ Add ' + escapeHtml(label.toLowerCase()) + '</button>'
            + '</div>';
     }
 
@@ -2453,6 +2475,19 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
       state.cat = chip.dataset.cat || 'all';
       localStorage.setItem(LS_CAT, state.cat);
       render();
+      return;
+    }
+    // June 2026 — Add product CTAs (header pill + empty-state buttons).
+    // Bridges into the React ProductModal via window.__etudeOpenAdd(slot).
+    // Same pathway/mechanism as the in-app + buttons; pre-scopes to AM today.
+    var addBtn = e.target.closest('#rxAddBtn, .rx-empty-add');
+    if(addBtn){
+      var slot = addBtn.dataset.slot || 'am';
+      if(typeof window.__etudeOpenAdd === 'function'){
+        window.__etudeOpenAdd(slot);
+      } else {
+        console.warn('[shelf-drawer] __etudeOpenAdd bridge not ready');
+      }
       return;
     }
   });
