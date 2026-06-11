@@ -12085,6 +12085,10 @@ If the user references something not in their data ("started retinol 6 weeks ago
             clarify: 'Breakouts',
             pigment: 'Pigment',
             texture: 'Texture',
+            pores: 'Pores',
+            pore: 'Pores',
+            'enlarged pores': 'Pores',
+            enlarged_pores: 'Pores',
           };
           const insightConcernTally = {};
           recentInsightLogs.slice(0, 30).forEach(l => {
@@ -12250,7 +12254,16 @@ If the user references something not in their data ("started retinol 6 weeks ago
             // map to a structured decision.
             pore: {
               action: 'exfoliate',
-              coverageConcern: 'clarify',
+              coverageConcern: 'pores',
+              concern: 'enlarged pores',
+              eyebrow: 'Pore · this week',
+              headline: 'Pores? Pick one smoothing lane.',
+              analysis: 'BHA, retinoid, or azelaic — choose one and protect recovery nights.',
+              missing: 'Check whether the routine has one targeted decongestant + barrier support.',
+            },
+            pores: {
+              action: 'exfoliate',
+              coverageConcern: 'pores',
               concern: 'enlarged pores',
               eyebrow: 'Pore · this week',
               headline: 'Pores? Pick one smoothing lane.',
@@ -12259,7 +12272,16 @@ If the user references something not in their data ("started retinol 6 weeks ago
             },
             'enlarged pores': {
               action: 'exfoliate',
-              coverageConcern: 'clarify',
+              coverageConcern: 'pores',
+              concern: 'enlarged pores',
+              eyebrow: 'Pore · this week',
+              headline: 'Pores? Pick one smoothing lane.',
+              analysis: 'BHA, retinoid, or azelaic — choose one and protect recovery nights.',
+              missing: 'Check whether the routine has one targeted decongestant + barrier support.',
+            },
+            enlarged_pores: {
+              action: 'exfoliate',
+              coverageConcern: 'pores',
               concern: 'enlarged pores',
               eyebrow: 'Pore · this week',
               headline: 'Pores? Pick one smoothing lane.',

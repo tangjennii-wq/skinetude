@@ -39,11 +39,16 @@ const REQUIRED_JOBS_PM = ['cleanse', 'hydrate', 'moisturize-seal'];
 // Vocab matches NEEDS_CATALOG in JournalTodayPanel so the engine plugs
 // into the existing concern flagging without translation.
 const CONCERN_TO_MECHANISM = {
-  repair:   'ceramide-restorative',
-  calm:     'anti-inflammatory',
-  hydrate:  'humectant',
-  brighten: 'vitamin-C',
-  clarify:  'exfoliant-BHA',
+  repair:          'ceramide-restorative',
+  calm:            'anti-inflammatory',
+  hydrate:         'humectant',
+  brighten:        'vitamin-C',
+  clarify:         'exfoliant-BHA',
+  pores:           'exfoliant-BHA',
+  pore:            'exfoliant-BHA',
+  'enlarged pores':'exfoliant-BHA',
+  enlarged_pores:  'exfoliant-BHA',
+  congestion:      'exfoliant-BHA',
 };
 
 // === SWAP_SUGGESTED RULES (v1, deterministic) ===

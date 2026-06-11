@@ -44,9 +44,14 @@ const SURFACE_CAPS = {
 const titleForMissing = (jobLabel) =>
   `We'd add a ${jobLabel}.`;
 
+const concernLabelForCard = (concern) => {
+  const raw = String(concern || '').toLowerCase();
+  if (/^(pores?|enlarged[_\s-]?pores?|congestion)$/.test(raw)) return 'Pores';
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+};
+
 const titleForConcernGap = (concern, mechLabel) => {
-  // concern is already lowercase enum: repair, calm, hydrate, brighten, clarify
-  const concernCap = concern.charAt(0).toUpperCase() + concern.slice(1);
+  const concernCap = concernLabelForCard(concern);
   return `${concernCap}? Try layering ${mechLabel}.`;
 };
 
@@ -77,7 +82,7 @@ const buildConcernGapCard = (entry, MECH_LABELS, JOB_LABELS, pickFn, jobForMech)
   // so the mechanism categorization (Calm/Hydrate/Repair) is baked
   // into the actionable card. Replaces the standalone "What your
   // skin needs" trio that used to sit above this section.
-  const concernCap = entry.concern.charAt(0).toUpperCase() + entry.concern.slice(1);
+  const concernCap = concernLabelForCard(entry.concern);
   return {
     state:   'CONCERN_GAP',
     eyebrow: `${concernCap} · this week`,

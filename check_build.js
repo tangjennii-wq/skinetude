@@ -457,6 +457,45 @@ const SOURCE_FILES = collectSourceFiles();
   }
 }
 
+// Guard 3.075 — Pore signals must stay first-class in recommendation cards.
+// Regression caught in Insights: the "Pore" signal header rendered, but
+// product picks were routed through Clarify or disappeared because coverage
+// only understood `clarify`. Pores should use the same BHA pick lane while
+// preserving the Pore label all the way through the card.
+{
+  const coverage = SOURCE_FILES.find(f => f.rel === 'src/resolvers/coverageEngine.js');
+  const recCopy = SOURCE_FILES.find(f => f.rel === 'src/resolvers/recCopy.js');
+  const sidecar = SOURCE_FILES.find(f => f.rel === 'index.jsx.source');
+  if (!coverage) {
+    fail('Guard 3.075: coverageEngine.js not found');
+  } else {
+    const hasPoreMechanism =
+      /pores\s*:\s*['"]exfoliant-BHA['"]/.test(coverage.text) &&
+      /pore\s*:\s*['"]exfoliant-BHA['"]/.test(coverage.text) &&
+      /enlarged_pores\s*:\s*['"]exfoliant-BHA['"]/.test(coverage.text);
+    if (!hasPoreMechanism) fail('Pore concerns must map to exfoliant-BHA in coverageEngine');
+    else ok('Pore concerns map to the BHA pick lane');
+  }
+  if (!recCopy) {
+    fail('Guard 3.075: recCopy.js not found');
+  } else {
+    const preservesPoreLabel =
+      recCopy.text.includes('const concernLabelForCard') &&
+      recCopy.text.includes("return 'Pores'");
+    if (!preservesPoreLabel) fail('Pore recommendation cards must preserve the Pores label');
+    else ok('Pore recommendation cards preserve the Pores label');
+  }
+  if (!sidecar) {
+    fail('Guard 3.075: index.jsx.source not found');
+  } else {
+    const sidecarRoutesPores =
+      /pore\s*:\s*\{[\s\S]{0,220}coverageConcern:\s*['"]pores['"]/.test(sidecar.text) &&
+      /enlarged_pores\s*:\s*\{[\s\S]{0,220}coverageConcern:\s*['"]pores['"]/.test(sidecar.text);
+    if (!sidecarRoutesPores) fail('Insights pore decision must route coverageConcern through pores, not clarify');
+    else ok('Insights pore decision routes to pore-specific coverage');
+  }
+}
+
 // Guard 3.09 — daily photo captures must funnel through check-in details.
 // Mental model: every daily capture/upload/detail shot goes to
 // checkInDetailsQueue, where the user confirms region + rating + context.
