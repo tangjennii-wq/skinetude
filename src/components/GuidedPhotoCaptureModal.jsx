@@ -85,6 +85,14 @@ const GuidedPhotoCaptureModal = ({
   });
   const [showDetailed, setShowDetailed] = useState(false);
   const [detailedIdx, setDetailedIdx] = useState(0);
+  // === July 2026 (dead-Done fix) ===
+  // Two paths used to fail with NO user feedback: (a) library-upload
+  // processing (FileReader/canvas) failing → console.warn only, and
+  // (b) onComplete rejecting → unhandled await, Done looked dead.
+  // Both now surface visible state.
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [flowError, setFlowError] = useState('');
 
   const activeSequence = showDetailed ? DETAILED_STEPS : GUIDED_STEPS;
   const activeIdx = showDetailed ? detailedIdx : stepIdx;
@@ -230,6 +238,7 @@ const GuidedPhotoCaptureModal = ({
   };
 
   const handleDone = async () => {
+    if (saving || uploading) return;
     if (totalCapturedCount === 0) {
       onClose && onClose();
       return;
@@ -247,7 +256,18 @@ const GuidedPhotoCaptureModal = ({
       if (s) ordered.push({ angle: step.angle, source: s.source, capturedAt: s.capturedAt, dataUrl: s.dataUrl });
     }
     if (onComplete) {
-      await onComplete(ordered);
+      // On success the parent closes/unmounts this modal — don't reset
+      // `saving` in that path. On failure, surface it and let the user
+      // retry instead of the old silent unhandled rejection.
+      setSaving(true);
+      setFlowError('');
+      try {
+        await onComplete(ordered);
+      } catch (e) {
+        console.error('[guided capture] onComplete failed:', e);
+        setSaving(false);
+        setFlowError('Save hit a snag — tap Done to retry.');
+      }
       return;
     }
     onClose && onClose();
@@ -259,10 +279,14 @@ const GuidedPhotoCaptureModal = ({
   // step, second file → next, etc.). Imperfect, but better than blocking
   // the user.
   const handleUpload = async (e) => {
-    const files = Array.from(e.target.files || []);
+    // Capture the input element early — iOS Safari can invalidate the
+    // event object across the awaits below, breaking the value reset.
+    const input = e.target;
+    const files = Array.from(input?.files || []);
     if (files.length === 0) return;
+    setUploading(true);
+    setFlowError('');
     try {
-      const reader = new FileReader();
       const fileToDataUrl = (file) => new Promise((resolve, reject) => {
         const r = new FileReader();
         r.onload = () => resolve(r.result);
@@ -303,10 +327,17 @@ const GuidedPhotoCaptureModal = ({
         };
       }
       setShotsByAngle(prev => ({ ...prev, ...additions }));
+      if (Object.keys(additions).length === 0) {
+        // Every selected file landed past the end of the sequence (or none
+        // processed) — tell the user instead of silently doing nothing.
+        setFlowError('That photo didn’t come through. Try again or use the shutter.');
+      }
     } catch (err) {
       console.warn('Guided upload failed:', err);
+      setFlowError('That photo didn’t come through. Try again or use the shutter.');
     } finally {
-      if (e.target) e.target.value = '';
+      setUploading(false);
+      if (input) input.value = '';
     }
   };
   const openUploader = () => { if (uploadInputRef.current) uploadInputRef.current.click(); };
@@ -364,17 +395,17 @@ const GuidedPhotoCaptureModal = ({
             </div>
             <button
               onClick={handleDone}
-              disabled={!canFinish}
+              disabled={!canFinish || saving || uploading}
               className="text-[10.5px] tracking-[0.18em] uppercase px-3.5 py-2 rounded-full transition disabled:cursor-not-allowed"
               style={{
-                background: canFinish ? 'var(--cream)' : 'rgba(255,255,255,0.08)',
-                color: canFinish ? 'var(--ink)' : 'rgba(255,255,255,0.35)',
-                border: '1px solid ' + (canFinish ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.14)'),
-                boxShadow: canFinish ? '0 6px 18px rgba(0,0,0,0.28)' : 'none',
+                background: canFinish && !saving ? 'var(--cream)' : 'rgba(255,255,255,0.08)',
+                color: canFinish && !saving ? 'var(--ink)' : 'rgba(255,255,255,0.35)',
+                border: '1px solid ' + (canFinish && !saving ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.14)'),
+                boxShadow: canFinish && !saving ? '0 6px 18px rgba(0,0,0,0.28)' : 'none',
                 fontWeight: 800,
-                cursor: canFinish ? 'pointer' : 'not-allowed',
+                cursor: (canFinish && !saving && !uploading) ? 'pointer' : 'not-allowed',
               }}
-            >Done</button>
+            >{saving ? 'Saving…' : 'Done'}</button>
           </div>
           <div className="flex items-center justify-center gap-2 mt-2">
             {!showDetailed && (
@@ -406,9 +437,19 @@ const GuidedPhotoCaptureModal = ({
               Users were assuming all 5 dots had to fill before they
               could tap Done. Once 1+ photos are captured AND we don't
               require the full set, surface the optionality explicitly. */}
-          {canFinish && !requireFullGuidedSet && (
+          {canFinish && !requireFullGuidedSet && !flowError && !uploading && (
             <div className="text-center text-[10px] mt-1.5" style={{color:'rgba(255,255,255,0.85)', fontWeight:500}}>
               One’s enough — tap Done. More is bonus.
+            </div>
+          )}
+          {uploading && (
+            <div className="text-center text-[10px] mt-1.5" style={{color:'rgba(255,255,255,0.85)', fontWeight:500}}>
+              Preparing your photo…
+            </div>
+          )}
+          {flowError && !uploading && (
+            <div className="text-center text-[10px] mt-1.5" style={{color:'var(--accent)', fontWeight:600}}>
+              {flowError}
             </div>
           )}
         </div>
@@ -612,26 +653,29 @@ const GuidedPhotoCaptureModal = ({
               </div>
             )}
             {allowDetailedAreas && (
+              // July 2026 per Jenni: shrunk from a chunky two-line card to a
+              // small pill that reads as a toggle — accent fill when the
+              // focus-area sequence is active.
               <button
                 type="button"
                 onClick={() => {
                   if (showDetailed) setShowDetailed(false);
                   else { setShowDetailed(true); setDetailedIdx(0); }
                 }}
-                className="flex-shrink-0 ml-auto inline-flex flex-col items-center justify-center gap-1 rounded-[14px] px-3 py-2 transition"
+                className="flex-shrink-0 ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 transition"
                 style={{
                   alignSelf: 'flex-end',
-                  background: showDetailed ? 'rgba(255,255,255,0.13)' : 'rgba(255,255,255,0.06)',
-                  border: '1px solid ' + (showDetailed ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.16)'),
+                  background: showDetailed ? 'var(--accent)' : 'rgba(255,255,255,0.06)',
+                  border: '1px solid ' + (showDetailed ? 'var(--accent)' : 'rgba(255,255,255,0.16)'),
                   color: '#fff',
-                  minWidth: 82,
                   cursor: 'pointer',
                 }}
+                aria-pressed={showDetailed}
                 aria-label={showDetailed ? 'Return to core photo set' : 'Capture focus areas'}
               >
-                <Icon name={showDetailed ? 'ChevronLeft' : 'Target'} size={15} />
-                <span className="text-[8.5px] tracking-[0.14em] uppercase" style={{fontWeight:750}}>
-                  {showDetailed ? 'Core set' : 'Add focus area'}
+                <Icon name="Target" size={11} />
+                <span className="text-[8.5px] tracking-[0.14em] uppercase whitespace-nowrap" style={{fontWeight:750}}>
+                  Focus area
                 </span>
               </button>
             )}

@@ -16420,7 +16420,18 @@ If the user references something not in their data ("started retinol 6 weeks ago
         // processing one-by-one — Jenni's call. Each photo still becomes
         // its own log entry, just with identical metadata.
         const queueLen = checkInDetailsQueue.length;
+        // July 2026 (dead-Save fix): any synchronous throw inside the save
+        // body used to leave CheckInDetailsModal open with a dead Save
+        // button and zero feedback. Wrap so the user sees the failure and
+        // can retry (queue stays intact on error).
         const saveLogFromForm = (form) => {
+          try { saveLogFromFormInner(form); }
+          catch (e) {
+            console.error('[CheckIn] save crashed:', e);
+            toast(`Couldn’t save: ${e?.message || 'unknown error'}. Try again.`, 'error');
+          }
+        };
+        const saveLogFromFormInner = (form) => {
           // === Per-photo dates (May 2026 bulk-upload fix) ===
           // Previously every photo in the batch took the FIRST photo's
           // date — destructive for backfill where each photo has its
