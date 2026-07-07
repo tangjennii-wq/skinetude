@@ -17,13 +17,13 @@ const ApiKeyModal = ({
     // normally (and the modal can re-open if the key is later cleared).
     clearApiKeyDismissal();
     setShowApiKeyModalRaw(false);
-    toast('API key saved ✨', 'info');
+    toast('API key saved.', 'info');
   };
   return (
     <Modal onClose={() => setShowApiKeyModal(false)} eyebrow="Settings" title="Anthropic API key">
       <div className="space-y-5">
         <p className="text-sm font-light" style={{color:'var(--ink-soft)'}}>
-          To enable AI counsel, makeup recommendations, product assessments, and event prep plans, paste your Anthropic API key. Your key is stored only in this browser — never sent anywhere except directly to Anthropic.
+          To enable AI counsel, makeup recommendations, product assessments, and event prep plans, paste your Anthropic API key. Your key is stored only in this browser — never sent anywhere except directly to Anthropic. Anyone with access to this device could read it, so use a key with a spend cap you're comfortable with.
         </p>
         <p className="text-xs font-light" style={{color:'var(--ink-soft)'}}>
           Get a key at <a href="https://console.anthropic.com" target="_blank" rel="noopener" className="underline" style={{color:'var(--ink)'}}>console.anthropic.com</a>.

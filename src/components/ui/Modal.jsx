@@ -19,7 +19,7 @@ const Modal = ({ children, onClose, title, eyebrow, action, actionLabel, compact
     <div
       onClick={e => e.stopPropagation()}
       className="modal-card rounded-[20px] max-w-xl w-full overflow-y-auto shadow-2xl"
-      style={{background:'var(--cream)'}}
+      style={{background:'var(--cream)', maxHeight:'92dvh'}}
     >
       <div className={`sticky top-0 border-b ${compact ? 'px-3 py-2 md:px-4 md:py-2.5' : 'px-4 py-3 md:px-6 md:py-4'} flex items-center justify-between gap-3 z-10`} style={{background:'var(--cream)', borderColor: 'var(--line)'}}>
         <div className="min-w-0">

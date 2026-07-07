@@ -4409,7 +4409,7 @@ CRITICAL OUTPUT REQUIREMENTS:
             // Calm / sensitivity — centella
             gate: () => (concerns.has('redness') || concerns.has('sensitivity') || r === 'Mild' || r === 'Moderate') && !hasActive(/centella|cica|madecassoside/),
             ingredient: 'Centella Asiatica',
-            body: "Have you heard of centella asiatica? Korean dermatology's quiet workhorse.",
+            body: "Have you heard of centella asiatica? Korean skincare's quiet workhorse.",
             why: "Centella (also called 'cica' or 'gotu kola') contains four active compounds — madecassoside, asiaticoside, madecassic acid, and asiatic acid — that together reduce inflammatory cytokines, support collagen synthesis, and accelerate wound healing. Especially useful for rosacea-prone or post-procedure skin.",
             evidence: "Multiple RCTs for rosacea and atopic dermatitis. Skin1004's Madagascar Centella Ampoule is the gold-standard, but Purito and COSRX both formulate it well.",
           },

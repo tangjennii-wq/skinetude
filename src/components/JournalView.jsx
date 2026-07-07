@@ -309,7 +309,7 @@ const JournalView = ({
                         "What's visibly different?",
                         'What shifted between these two?',
                         'Should I keep doing what I changed?',
-                        'What would a derm flag here?',
+                        'Anything here worth watching?',
                       ]});
                     exitSelectMode();
                   }}

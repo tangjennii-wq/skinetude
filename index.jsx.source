@@ -131,7 +131,16 @@ const Photo = ({ item, src: srcProp, className = '', style, alt = '', onClick, r
 // (T7 fix) where the source we read from must not be echoed back.
 const useSyncedArray = ({ lsKey, cloudKey, keyFn = (x) => x, onAdd, onRemove, toast, saveData }) => {
   const [items, setItems] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(lsKey) || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem(lsKey) || '[]'); } catch (e) {
+      // Corrupt JSON: stash the raw value under a backup key before the next
+      // write clobbers it, so the data is recoverable instead of silently lost.
+      try {
+        const raw = localStorage.getItem(lsKey);
+        if (raw) localStorage.setItem(lsKey + ':corrupt-backup', raw);
+      } catch {}
+      console.warn(`[useSyncedArray] corrupt JSON at ${lsKey}; backed up + reset`, e);
+      return [];
+    }
   });
   const has = (sigOrItem) => {
     const sig = keyFn(sigOrItem);
@@ -3251,16 +3260,15 @@ const setApiKey = (k) => {
 // Users can still bring their own Gemini key (Settings → API key) — when set,
 // the app talks to Google directly and bypasses the proxy + caps.
 const SUPABASE_PROXY_URL = 'https://vdtmflgetzilcgtcsogt.supabase.co/functions/v1/gemini-proxy';
-// Retired keys — if any of these are still stuck in a user's localStorage from
-// the old hardcoded-default era, drop them silently so we route through the proxy.
-const RETIRED_GEMINI_KEYS = [
-  'AIzaSyACBlFyOukgnhCf8FAz8ui466AL_iXP3tk',
-  'AIzaSyDz4qNdG10ocEzGzGWz5Ofj__2wqhb3wJ8',
-];
+// Retired keys — if one is still stuck in a user's localStorage from the old
+// hardcoded-default era, drop it silently so we route through the proxy.
+// We match on tail fingerprints only; the full keys must never ship in the
+// bundle again (they were rotated after appearing in the public HTML).
+const RETIRED_GEMINI_KEY_FPS = ['466AL_iXP3tk', '2wqhb3wJ8'];
 const getGeminiKey = () => {
   try {
     const stored = localStorage.getItem('lumiere:geminiKey');
-    if (stored && RETIRED_GEMINI_KEYS.includes(stored)) {
+    if (stored && RETIRED_GEMINI_KEY_FPS.some((fp) => stored.endsWith(fp))) {
       try { localStorage.removeItem('lumiere:geminiKey'); } catch {}
       try { localStorage.removeItem('lumiere:geminiModelWorking'); } catch {}
       return '';
@@ -4638,7 +4646,15 @@ function App() {
       if (!raw) return DEFAULT_USER_PROFILE;
       const parsed = JSON.parse(raw);
       return { ...DEFAULT_USER_PROFILE, ...parsed };
-    } catch { return DEFAULT_USER_PROFILE; }
+    } catch (e) {
+      // Back up corrupt raw before the persist effect overwrites it.
+      try {
+        const raw = localStorage.getItem('lumiere:userProfile');
+        if (raw) localStorage.setItem('lumiere:userProfile:corrupt-backup', raw);
+      } catch {}
+      console.warn('[userProfile] corrupt JSON; backed up + reset to defaults', e);
+      return DEFAULT_USER_PROFILE;
+    }
   });
   // Persist on every change.
   useEffect(() => {
@@ -17395,6 +17411,8 @@ If the user references something not in their data ("started retinol 6 weeks ago
           regimenLogs={regimenLogs}
           setRegimenLogs={setRegimenLogs}
           user={user}
+          userProfile={userProfile}
+          userConcerns={userConcerns}
           editingProductId={editingProductId}
           setEditingProductId={setEditingProductId}
           productForm={productForm}
@@ -18413,7 +18431,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   className="w-full rounded-full py-3 px-4 text-[11px] tracking-[0.2em] uppercase flex items-center justify-center gap-2 transition hover:opacity-90 mb-3 cursor-pointer"
                   style={{background:'var(--ink)', color:'var(--cream)', cursor:'pointer'}}
                 >
-                  {isToday ? 'Edit today\'s ritual' : 'Use this plan today'}
+                  {isToday ? 'Edit today\'s routine' : 'Use this plan today'}
                 </button>
                 <div className="flex items-center justify-center gap-5 flex-wrap">
                   {/* Suggest with AI — opt-in. Opens the AI Suggest sheet

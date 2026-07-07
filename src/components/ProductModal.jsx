@@ -17,6 +17,8 @@ const ProductModal = ({
   products, setProducts,
   regimenLogs, setRegimenLogs,
   user,
+  // July 2026 (product analyzer): profile context for scan → fit analysis.
+  userProfile, userConcerns,
   editingProductId, setEditingProductId,
   productForm, setProductForm,
   productModalRegimenContext, setProductModalRegimenContext,
@@ -737,6 +739,71 @@ Example response (just this, nothing else):
     } catch (err) {
       console.error('[scan] camera capture append failed', err);
       setScanError('Photo captured, but Frida could not prepare it. Try again or use Library.');
+    }
+  };
+
+  // === ANALYZE FIT (July 2026 — product analyzer) ===
+  // Scan → verdict WITHOUT committing to shelf. Answers the in-store
+  // question "should I buy this?" against the user's actual profile and
+  // what they're actually using (getActualUsage, not shelf). Results
+  // attach to the detectedProducts row (hoisted state) so they survive
+  // App-induced remounts — same reason all scan state is hoisted.
+  // Provider chain mirrors scan: Gemini proxy first (works keyless),
+  // Claude fallback if the user brought an Anthropic key.
+  const analyzeScannedProduct = async (idx) => {
+    const p = detectedProducts[idx];
+    if (!p || p.analyzing) return;
+    const patch = (obj) => setDetectedProducts(prev => prev.map((x, j) => j === idx ? { ...x, ...obj } : x));
+    patch({ analyzing: true, analysisError: '' });
+    try {
+      const prof = userProfile || {};
+      const concernsTxt = (Array.isArray(userConcerns) && userConcerns.length > 0) ? userConcerns.join(', ') : 'not specified';
+      const _u = getActualUsage(products, regimenLogs, logs, { windowDays: 30 });
+      const inUse = _u.actuallyUsed.length > 0
+        ? _u.actuallyUsed.map(u => `${u.product.name} (${u.product.activeIngredients || 'actives unknown'})`).join('; ')
+        : 'nothing logged in the last 30 days';
+      const shelfTxt = products.length > 0
+        ? products.map(x => `${x.name}${x.category ? ` [${x.category}]` : ''}${x.activeIngredients ? ` — ${x.activeIngredients}` : ''}`).join('; ')
+        : 'empty';
+      const prompt = `You are Frida — two doctor best friends who are skincare obsessives (NOT dermatologists; never claim clinical authority). A user scanned a product and wants a quick read on whether it's worth it FOR THEM. Voice: direct, warm, dry, brief.
+
+Scanned product:
+- Name: ${p.name || 'unknown'}
+- Brand: ${p.brand || 'unknown'}
+- Category: ${p.category || 'unknown'}
+- Actives (from label read): ${p.actives || 'unknown'}
+
+The user:
+- Concerns: ${concernsTxt}
+- Skin type: ${prof.skinType || 'not specified'}
+- Sensitivities: ${prof.sensitivities || 'none noted'}
+
+Currently in active use (last 30 days): ${inUse}
+Everything on their shelf: ${shelfTxt}
+
+Respond in EXACTLY this format — four labeled lines, plain prose, no markdown, each line ≤ 25 words:
+
+FIT: [Does this address their concerns/skin type? Map active → concern specifically, or say it doesn't.]
+CONFLICTS: [Layering conflicts with what they're actually using. "None we'd flag." if clean.]
+SHELF: [Do they already own something doing this job? Name it. "Nothing overlapping." if not.]
+VERDICT: [One dry, decisive line: worth it, skip it, or depends-on-what.]`;
+      let result = null;
+      const anyPhoto = scanPhoto || (Array.isArray(productScanBatch) && productScanBatch[0]) || null;
+      try {
+        if (anyPhoto) result = await callGeminiVision(anyPhoto, prompt, { maxTokens: 600, temperature: 0.3 });
+      } catch (gErr) { console.warn('[analyze-fit] Gemini failed:', gErr?.message); }
+      if (!result && getApiKey()) {
+        try { result = await callClaude(prompt, '', null, { model: 'claude-haiku-4-5-20251001', maxTokens: 600 }); }
+        catch (cErr) { console.warn('[analyze-fit] Claude failed:', cErr?.message); }
+      }
+      if (!result) throw new Error('No AI provider available');
+      const grab = (label) => { const m = String(result).match(new RegExp(label + ':\\s*([^\\n]+)')); return m ? m[1].trim() : ''; };
+      const analysis = { fit: grab('FIT'), conflicts: grab('CONFLICTS'), shelf: grab('SHELF'), verdict: grab('VERDICT') };
+      if (!analysis.verdict && !analysis.fit) throw new Error('Unparseable analysis response');
+      patch({ analyzing: false, analysis });
+    } catch (e) {
+      console.warn('[analyze-fit]', e);
+      patch({ analyzing: false, analysisError: /limit/i.test(e?.message || '') ? 'Daily AI limit reached.' : 'Analysis unavailable. Try again in a moment.' });
     }
   };
 
@@ -2384,6 +2451,40 @@ ALTERNATIVES:
                               {p.confidence && <span className="text-[8.5px] tracking-[0.12em] uppercase px-1.5 py-0.5 rounded-full leading-none" style={{border: '1px solid var(--line)', color:p.confidence === 'low' ? 'var(--rose)' : 'var(--ink-soft)'}}>{p.confidence}</span>}
                             </div>
                           )}
+
+                          {/* === ANALYZE FIT (July 2026) — scan → verdict without saving.
+                              One focal point: the verdict line. Everything above it
+                              stays quiet (eyebrow labels, soft ink). === */}
+                          <div className="pt-0.5">
+                            {!p.analysis && !p.analyzing && (
+                              <button
+                                type="button"
+                                onClick={() => analyzeScannedProduct(i)}
+                                className="h-8 text-[9px] tracking-[0.12em] uppercase px-2.5 rounded-full border transition hover:opacity-80 cursor-pointer flex items-center gap-1"
+                                style={{borderColor:'var(--line)', color:'var(--ink)', background:'transparent', cursor:'pointer'}}
+                              >
+                                <Icon name="Search" size={10} /> Analyze fit
+                              </button>
+                            )}
+                            {p.analyzing && (
+                              <div className="text-[10px] leading-snug" style={{color:'var(--ink-soft)'}}>Reading it against your routine…</div>
+                            )}
+                            {p.analysisError && !p.analyzing && (
+                              <div className="text-[10px] leading-snug" style={{color:'var(--rose)'}}>{p.analysisError}</div>
+                            )}
+                            {p.analysis && !p.analyzing && (
+                              <div className="rounded-lg p-2.5 space-y-1.5 border" style={{background:'var(--cream-deep)', borderColor:'var(--line)'}}>
+                                {[['Fit', p.analysis.fit], ['Conflicts', p.analysis.conflicts], ['Shelf', p.analysis.shelf]].map(([label, text]) => text ? (
+                                  <div key={label} className="text-[11px] leading-snug" style={{color:'var(--ink-soft)'}}>
+                                    <span className="text-[9px] tracking-[0.18em] uppercase mr-1.5" style={{color:'var(--ink)'}}>{label}</span>{text}
+                                  </div>
+                                ) : null)}
+                                {p.analysis.verdict && (
+                                  <div className="text-[12px] leading-snug pt-0.5" style={{color:'var(--ink)', fontWeight:600}}>{p.analysis.verdict}</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
