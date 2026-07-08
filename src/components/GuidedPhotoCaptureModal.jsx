@@ -298,20 +298,34 @@ const GuidedPhotoCaptureModal = ({
       // persist a raw 4MB iPhone shot. (Guard 3.7 in check_build.js
       // would catch a regression here.)
       const compress = async (rawDataUrl) => new Promise((resolve) => {
+        // July 2026: settle exactly once, and NEVER hang. If the decode
+        // fires neither onload nor onerror (seen on iOS Safari with huge
+        // HEIC-derived images), the old version left `uploading` stuck
+        // true forever → Done looked alive but was disabled. 10s timeout
+        // falls back to the raw dataUrl.
+        let settled = false;
+        const settle = (v) => { if (!settled) { settled = true; resolve(v); } };
+        const timer = setTimeout(() => settle(rawDataUrl), 10000);
         const img = new Image();
         img.onload = () => {
-          const MAX_OUT = 800;
-          const sourceSize = Math.min(img.width, img.height);
-          const sx = (img.width - sourceSize) / 2;
-          const sy = (img.height - sourceSize) / 2;
-          const outSize = Math.min(sourceSize, MAX_OUT);
-          const c = canvasRef.current || document.createElement('canvas');
-          c.width = outSize; c.height = outSize;
-          const ctx = c.getContext('2d');
-          ctx.drawImage(img, sx, sy, sourceSize, sourceSize, 0, 0, outSize, outSize);
-          resolve(c.toDataURL('image/jpeg', 0.85));
+          clearTimeout(timer);
+          try {
+            const MAX_OUT = 800;
+            const sourceSize = Math.min(img.width, img.height);
+            const sx = (img.width - sourceSize) / 2;
+            const sy = (img.height - sourceSize) / 2;
+            const outSize = Math.min(sourceSize, MAX_OUT);
+            const c = canvasRef.current || document.createElement('canvas');
+            c.width = outSize; c.height = outSize;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(img, sx, sy, sourceSize, sourceSize, 0, 0, outSize, outSize);
+            settle(c.toDataURL('image/jpeg', 0.85));
+          } catch (e) {
+            console.warn('[guided upload] canvas compress failed:', e?.message);
+            settle(rawDataUrl);
+          }
         };
-        img.onerror = () => resolve(rawDataUrl); // fall back to raw on decode failure
+        img.onerror = () => { clearTimeout(timer); settle(rawDataUrl); }; // fall back to raw on decode failure
         img.src = rawDataUrl;
       });
       const startStep = showDetailed ? detailedIdx : stepIdx;
@@ -343,14 +357,12 @@ const GuidedPhotoCaptureModal = ({
   };
   const openUploader = () => { if (uploadInputRef.current) uploadInputRef.current.click(); };
 
-  const capturedGuidedSteps = GUIDED_STEPS.filter(s => shotsByAngle[s.angle]);
-  const capturedDetailedSteps = DETAILED_STEPS.filter(s => shotsByAngle[s.angle]);
-  // July 2026 per Jenni: focus areas are no longer behind a mode-toggle
-  // button (it crowded the tray). Captured focus shots always show, and
-  // un-captured focus areas render as empty dashed slots at the end of
-  // the strip — tapping one jumps straight into that focus step.
-  const visibleCapturedSteps = [...capturedGuidedSteps, ...capturedDetailedSteps];
-  const emptyDetailedSteps = allowDetailedAreas ? DETAILED_STEPS.filter(s => !shotsByAngle[s.angle]) : [];
+  // July 2026 per Jenni (v2): the tray is ONE sequential map of every
+  // area in canonical order — Front → L cheek → R cheek → T-zone → Chin,
+  // then the focus areas. Each slot renders as a filled thumbnail or an
+  // empty dashed circle. Tapping any slot jumps to that step. No mode
+  // toggle, no captured-first reordering.
+  const TRAY_STEPS = allowDetailedAreas ? [...GUIDED_STEPS, ...DETAILED_STEPS] : GUIDED_STEPS;
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center md:p-4" style={{background:'rgba(0,0,0,0.96)'}}>
@@ -402,10 +414,12 @@ const GuidedPhotoCaptureModal = ({
               disabled={!canFinish || saving || uploading}
               className="text-[10.5px] tracking-[0.18em] uppercase px-3.5 py-2 rounded-full transition disabled:cursor-not-allowed"
               style={{
-                background: canFinish && !saving ? 'var(--cream)' : 'rgba(255,255,255,0.08)',
-                color: canFinish && !saving ? 'var(--ink)' : 'rgba(255,255,255,0.35)',
-                border: '1px solid ' + (canFinish && !saving ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.14)'),
-                boxShadow: canFinish && !saving ? '0 6px 18px rgba(0,0,0,0.28)' : 'none',
+                // Style must track the FULL disabled condition — a button
+                // that looks tappable but isn't reads as a dead button.
+                background: canFinish && !saving && !uploading ? 'var(--cream)' : 'rgba(255,255,255,0.08)',
+                color: canFinish && !saving && !uploading ? 'var(--ink)' : 'rgba(255,255,255,0.35)',
+                border: '1px solid ' + (canFinish && !saving && !uploading ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.14)'),
+                boxShadow: canFinish && !saving && !uploading ? '0 6px 18px rgba(0,0,0,0.28)' : 'none',
                 fontWeight: 800,
                 cursor: (canFinish && !saving && !uploading) ? 'pointer' : 'not-allowed',
               }}
@@ -561,142 +575,107 @@ const GuidedPhotoCaptureModal = ({
 
         {/* === Captured thumbnails + capture controls === */}
         <div className="px-4 pt-3 pb-4" style={{background:'rgba(0,0,0,0.4)'}}>
-        {/* July 2026 per Jenni: tray shows from the start so a user can skip
-            the core set entirely and jump straight to a focus area (e.g.
-            eyes-only check-in). Captured thumbs fill in as they shoot. */}
-        {(visibleCapturedSteps.length > 0 || emptyDetailedSteps.length > 0) && (
-          <div className="flex items-end justify-between gap-3 mb-4 px-1 w-full">
-            {visibleCapturedSteps.length > 0 && (
-              <div className="flex-1 min-w-0 overflow-x-auto pb-1">
-                <div className="flex items-center gap-3">
-                  {visibleCapturedSteps.map((s) => {
-                    const shot = shotsByAngle[s.angle];
-                    const guidedIndex = GUIDED_STEPS.findIndex(step => step.angle === s.angle);
-                    const detailedIndex = DETAILED_STEPS.findIndex(step => step.angle === s.angle);
-                    const active = showDetailed
-                      ? (detailedIndex >= 0 && detailedIndex === detailedIdx)
-                      : (guidedIndex >= 0 && guidedIndex === stepIdx);
-                    const reviewLabel = guidedIndex >= 0
-                      ? `Review step ${guidedIndex + 1}: ${s.label}`
-                      : `Review focus-area photo: ${s.label}`;
-                    return (
-                      <div key={s.angle} className="relative flex flex-col items-center gap-1 flex-shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (guidedIndex >= 0) {
-                              setShowDetailed(false);
-                              setStepIdx(guidedIndex);
-                            } else if (detailedIndex >= 0) {
-                              setShowDetailed(true);
-                              setDetailedIdx(detailedIndex);
-                            }
-                          }}
-                          className="flex flex-col items-center gap-1"
-                          style={{cursor:'pointer'}}
-                          aria-label={reviewLabel}
-                        >
-                          <div
-                            className="relative flex items-center justify-center"
-                            style={{
-                              width: active ? 48 : 44,
-                              height: active ? 48 : 44,
-                              borderRadius: '50%',
-                              border: active ? '2px solid var(--accent)' : '1px solid rgba(255,255,255,0.45)',
-                              overflow: 'hidden',
-                              boxShadow: active ? '0 0 0 3px rgba(255,255,255,0.16)' : 'none',
-                              transition:'all 140ms ease',
-                            }}
-                          >
-                            {shot ? (
-                              <img
-                                src={shot.dataUrl}
-                                alt={s.label}
-                                style={{
-                                  width:'100%',
-                                  height:'100%',
-                                  objectFit:'cover',
-                                  transform: shouldMirror ? 'scaleX(-1)' : 'none',
-                                }}
-                              />
-                            ) : null}
-                          </div>
-                          <span
-                            className="text-[9px] uppercase tracking-[0.15em]"
-                            style={{
-                              color: active ? '#fff' : 'rgba(255,255,255,0.55)',
-                              fontWeight: active ? 600 : 400,
-                            }}
-                          >
-                            {SHORT_LABEL[s.angle]}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            removeShot(s.angle);
-                          }}
-                          className="absolute flex items-center justify-center rounded-full"
+        {/* July 2026 per Jenni (v2): sequential tray — every area in
+            canonical order, filled thumbnail or empty dashed circle.
+            Tap any slot to jump to that step; start anywhere (eyes-only
+            check-ins are legal). */}
+        <div className="mb-4 px-1 w-full overflow-x-auto pb-1">
+          <div className="flex items-center gap-3">
+            {TRAY_STEPS.map((s) => {
+              const shot = shotsByAngle[s.angle];
+              const guidedIndex = GUIDED_STEPS.findIndex(step => step.angle === s.angle);
+              const detailedIndex = guidedIndex >= 0 ? -1 : DETAILED_STEPS.findIndex(step => step.angle === s.angle);
+              const active = showDetailed
+                ? (detailedIndex >= 0 && detailedIndex === detailedIdx)
+                : (guidedIndex >= 0 && guidedIndex === stepIdx);
+              const goToStep = () => {
+                if (guidedIndex >= 0) {
+                  setShowDetailed(false);
+                  setStepIdx(guidedIndex);
+                } else {
+                  setShowDetailed(true);
+                  setDetailedIdx(detailedIndex);
+                }
+              };
+              const slotLabel = shot
+                ? (guidedIndex >= 0 ? `Review step ${guidedIndex + 1}: ${s.label}` : `Review focus-area photo: ${s.label}`)
+                : (guidedIndex >= 0 ? `Capture ${s.label}` : `Add focus photo: ${s.label}`);
+              return (
+                <div key={s.angle} className="relative flex flex-col items-center gap-1 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={goToStep}
+                    className="flex flex-col items-center gap-1"
+                    style={{cursor:'pointer'}}
+                    aria-label={slotLabel}
+                  >
+                    <div
+                      className="relative flex items-center justify-center"
+                      style={{
+                        width: active ? 48 : 44,
+                        height: active ? 48 : 44,
+                        borderRadius: '50%',
+                        border: active
+                          ? '2px solid var(--accent)'
+                          : shot ? '1px solid rgba(255,255,255,0.45)' : '1.5px dashed rgba(255,255,255,0.4)',
+                        overflow: 'hidden',
+                        boxShadow: active ? '0 0 0 3px rgba(255,255,255,0.16)' : 'none',
+                        transition:'all 140ms ease',
+                      }}
+                    >
+                      {shot ? (
+                        <img
+                          src={shot.dataUrl}
+                          alt={s.label}
                           style={{
-                            top: -5,
-                            right: 0,
-                            width: 18,
-                            height: 18,
-                            background: 'rgba(5,5,5,0.86)',
-                            border: '1px solid rgba(255,255,255,0.55)',
-                            color: '#fff',
-                            cursor: 'pointer',
+                            width:'100%',
+                            height:'100%',
+                            objectFit:'cover',
+                            transform: shouldMirror ? 'scaleX(-1)' : 'none',
                           }}
-                          aria-label={`Remove ${s.label} photo`}
-                        >
-                          <Icon name="X" size={10} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                  {/* Empty focus-area slots — dashed circles, always visible.
-                      Tap = jump straight into that focus step. No mode
-                      toggle; the strip IS the map of what can be captured. */}
-                  {emptyDetailedSteps.map((s) => {
-                    const detailedIndex = DETAILED_STEPS.findIndex(step => step.angle === s.angle);
-                    const active = showDetailed && detailedIndex === detailedIdx;
-                    return (
-                      <button
-                        key={s.angle}
-                        type="button"
-                        onClick={() => { setShowDetailed(true); setDetailedIdx(detailedIndex); }}
-                        className="flex flex-col items-center gap-1 flex-shrink-0"
-                        style={{cursor:'pointer'}}
-                        aria-label={`Add focus photo: ${s.label}`}
-                      >
-                        <div
-                          className="flex items-center justify-center"
-                          style={{
-                            width: active ? 48 : 44,
-                            height: active ? 48 : 44,
-                            borderRadius: '50%',
-                            border: active ? '2px solid var(--accent)' : '1.5px dashed rgba(255,255,255,0.4)',
-                            boxShadow: active ? '0 0 0 3px rgba(255,255,255,0.16)' : 'none',
-                            transition: 'all 140ms ease',
-                          }}
-                        >
-                          <Icon name="Plus" size={13} style={{color: active ? 'var(--accent)' : 'rgba(255,255,255,0.5)'}} />
-                        </div>
-                        <span
-                          className="text-[9px] uppercase tracking-[0.15em]"
-                          style={{color: active ? '#fff' : 'rgba(255,255,255,0.45)', fontWeight: active ? 600 : 400}}
-                        >
-                          {SHORT_LABEL[s.angle]}
-                        </span>
-                      </button>
-                    );
-                  })}
+                        />
+                      ) : (
+                        <Icon name="Plus" size={13} style={{color: active ? 'var(--accent)' : 'rgba(255,255,255,0.5)'}} />
+                      )}
+                    </div>
+                    <span
+                      className="text-[9px] uppercase tracking-[0.15em]"
+                      style={{
+                        color: active ? '#fff' : shot ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.45)',
+                        fontWeight: active ? 600 : 400,
+                      }}
+                    >
+                      {SHORT_LABEL[s.angle]}
+                    </span>
+                  </button>
+                  {shot && (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        removeShot(s.angle);
+                      }}
+                      className="absolute flex items-center justify-center rounded-full"
+                      style={{
+                        top: -5,
+                        right: 0,
+                        width: 18,
+                        height: 18,
+                        background: 'rgba(5,5,5,0.86)',
+                        border: '1px solid rgba(255,255,255,0.55)',
+                        color: '#fff',
+                        cursor: 'pointer',
+                      }}
+                      aria-label={`Remove ${s.label} photo`}
+                    >
+                      <Icon name="X" size={10} />
+                    </button>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })}
           </div>
-        )}
+        </div>
 
         {/* Capture row: Library · Shutter · Retake/Skip */}
         <div className="flex items-center justify-between">

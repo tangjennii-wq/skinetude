@@ -16644,10 +16644,16 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   console.warn('[CheckIn] photo cloud upload failed:', error);
                   toast('Photo saved locally. Cloud photo upload did not finish.', 'error');
                 }
-              }).catch(e => {
+              })().catch(e => {
+                // July 2026 THE dead-Save bug: this used to be
+                // `(async () => {...}).catch(...)()` — .catch called on the
+                // FUNCTION, not the invoked promise → TypeError for every
+                // signed-in cloud user, thrown synchronously inside the
+                // save, before the modal could close. Guest mode never hit
+                // it, which is why local tests kept passing.
                 console.error('[CheckIn] photo cloud upload exception:', e);
                 toast('Photo saved locally. Cloud photo upload failed.', 'error');
-              })();
+              });
             });
           }
           setCheckInDetailsQueue([]);

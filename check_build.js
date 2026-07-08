@@ -385,6 +385,30 @@ const SOURCE_FILES = collectSourceFiles();
   }
 }
 
+// Guard 3.07 — async IIFE must be invoked BEFORE .catch (July 2026).
+// THE dead-Save bug: `(async () => {...}).catch(...)()` calls .catch on
+// the function object (undefined) → synchronous TypeError. It shipped
+// because it only executed for signed-in cloud users; guest-mode tests
+// passed. Correct form is `(async () => {...})().catch(...)`.
+{
+  let hits = [];
+  for (const f of SOURCE_FILES) {
+    // `}).catch(` closing an arrow/async body, with the whole chain then
+    // invoked via `})()` shortly after — the invocation belongs before
+    // the .catch, not after it.
+    const re = /\}\)\s*\.catch\([\s\S]{0,400}?\}\)\s*\(\s*\)\s*;/g;
+    let m;
+    while ((m = re.exec(f.text)) !== null) {
+      // Only flag when the .catch body itself ends the chain with `})();`
+      // (i.e. the invocation applies to the catch result, not the IIFE).
+      const idx = f.text.slice(0, m.index).split('\n').length;
+      hits.push(`${f.rel}:${idx}`);
+    }
+  }
+  if (hits.length) fail(`async IIFE with .catch before invocation — "(fn).catch(...)()" is a TypeError at runtime: ${hits.join(', ')}`);
+  else ok('No "(async () => {}).catch(...)()" un-invoked IIFE patterns');
+}
+
 // Guard 3.065 — Rotation actives must be classified by ingredient family.
 // Regression caught in Regimen → Rotation: a product with daily cadence
 // but a strong active family (retinoid/BHA/etc.) was counted as a "basic"
