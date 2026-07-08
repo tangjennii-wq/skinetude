@@ -2554,8 +2554,19 @@ CRITICAL OUTPUT REQUIREMENTS:
                     that explains what the strip will fill with once the user
                     checks in. Replaces the row of em-dashes. */}
                 {isPending && (
+                  // July 2026 fix: this line said "Check in to see your score"
+                  // even when the user HAD checked in (snap pending or photo
+                  // read didn't land) — contradicting the CHECKED IN badge and
+                  // the composite score right above it. Three states now:
+                  //   no check-in today  → the original CTA
+                  //   analyzing          → reading in progress
+                  //   checked in, no snap → tiles are carried; say so
                   <div className="text-center mt-2 text-[10px] tracking-[0.04em]" style={{color:'var(--accent)', fontWeight:600, opacity:0.75}}>
-                    Check in to see your score
+                    {todayLog?.id == null
+                      ? 'Check in to see your score'
+                      : todayLog?.analyzing
+                        ? 'Reading today’s photo…'
+                        : 'Showing your last reading'}
                   </div>
                 )}
               </div>
