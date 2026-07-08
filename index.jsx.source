@@ -3196,35 +3196,110 @@ try {
   console.error('localStorage is not available:', e);
 }
 
+// === INDEXEDDB-BACKED STORAGE (July 2026 — quota fix) ===
+// The big payloads (photo logs with base64 dataUrls) blew through iOS
+// Safari's ~5MB localStorage cap — daily 5-photo check-ins hit the wall
+// within weeks and saves died with QuotaExceededError. IndexedDB has
+// effectively GB-scale quota, and `storage` was already async, so the
+// swap is invisible to callers.
+//
+// Migration is LAZY: reads fall back to localStorage, and any legacy
+// value found there is copied into IDB and removed from localStorage
+// (freeing quota as a side effect). Writes go to IDB and clear the
+// legacy copy. If IDB is unavailable (very old browsers, some private
+// modes, jsdom in check_build), everything degrades to the original
+// localStorage behavior.
+const IDB_NAME = 'lumiere-store';
+const IDB_KV = 'kv';
+let __idbPromise = null;
+const openIdb = () => {
+  if (__idbPromise) return __idbPromise;
+  __idbPromise = new Promise((resolve, reject) => {
+    try {
+      if (typeof indexedDB === 'undefined' || !indexedDB) { reject(new Error('IndexedDB unavailable')); return; }
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => { try { req.result.createObjectStore(IDB_KV); } catch {} };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
+      req.onblocked = () => reject(new Error('IndexedDB blocked'));
+    } catch (e) { reject(e); }
+  });
+  // Allow a retry on transient failure instead of caching the rejection forever.
+  __idbPromise.catch(() => { __idbPromise = null; });
+  return __idbPromise;
+};
+const idbGet = async (key) => {
+  const db = await openIdb();
+  return new Promise((resolve, reject) => {
+    const rq = db.transaction(IDB_KV, 'readonly').objectStore(IDB_KV).get(key);
+    rq.onsuccess = () => resolve(rq.result === undefined ? null : rq.result);
+    rq.onerror = () => reject(rq.error);
+  });
+};
+const idbSet = async (key, value) => {
+  const db = await openIdb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_KV, 'readwrite');
+    tx.objectStore(IDB_KV).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('IndexedDB tx aborted'));
+  });
+};
+const idbDelete = async (key) => {
+  const db = await openIdb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_KV, 'readwrite');
+    tx.objectStore(IDB_KV).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+};
 const storage = {
   get: async (key) => {
+    const fullKey = `lumiere:${key}`;
+    try {
+      const v = await idbGet(fullKey);
+      if (v != null) return { value: v };
+    } catch (e) { console.warn('storage.get IDB failed for', key, e?.message); }
     if (!storageAvailable) return null;
     try {
-      const v = localStorage.getItem(`lumiere:${key}`);
-      return v ? { value: v } : null;
+      const v = localStorage.getItem(fullKey);
+      if (v == null) return null;
+      // Lazy one-time migration: promote to IDB, free the localStorage quota.
+      idbSet(fullKey, v).then(() => { try { localStorage.removeItem(fullKey); } catch {} }).catch(() => {});
+      return { value: v };
     } catch (e) {
       console.error('storage.get failed for', key, e);
       return null;
     }
   },
   set: async (key, value) => {
-    if (!storageAvailable) throw new Error('Storage unavailable');
+    const fullKey = `lumiere:${key}`;
     try {
-      localStorage.setItem(`lumiere:${key}`, value);
+      await idbSet(fullKey, value);
+      try { if (storageAvailable) localStorage.removeItem(fullKey); } catch {}
       return { value };
     } catch (e) {
-      console.error('storage.set failed for', key, e);
-      throw e;
+      console.warn('storage.set IDB failed for', key, '— falling back to localStorage:', e?.message);
+      if (!storageAvailable) throw new Error('Storage unavailable');
+      try {
+        localStorage.setItem(fullKey, value);
+        return { value };
+      } catch (e2) {
+        console.error('storage.set failed for', key, e2);
+        throw e2;
+      }
     }
   },
   delete: async (key) => {
-    if (!storageAvailable) return { deleted: false };
-    try {
-      localStorage.removeItem(`lumiere:${key}`);
-      return { deleted: true };
-    } catch (e) {
-      return { deleted: false };
+    const fullKey = `lumiere:${key}`;
+    let deleted = false;
+    try { await idbDelete(fullKey); deleted = true; } catch {}
+    if (storageAvailable) {
+      try { localStorage.removeItem(fullKey); deleted = true; } catch {}
     }
+    return { deleted };
   }
 };
 

@@ -103,11 +103,12 @@ const GuidedPhotoCaptureModal = ({
   const totalCapturedCount = Object.keys(shotsByAngle).filter(k => shotsByAngle[k]).length;
   const totalGuided = GUIDED_STEPS.length;
   const currentHasShot = !!shotsByAngle[currentStep.angle];
-  const canFinish = showDetailed
-    ? totalCapturedCount > 0
-    : requireFullGuidedSet
-      ? guidedCapturedCount >= totalGuided
-      : guidedCapturedCount > 0;
+  // July 2026 per Jenni: a daily check-in can be a focus shot ONLY (e.g.
+  // just eyes) — any captured photo unlocks Done. Baseline/set capture
+  // (requireFullGuidedSet) still demands the full core five.
+  const canFinish = requireFullGuidedSet && !showDetailed
+    ? guidedCapturedCount >= totalGuided
+    : totalCapturedCount > 0;
 
   // Mirror front cam — same logic as CameraCaptureModal.
   const facingMode = 'user';
@@ -344,9 +345,12 @@ const GuidedPhotoCaptureModal = ({
 
   const capturedGuidedSteps = GUIDED_STEPS.filter(s => shotsByAngle[s.angle]);
   const capturedDetailedSteps = DETAILED_STEPS.filter(s => shotsByAngle[s.angle]);
-  const visibleCapturedSteps = showDetailed
-    ? [...capturedGuidedSteps, ...capturedDetailedSteps]
-    : capturedGuidedSteps;
+  // July 2026 per Jenni: focus areas are no longer behind a mode-toggle
+  // button (it crowded the tray). Captured focus shots always show, and
+  // un-captured focus areas render as empty dashed slots at the end of
+  // the strip — tapping one jumps straight into that focus step.
+  const visibleCapturedSteps = [...capturedGuidedSteps, ...capturedDetailedSteps];
+  const emptyDetailedSteps = allowDetailedAreas ? DETAILED_STEPS.filter(s => !shotsByAngle[s.angle]) : [];
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center md:p-4" style={{background:'rgba(0,0,0,0.96)'}}>
@@ -557,8 +561,10 @@ const GuidedPhotoCaptureModal = ({
 
         {/* === Captured thumbnails + capture controls === */}
         <div className="px-4 pt-3 pb-4" style={{background:'rgba(0,0,0,0.4)'}}>
-        {/* Only show review/focus controls after the first capture; before that, keep the camera path visually primary. */}
-        {guidedCapturedCount > 0 && (
+        {/* July 2026 per Jenni: tray shows from the start so a user can skip
+            the core set entirely and jump straight to a focus area (e.g.
+            eyes-only check-in). Captured thumbs fill in as they shoot. */}
+        {(visibleCapturedSteps.length > 0 || emptyDetailedSteps.length > 0) && (
           <div className="flex items-end justify-between gap-3 mb-4 px-1 w-full">
             {visibleCapturedSteps.length > 0 && (
               <div className="flex-1 min-w-0 overflow-x-auto pb-1">
@@ -649,35 +655,45 @@ const GuidedPhotoCaptureModal = ({
                       </div>
                     );
                   })}
+                  {/* Empty focus-area slots — dashed circles, always visible.
+                      Tap = jump straight into that focus step. No mode
+                      toggle; the strip IS the map of what can be captured. */}
+                  {emptyDetailedSteps.map((s) => {
+                    const detailedIndex = DETAILED_STEPS.findIndex(step => step.angle === s.angle);
+                    const active = showDetailed && detailedIndex === detailedIdx;
+                    return (
+                      <button
+                        key={s.angle}
+                        type="button"
+                        onClick={() => { setShowDetailed(true); setDetailedIdx(detailedIndex); }}
+                        className="flex flex-col items-center gap-1 flex-shrink-0"
+                        style={{cursor:'pointer'}}
+                        aria-label={`Add focus photo: ${s.label}`}
+                      >
+                        <div
+                          className="flex items-center justify-center"
+                          style={{
+                            width: active ? 48 : 44,
+                            height: active ? 48 : 44,
+                            borderRadius: '50%',
+                            border: active ? '2px solid var(--accent)' : '1.5px dashed rgba(255,255,255,0.4)',
+                            boxShadow: active ? '0 0 0 3px rgba(255,255,255,0.16)' : 'none',
+                            transition: 'all 140ms ease',
+                          }}
+                        >
+                          <Icon name="Plus" size={13} style={{color: active ? 'var(--accent)' : 'rgba(255,255,255,0.5)'}} />
+                        </div>
+                        <span
+                          className="text-[9px] uppercase tracking-[0.15em]"
+                          style={{color: active ? '#fff' : 'rgba(255,255,255,0.45)', fontWeight: active ? 600 : 400}}
+                        >
+                          {SHORT_LABEL[s.angle]}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            )}
-            {allowDetailedAreas && (
-              // July 2026 per Jenni: shrunk from a chunky two-line card to a
-              // small pill that reads as a toggle — accent fill when the
-              // focus-area sequence is active.
-              <button
-                type="button"
-                onClick={() => {
-                  if (showDetailed) setShowDetailed(false);
-                  else { setShowDetailed(true); setDetailedIdx(0); }
-                }}
-                className="flex-shrink-0 ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 transition"
-                style={{
-                  alignSelf: 'flex-end',
-                  background: showDetailed ? 'var(--accent)' : 'rgba(255,255,255,0.06)',
-                  border: '1px solid ' + (showDetailed ? 'var(--accent)' : 'rgba(255,255,255,0.16)'),
-                  color: '#fff',
-                  cursor: 'pointer',
-                }}
-                aria-pressed={showDetailed}
-                aria-label={showDetailed ? 'Return to core photo set' : 'Capture focus areas'}
-              >
-                <Icon name="Target" size={11} />
-                <span className="text-[8.5px] tracking-[0.14em] uppercase whitespace-nowrap" style={{fontWeight:750}}>
-                  Focus area
-                </span>
-              </button>
             )}
           </div>
         )}

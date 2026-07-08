@@ -371,13 +371,17 @@ const SOURCE_FILES = collectSourceFiles();
     } else {
       ok('GuidedPhotoCaptureModal avoids stale capturedCount alias');
     }
+    // July 2026 update: daily check-in can now finish on ANY single photo —
+    // core OR focus-area (eyes-only check-ins are legal). The invariant is
+    // totalCapturedCount-based; baseline capture still requires the full
+    // core set via requireFullGuidedSet.
     const partialDailyAllowed =
       guided.text.includes('requireFullGuidedSet = false') &&
       guided.text.includes('requireFullGuidedSet') &&
-      guided.text.includes('guidedCapturedCount > 0') &&
+      guided.text.includes('totalCapturedCount > 0') &&
       guided.text.includes('if (!canFinish) return;');
-    if (!partialDailyAllowed) fail('Guided daily check-in must be able to finish after one captured photo');
-    else ok('Guided daily check-in can finish after one photo');
+    if (!partialDailyAllowed) fail('Guided daily check-in must be able to finish after one captured photo (core or focus)');
+    else ok('Guided daily check-in can finish after one photo (core or focus)');
   }
 }
 
