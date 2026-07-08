@@ -2050,7 +2050,13 @@ CRITICAL OUTPUT REQUIREMENTS:
                       Photo = check-in surface only; this row = analysis
                       surface. */}
                   {todayLog?.id != null && (
-                    <div className="inline-flex items-center gap-3" style={{whiteSpace: 'nowrap'}}>
+                    // July 2026 formatting fix: this row was nowrap inside a
+                    // 180px column — circle + word + "Read analysis" is ~290px,
+                    // so the link bled off the right edge of the viewport at
+                    // 380px (and the page-level overflow dragged fixed-anchored
+                    // elements with it). Wrap instead: link drops to its own line.
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+
                       {todayAvg != null && (() => {
                         // === Composite word descriptor (June 2026 per Jenni) ===
                         // Pairs the hero number with a one-word read. The word

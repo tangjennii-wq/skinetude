@@ -10316,7 +10316,7 @@ Pick the SINGLE most accurate word per METRIC based on what's actually visible. 
         saveData('logs', next);
         return next;
       });
-      toast('Analysis ready ✨');
+      toast('Analysis ready.');
     } catch (e) {
       console.error('[retryLogAnalysis] FAILED:', e);
       setLogs(prev => {
@@ -21500,8 +21500,11 @@ If the user references something not in their data ("started retinol 6 weeks ago
         </div>
       )}
 
-      {/* TOAST CONTAINER */}
-      <div className="fixed bottom-24 md:bottom-6 right-6 z-50 space-y-2 pointer-events-none" style={{maxWidth:'360px'}}>
+      {/* TOAST CONTAINER — July 2026: mobile-safe. Was right-anchored with a
+          360px max width; combined with any page-level horizontal overflow it
+          rendered partially off-screen on 380px viewports. Mobile: span the
+          viewport minus margins. Desktop: original right-corner behavior. */}
+      <div className="fixed bottom-24 md:bottom-6 left-4 right-4 md:left-auto md:right-6 z-50 space-y-2 pointer-events-none md:max-w-[360px]">
         {toasts.map(t => (
           <div key={t.id} className="pointer-events-auto px-4 py-3 shadow-lg border flex items-center gap-3 animate-slide" style={{
             background: t.type === 'error' ? '#fef0ef' : t.type === 'info' ? 'var(--cream-deep)' : 'var(--cream)',
