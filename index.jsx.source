@@ -7022,7 +7022,7 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
     const log = (logs || []).find(l => l.id === skinReadDrawerLogId);
     if (!log) return;
     if (log.aiAnalysis || log.analyzing) return;
-    if (!getApiKey()) return;
+    if (!canRunAnalysis()) return; // July 2026: proxy runs keyless
     if (typeof retryLogAnalysis !== 'function') return;
     retryLogAnalysis(skinReadDrawerLogId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -7054,7 +7054,7 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
     const hasPhoto = !!(todayLog.photo || todayLog.photoPath);
     if (!hasPhoto) return;
     if (todayLog.aiAnalysis || todayLog.analyzing) return;
-    if (!getApiKey()) return;
+    if (!canRunAnalysis()) return; // July 2026: proxy runs keyless
     if (typeof retryLogAnalysis !== 'function') return;
     if (todayAutoAnalyzeRef.current.has(todayLog.id)) return;
     todayAutoAnalyzeRef.current.add(todayLog.id);

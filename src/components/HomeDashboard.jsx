@@ -3624,6 +3624,11 @@ CRITICAL OUTPUT REQUIREMENTS:
                           : [updatedLog, ...regimenLogs];
                         setRegimenLogs(next);
                         persistRegimenLogs(next, 'toggle-product-done');
+                        // July 2026 Day 6: bump the cover token so surfaces
+                        // derived from done-state (adherence chips, commit
+                        // pill fill) rebuild immediately. Was the one write
+                        // path missing the bump (guardrail catalog Flow 4).
+                        setCoverRoutineRebuildToken(t => t + 1);
                       }}
                     />
                   </div>

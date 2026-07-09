@@ -6,6 +6,10 @@
 
 const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [], dailyCoverPick = {}, setActiveTab, selectMode = false, selectedIds = [], onToggleSelect, onOpenLesson, deleteLog, enterCompare, fileToBase64, onAddPriorPhoto, onEditLog }) => {
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  // July 2026 Day 6 (one lightbox everywhere): tapping the photo inside
+  // the detail view opens the SAME PhotoLightbox used by Compare and the
+  // check-in strip — full-screen, one pattern.
+  const [zoomPhoto, setZoomPhoto] = useState(null);
   const [insightsExpanded, setInsightsExpanded] = useState(false); // Notion-style hover/tap reveal
   // Smart search across notes, AI analysis text, used product names, and used tags.
   const [timelineSearch, setTimelineSearch] = useState('');
@@ -1054,7 +1058,16 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
             <button onClick={() => setSelectedPhoto(null)} className="absolute top-2.5 right-2.5 z-10 w-8 h-8 rounded-full flex items-center justify-center shadow-md" style={{background:'rgba(245,240,232,0.95)', color:'var(--ink)'}} aria-label="Close">
               <Icon name="X" size={14} />
             </button>
-            <Photo item={selectedPhoto} alt="" className="w-full max-h-[40vh] md:max-h-[55vh] object-contain" style={{background:'var(--cream-deep)'}} />
+            <button
+              type="button"
+              onClick={() => setZoomPhoto(selectedPhoto)}
+              className="block w-full transition hover:opacity-95"
+              style={{background:'transparent', border:'none', padding:0, cursor:'zoom-in'}}
+              aria-label="View photo full screen"
+              title="Tap to view full screen"
+            >
+              <Photo item={selectedPhoto} alt="" className="w-full max-h-[40vh] md:max-h-[55vh] object-contain" style={{background:'var(--cream-deep)'}} />
+            </button>
             <div className="px-4 py-3 md:px-5 md:py-4">
               <div className="flex justify-between items-baseline gap-3 pb-2.5 border-b" style={{borderColor: 'var(--line)'}}>
                 <div className="min-w-0">
@@ -1183,6 +1196,16 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
             </div>
           </div>
         </div>
+      )}
+      {/* Full-screen zoom — same PhotoLightbox as Compare + check-in strip. */}
+      {zoomPhoto && (
+        <PhotoLightbox
+          photos={[{
+            item: zoomPhoto,
+            label: `${zoomPhoto.date ? new Date(zoomPhoto.date + (String(zoomPhoto.date).length === 10 ? 'T12:00:00' : '')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Photo'} · ${(zoomPhoto.area || 'full-face').replace(/-/g, ' ')}`,
+          }]}
+          onClose={() => setZoomPhoto(null)}
+        />
       )}
     </div>
   );
