@@ -2862,46 +2862,21 @@ CRITICAL OUTPUT REQUIREMENTS:
       // the weekly plan editor). Done + skipped marks for the moved id
       // are cleared in both slots — it's a fresh step where it lands.
       const moveSlotToday = (product, fromSlot) => {
-        if (!product || !product.id) return;
-        const toSlot = fromSlot === 'am' ? 'pm' : 'am';
-        const fromKey = fromSlot === 'am' ? 'amProducts' : 'pmProducts';
-        const toKey = toSlot === 'am' ? 'amProducts' : 'pmProducts';
-        const existing = (regimenLogs || []).find(r => r.date === viewDate);
-        const seedIds = (slot) => {
-          const key = slot === 'am' ? 'amProducts' : 'pmProducts';
-          if (existing && Array.isArray(existing[key]) && existing[key].length > 0) return [...existing[key]];
-          return (slot === 'am' ? amList : pmList).map(p => p && p.id).filter(Boolean);
-        };
-        const fromIds = seedIds(fromSlot).filter(id => id !== product.id);
-        const toIdsRaw = seedIds(toSlot);
-        const toIds = toIdsRaw.includes(product.id) ? toIdsRaw : [...toIdsRaw, product.id];
-        const base = existing || {
-          id: Date.now(),
+        // July 2026 Phase 1: routed through the shared helper so Home and
+        // Regimen → Today can't drift on move semantics.
+        const next = moveProductSlotForDate({
+          regimenLogs,
           date: viewDate,
-          amProducts: [], pmProducts: [],
-          amDone: [], pmDone: [],
-          amSkipped: [], pmSkipped: [],
-          amExtras: [], pmExtras: [],
-          notes: '',
-          submitted: false,
-        };
-        const stripId = (arr) => (Array.isArray(arr) ? arr.filter(id => id !== product.id) : []);
-        const updated = {
-          ...base,
-          [fromKey]: fromIds,
-          [toKey]: toIds,
-          amDone: stripId(base.amDone),
-          pmDone: stripId(base.pmDone),
-          amSkipped: stripId(base.amSkipped),
-          pmSkipped: stripId(base.pmSkipped),
-        };
-        const next = existing
-          ? (regimenLogs || []).map(r => r.date === viewDate ? updated : r)
-          : [updated, ...(regimenLogs || [])];
+          product,
+          fromSlot,
+          amListIds: amList.map(p => p && p.id).filter(Boolean),
+          pmListIds: pmList.map(p => p && p.id).filter(Boolean),
+        });
+        if (!next) return;
         setRegimenLogs(next);
         persistRegimenLogs(next, 'move-slot-today');
         setCoverRoutineRebuildToken(t => t + 1);
-        toast(`Moved to ${toSlot.toUpperCase()} for today.`, 'info');
+        toast(`Moved to ${fromSlot === 'am' ? 'PM' : 'AM'} for today.`, 'info');
       };
       // === APPLY GOING FORWARD (July 2026 — quick-edit layer) ===
       // Promotes anything ADDED to today (vs the edit-session snapshot)
@@ -3897,7 +3872,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                 ? (ctaSlot === 'pm' ? 'Skip PM today' : 'Skip AM today')
                 : (hasSomeManualDone
                   ? `Save ${doneCount}/${totalCount}`
-                  : (ctaSlot === 'pm' ? "Yes, I did PM" : "Yes, I did AM")));
+                  : (ctaSlot === 'pm' ? "Done PM" : "Done AM")));
             // Inline save — writes the regimen log for viewDate with
             // exactly the checked products marked done (planned minus
             // skipped). Skipped IDs are preserved in the log so the

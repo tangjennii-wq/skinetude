@@ -9,6 +9,7 @@ const RegimenView = ({
   activeTab,
   logs,
   products, setProducts,
+  setRemoveScopePrompt, // July 2026 Phase 1: Today view routes X to the App-level skip/remove prompt
   procedures,
   regimenLogs, setRegimenLogs,
   buildAnswers, setBuildAnswers,
@@ -189,6 +190,8 @@ const RegimenView = ({
       setRitualSuggestion={setRitualSuggestion}
       setShelfQuickAddOpen={setShelfQuickAddOpen}
       setUsedSomethingElseSheet={setUsedSomethingElseSheet}
+      setProducts={setProducts}
+      setRemoveScopePrompt={setRemoveScopePrompt}
       userProfile={userProfile}
     />
   )}

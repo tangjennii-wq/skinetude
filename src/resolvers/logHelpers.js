@@ -161,6 +161,65 @@ const addProductToRoutine = (product, slot, options = {}) => {
 };
 
 // =========================================================================
+// 2b. moveProductSlotForDate — today-only AM⇄PM move (July 2026 Phase 1)
+// =========================================================================
+//
+// Shared by Home's quick-edit layer and Regimen → Today so the move
+// semantics can't drift: rewrites the date's regimenLog slot membership,
+// preserves every other field, clears done/skipped marks for the moved
+// id in BOTH slots (fresh step where it lands), never touches product
+// cadence/useTimes.
+//
+// Usage:
+//   const next = moveProductSlotForDate({
+//     regimenLogs, date, product, fromSlot,
+//     amListIds, pmListIds,   // resolver-derived ids, seed a missing log
+//   });
+//   if (next) { setRegimenLogs(next); /* persist + token bump at call site */ }
+//
+// Returns the next regimenLogs array, or null when inputs are invalid.
+
+const moveProductSlotForDate = ({ regimenLogs, date, product, fromSlot, amListIds = [], pmListIds = [] }) => {
+  if (!product || !product.id || !date) return null;
+  const toSlot = fromSlot === 'am' ? 'pm' : 'am';
+  const fromKey = fromSlot === 'am' ? 'amProducts' : 'pmProducts';
+  const toKey = toSlot === 'am' ? 'amProducts' : 'pmProducts';
+  const logs = Array.isArray(regimenLogs) ? regimenLogs : [];
+  const existing = logs.find(r => r.date === date);
+  const seedIds = (slot) => {
+    const key = slot === 'am' ? 'amProducts' : 'pmProducts';
+    if (existing && Array.isArray(existing[key]) && existing[key].length > 0) return [...existing[key]];
+    return (slot === 'am' ? amListIds : pmListIds).filter(Boolean);
+  };
+  const fromIds = seedIds(fromSlot).filter(id => id !== product.id);
+  const toIdsRaw = seedIds(toSlot);
+  const toIds = toIdsRaw.includes(product.id) ? toIdsRaw : [...toIdsRaw, product.id];
+  const base = existing || {
+    id: Date.now(),
+    date,
+    amProducts: [], pmProducts: [],
+    amDone: [], pmDone: [],
+    amSkipped: [], pmSkipped: [],
+    amExtras: [], pmExtras: [],
+    notes: '',
+    submitted: false,
+  };
+  const stripId = (arr) => (Array.isArray(arr) ? arr.filter(id => id !== product.id) : []);
+  const updated = {
+    ...base,
+    [fromKey]: fromIds,
+    [toKey]: toIds,
+    amDone: stripId(base.amDone),
+    pmDone: stripId(base.pmDone),
+    amSkipped: stripId(base.amSkipped),
+    pmSkipped: stripId(base.pmSkipped),
+  };
+  return existing
+    ? logs.map(r => r.date === date ? updated : r)
+    : [updated, ...logs];
+};
+
+// =========================================================================
 // 3. addManyToRoutine — batch version for promote-to-routine banner
 // =========================================================================
 //

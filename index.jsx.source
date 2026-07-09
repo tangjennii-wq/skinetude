@@ -11505,6 +11505,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
             logs={logs}
             products={products}
             setProducts={setProducts}
+            setRemoveScopePrompt={setRemoveScopePrompt}
             procedures={procedures}
             regimenLogs={regimenLogs}
             setRegimenLogs={setRegimenLogs}

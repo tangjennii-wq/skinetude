@@ -31,14 +31,17 @@ const RegimenTodayView = ({
   setRitualSuggestion,
   setShelfQuickAddOpen,
   setUsedSomethingElseSheet,
+  // July 2026 Phase 1 (Home parity): quick-edit layer needs these.
+  setProducts,
+  setRemoveScopePrompt,
   userProfile}) => {
   const [showAllRitualItems, setShowAllRitualItems] = useState(false);
-  const [expandedRitualItemId, setExpandedRitualItemId] = useState(null);
-  // Per-row "show full mechanism / evidence" toggles (May 31 2026 per Jenni).
-  // Verbose AI dumps default to truncated; user can expand individually.
-  const [mechExpandedForRow, setMechExpandedForRow] = useState({});
-  const [evidenceExpandedForRow, setEvidenceExpandedForRow] = useState({});
+  // (expandedRitualItemId + mech/evidence row toggles deleted July 2026
+  // Phase 1 — row expansion now lives inside the shared RoutineProductRow.)
   const [ritualActionsOpen, setRitualActionsOpen] = useState(false);
+  // July 2026 Phase 1: Edit today mode — same semantics as the Home cover.
+  const [editToday, setEditToday] = useState(false);
+  const editTodaySnapshotRef = useRef(null);
   const persistRegimenLogs = (nextLogs, label) => {
     saveData('regimenLogs', nextLogs).catch(e => {
       console.error(`[regimen today ${label}] saveData failed:`, e);
@@ -420,200 +423,15 @@ const RegimenTodayView = ({
     persistRitualProgress(next);
   };
 
-  // Remove a product from the regimen page's AM/PM tile —
-  // ALWAYS writes to today's regimenLog (auto-save). If no log
-  // exists yet, synthesize one from current visible AM/PM lists
-  // so removing one bottle doesn't wipe the rest. Mirrors the
-  // cover's removeFromSlot pattern — regimenLogs is the single
-  // source of truth.
-  const removeFromRegimenSlot = (p, slot) => {
-    if (!p) return;
-    const today = localDateISO();
-    const targetLog = todayLog || (regimenLogs || []).find(r => r.date === today);
-    const slotKey = slot === 'am' ? 'amProducts' : 'pmProducts';
-    const otherKey = slot === 'am' ? 'pmProducts' : 'amProducts';
-    const baseLog = targetLog || {
-      id: Date.now(),
-      date: today,
-      amProducts: amProducts.map(x => x.id).filter(Boolean),
-      pmProducts: pmProducts.map(x => x.id).filter(Boolean),
-      amDone: [],
-      pmDone: [],
-      notes: '',
-      submitted: false};
-    const updated = {
-      ...baseLog,
-      [slotKey]: (baseLog[slotKey] || []).filter(id => id !== p.id),
-      [otherKey]: mergeIds(baseLog[otherKey] || [])};
-    const exists = (regimenLogs || []).some(r => r.date === today);
-    const newLogs = exists
-      ? regimenLogs.map(r => r.date === today ? updated : r)
-      : [updated, ...(regimenLogs || [])];
-    setRegimenLogs(newLogs);
-    saveData('regimenLogs', newLogs).catch(e => {
-      console.error('[regimen-page X] saveData failed:', e);
-      toast(`Save error: ${e?.message || 'unknown'}`, 'error');
-    });
-    setCoverRoutineRebuildToken(t => t + 1);
-    toast(`Removed from ${slot.toUpperCase()}`, 'info');
-  };
+  // (removeFromRegimenSlot deleted July 2026 Phase 1 — the shared
+  // RoutineSlotList X now routes to the App-level skip/remove scope prompt.)
 
   // Bottle thumbnail — real photo > Gemini art > dashed outline.
-  const renderBottleThumb = (p, key, slot) => {
-    const slotKey = `prod-${p.id}`;
-    const aiArt = generatedProductArt && generatedProductArt[slotKey];
-    const caption = (p && (p.brand || p.name)) || '';
-    return (
-      <div key={key} className="flex-shrink-0 w-14 flex flex-col items-center relative">
-        {/* X-remove chip in upper-right of each bottle tile */}
-        {p && slot && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); removeFromRegimenSlot(p, slot); }}
-            className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center transition hover:opacity-90 cursor-pointer z-10"
-            style={{background:'var(--cream)', border: '1px solid var(--line)', color:'var(--ink-soft)', boxShadow:'0 1px 2px rgba(28,25,23,0.05)', cursor:'pointer'}}
-            title={`Remove from ${slot.toUpperCase()}`}
-            aria-label={`Remove ${p.name} from ${slot.toUpperCase()}`}
-          >
-            <Icon name="X" size={7} />
-          </button>
-        )}
-        <div className="h-16 flex items-end justify-center overflow-hidden">
-          {p.photo || p.photoPath ? (
-            <Photo item={p} alt={p.name} className="h-full w-auto max-w-full object-contain"
-              renderFallback={() => aiArt
-                ? <img src={aiArt} alt={p.name} className="h-full w-auto max-w-full object-contain" />
-                : <DashedBottleOutline />}
-            />
-          ) : aiArt ? (
-            <img src={aiArt} alt={p.name} className="h-full w-auto max-w-full object-contain" />
-          ) : (
-            <DashedBottleOutline />
-          )}
-        </div>
-        {caption ? (
-          <div
-            className="text-[8px] tracking-[0.08em] uppercase mt-0.5 truncate w-full text-center"
-            style={{color:'var(--ink-soft)'}}
-            title={caption}
-          >
-            {caption}
-          </div>
-        ) : null}
-      </div>
-    );
-  };
-
-  // Build the 7-day weekly rotation strip — anchored to current
-  // Monday with a `regimenWeekOffset` shift in weeks (0 = current
-  // week, negative = past). Capped at 0 so we never show future weeks.
-  // Each day: { date, label, isToday, theme, hasAm, hasPm, amProducts, pmProducts, dayLog }
-  const todayDate = new Date(); todayDate.setHours(0,0,0,0);
-  const baseWeekStart = new Date(todayDate);
-  const dow = baseWeekStart.getDay(); // 0=Sun, 1=Mon
-  baseWeekStart.setDate(baseWeekStart.getDate() - ((dow + 6) % 7)); // back to Monday
-  const weekStart = new Date(baseWeekStart);
-  weekStart.setDate(baseWeekStart.getDate() + regimenWeekOffset * 7);
-  const weekEndForRange = new Date(weekStart);
-  weekEndForRange.setDate(weekStart.getDate() + 6);
-  const isCurrentRegimenWeek = regimenWeekOffset === 0;
-  const dayLetters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-  const dayShort = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-  const dayLong = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  // Theme inference per day — anchor on hero ingredient if a log exists,
-  // else cycle through a curated rotation of common AI themes.
-  const themeRotation = ['Vitamin C AM', 'Retinol PM', 'Recovery Day', 'Acid Night', 'Hydration', 'Barrier Repair', 'Reset Sunday'];
-  const inferTheme = (dayProducts) => {
-    const all = [...(dayProducts.am || []), ...(dayProducts.pm || [])];
-    const txt = all.map(p => `${p.name || ''} ${p.activeIngredients || ''}`).join(' ').toLowerCase();
-    if (/retinol|tretinoin|retinaldehyde|adapalene/.test(txt)) return 'Retinol PM';
-    if (/ascorbic|vitamin c|c.?ferulic/.test(txt)) return 'Vitamin C AM';
-    if (/glycolic|salicylic|lactic|mandelic|aha|bha/.test(txt)) return 'Acid Night';
-    if (/niacinamide|panthenol|ceramide|centella/.test(txt)) return 'Barrier Repair';
-    if (/hyaluronic|squalane|glycerin|essence/.test(txt)) return 'Hydration';
-    return null;
-  };
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart); d.setDate(d.getDate() + i);
-    const iso = localDateISO(d);
-    const log = (regimenLogs || []).find(r => r.date === iso && r.submitted);
-    const dayAmProducts = log ? (log.amProducts || []).map(id => productById[id]).filter(Boolean) : [];
-    const dayPmProducts = log ? (log.pmProducts || []).map(id => productById[id]).filter(Boolean) : [];
-    const inferred = inferTheme({ am: dayAmProducts, pm: dayPmProducts });
-    const theme = inferred || themeRotation[i];
-    return {
-      iso, date: d, letter: dayLetters[i], short: dayShort[i], long: dayLong[i],
-      isToday: iso === todayKey,
-      theme,
-      hasAm: dayAmProducts.length > 0 || (!log && (i % 2 === 0)), // heuristic for fallback
-      hasPm: dayPmProducts.length > 0 || (!log && (i % 2 === 1)),
-      amProducts: dayAmProducts, pmProducts: dayPmProducts, log};
-  });
-
+  // (renderBottleThumb + renderProductTile deleted July 2026 Phase 1 — dead code, zero call sites; rows render via shared RoutineSlotList.)
   // Progress ring SVG — circumference based.
   const ringR = 22; const ringC = 2 * Math.PI * ringR;
   const ringPct = totalSteps > 0 ? doneCount / totalSteps : 0;
   const ringDash = ringC * ringPct;
-
-  // === Square product tile ===
-  // Real photo > AI art > dashed bottle outline. Brand on top
-  // (small caps), product name underneath. Used by both Morning
-  // and Evening rows in the new mockup-aligned layout.
-  const renderProductTile = (p, key, slot) => {
-    const slotKey = `prod-${p.id}`;
-    const aiArt = generatedProductArt && generatedProductArt[slotKey];
-    const hasPhoto = p.photo || p.photoPath;
-    return (
-      <div key={key} className="flex-shrink-0 w-[78px] md:w-[72px] relative">
-        {/* Quick-remove X in upper-right of the tile */}
-        {slot && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); removeFromRegimenSlot(p, slot); }}
-            className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center transition hover:opacity-90 cursor-pointer z-10"
-            style={{background:'var(--cream)', border: '1px solid var(--line)', color:'var(--ink-soft)', boxShadow:'0 1px 2px rgba(28,25,23,0.05)', cursor:'pointer'}}
-            title={`Remove from ${slot.toUpperCase()}`}
-            aria-label={`Remove ${p.name} from ${slot.toUpperCase()}`}
-          >
-            <Icon name="X" size={7} />
-          </button>
-        )}
-        <div className="w-[78px] h-[78px] md:w-[72px] md:h-[72px] rounded-[14px] overflow-hidden flex items-center justify-center" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
-          {hasPhoto ? (
-            <Photo item={p} alt={p.name} className="w-full h-full object-cover"
-              renderFallback={() => aiArt
-                ? <img src={aiArt} alt={p.name} className="w-full h-full object-contain p-2" />
-                : <div className="w-full h-full flex items-center justify-center" style={{color:'var(--ink-soft)'}}><DashedBottleOutline /></div>}
-            />
-          ) : aiArt ? (
-            <img src={aiArt} alt={p.name} className="w-full h-full object-contain p-2" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center" style={{color:'var(--ink-soft)'}}>
-              <DashedBottleOutline />
-            </div>
-          )}
-        </div>
-        {p.brand && (
-          <div className="text-[10px] font-medium text-center mt-1.5 truncate" style={{color:'var(--ink)'}} title={p.brand}>{p.brand}</div>
-        )}
-        {p.name && (
-          <div className="text-[9.5px] text-center leading-tight mt-0.5 line-clamp-2" style={{color:'var(--ink-soft)'}} title={p.name}>{p.name}</div>
-        )}
-      </div>
-    );
-  };
-  const renderAddTile = (slot, key) => (
-    <button
-      key={key}
-      type="button"
-      onClick={() => setAddRitualSheet({ slot })}
-      className="flex-shrink-0 w-[78px] h-[78px] md:w-[72px] md:h-[72px] rounded-[14px] flex flex-col items-center justify-center gap-0.5 transition hover:opacity-80 cursor-pointer"
-      style={{border:'1px dashed var(--line)', background:'transparent', color:'var(--ink-soft)', cursor:'pointer'}}
-    >
-      <Icon name="Plus" size={16} />
-      <span className="text-[8px] tracking-[0.18em] uppercase mt-0.5">Add step</span>
-    </button>
-  );
 
   return (
     <div className="space-y-4 md:space-y-4">
@@ -921,164 +739,152 @@ const RegimenTodayView = ({
               </div>
             );
           }
+          // === PHASE 1 PARITY (July 2026) ===
+          // Same components + semantics as the Home cover: RoutineSlotList
+          // rows with done circles, an Edit today mode exposing move/skip,
+          // and an edit bar with Add / Make recurring / Done. The old
+          // custom row renderer (no done circles, remove-only X, its own
+          // expand logic) is gone — one mental model on both surfaces.
+          const doneKeyRender = slotKey === 'pm' ? 'pmDone' : 'amDone';
+          const viewLog = (regimenLogs || []).find(r => r.date === viewDate);
+          const doneIdsRender = (viewLog && Array.isArray(viewLog[doneKeyRender])) ? viewLog[doneKeyRender] : [];
+          const amIdsNow = amProducts.map(x => x && x.id).filter(Boolean);
+          const pmIdsNow = pmProducts.map(x => x && x.id).filter(Boolean);
+          const toggleDoneToday = (p, slot) => {
+            if (!p || !p.id) return;
+            const dk = slot === 'pm' ? 'pmDone' : 'amDone';
+            const currentList = (regimenLogs || []).find(r => r.date === viewDate);
+            const currentDone = currentList && Array.isArray(currentList[dk]) ? currentList[dk] : [];
+            const nextDone = currentDone.includes(p.id)
+              ? currentDone.filter(x => x !== p.id)
+              : [...currentDone, p.id];
+            const updatedLog = currentList
+              ? { ...currentList, [dk]: nextDone }
+              : {
+                  id: Date.now(), date: viewDate,
+                  amProducts: amIdsNow, pmProducts: pmIdsNow,
+                  amDone: slot === 'am' ? nextDone : [],
+                  pmDone: slot === 'pm' ? nextDone : [],
+                  amSkipped: [], pmSkipped: [], notes: '', submitted: false,
+                };
+            const next = currentList
+              ? regimenLogs.map(r => r.date === viewDate ? updatedLog : r)
+              : [updatedLog, ...(regimenLogs || [])];
+            setRegimenLogs(next);
+            persistRegimenLogs(next, 'toggle-product-done');
+            setCoverRoutineRebuildToken(t => t + 1);
+          };
+          const moveToday = (p, slot) => {
+            const next = moveProductSlotForDate({
+              regimenLogs, date: viewDate, product: p, fromSlot: slot,
+              amListIds: amIdsNow, pmListIds: pmIdsNow,
+            });
+            if (!next) return;
+            setRegimenLogs(next);
+            persistRegimenLogs(next, 'move-slot-today');
+            setCoverRoutineRebuildToken(t => t + 1);
+            toast(`Moved to ${slot === 'am' ? 'PM' : 'AM'} for today.`, 'info');
+          };
+          const applyGoingForward = () => {
+            const snap = editTodaySnapshotRef.current;
+            if (!snap) return;
+            const addedAm = amIdsNow.filter(id => !snap.am.includes(id));
+            const addedPm = pmIdsNow.filter(id => !snap.pm.includes(id));
+            if (addedAm.length === 0 && addedPm.length === 0) {
+              toast('Nothing new to apply — today matches your plan.', 'info');
+              return;
+            }
+            let nextProducts = products;
+            if (addedAm.length > 0) nextProducts = addManyToRoutine(nextProducts, addedAm, 'am');
+            if (addedPm.length > 0) nextProducts = addManyToRoutine(nextProducts, addedPm, 'pm');
+            if (typeof setProducts === 'function') setProducts(nextProducts);
+            saveData('products', nextProducts).catch(e => {
+              console.error('[regimen apply-going-forward] save failed:', e);
+              toast(`Save error: ${e?.message || 'unknown'}`, 'error');
+            });
+            setCoverRoutineRebuildToken(t => t + 1);
+            editTodaySnapshotRef.current = { am: amIdsNow, pm: pmIdsNow };
+            const n = addedAm.length + addedPm.length;
+            toast(`${n} product${n === 1 ? '' : 's'} added to your weekly plan.`, 'success');
+          };
+          const addedCount = editTodaySnapshotRef.current
+            ? amIdsNow.filter(id => !editTodaySnapshotRef.current.am.includes(id)).length
+              + pmIdsNow.filter(id => !editTodaySnapshotRef.current.pm.includes(id)).length
+            : 0;
           return (
             <div className="mb-3">
-              {/* === June 2026 (per Jenni): redundant eyebrow retired ===
-                  The "AM regimen" / "PM regimen" eyebrow duplicated the
-                  AM/PM segmented toggle two lines above. The product count
-                  pill moves to the top-right of the list container instead. */}
-              <div className="text-[10px] mb-1.5 flex items-baseline justify-end" style={{color:'var(--ink-soft)'}}>
-                <span className="font-sans">{slotList.length} products</span>
+              <div className="flex justify-end -mt-0.5 mb-1.5 pr-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!editToday) editTodaySnapshotRef.current = { am: amIdsNow, pm: pmIdsNow };
+                    else editTodaySnapshotRef.current = null;
+                    setEditToday(v => !v);
+                  }}
+                  className="inline-flex items-center gap-1 transition hover:opacity-70"
+                  style={{background:'transparent', border:'none', color: editToday ? 'var(--accent)' : 'var(--ink-soft)', fontWeight:600, fontSize:10, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', padding:'4px 0'}}
+                  aria-pressed={editToday}
+                >
+                  <Icon name={editToday ? 'X' : 'Pencil'} size={10} />
+                  <span>{editToday ? 'Done editing' : 'Edit today'}</span>
+                </button>
               </div>
-              <div className="regimen-shelf-list">
-                {slotList.map((p, i) => {
-                  const rowKey = p.isExtra ? `extra-${i}` : p.id;
-                  const expanded = expandedRitualItemId === rowKey;
-                  const rowActionColor = 'var(--ink-soft)';
-                  const categoryColor = 'var(--ink-soft)';
-                  if (p.isExtra) {
-                    return (
-                      <div key={rowKey} style={{borderTop: i === 0 ? 'none' : '1px solid var(--line)'}}>
-                        <div className="regimen-row regimen-shelf-row">
-                          <div className="font-sans text-[14px] text-center" style={{color:'var(--ink-soft)'}}>{i + 1}</div>
-                          <button type="button" onClick={() => setExpandedRitualItemId(expanded ? null : rowKey)} className="min-w-0 text-left transition hover:opacity-80" style={{cursor:'pointer'}}>
-                            <div className="font-medium text-[13px] truncate" style={{color:'var(--ink)'}}>{p.name}</div>
-                            <div className="text-[9.5px] mt-0.5 tracking-[0.12em] uppercase" style={{color:'var(--ink-soft)'}}>AI suggestion · not on shelf</div>
-                          </button>
-                          <button type="button" onClick={() => setExpandedRitualItemId(expanded ? null : rowKey)} className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)] justify-self-end" style={{color: rowActionColor, cursor:'pointer'}} title={expanded ? 'Collapse details' : 'Expand details'} aria-label={expanded ? 'Collapse details' : 'Expand details'}>
-                            <Icon name={expanded ? 'ChevronUp' : 'ChevronDown'} size={13} />
-                          </button>
-                        </div>
-                        {expanded && (
-                          <div className="regimen-shelf-detail">
-                            <div className="text-[9px] tracking-[0.2em] uppercase mb-1.5" style={{color:'var(--ink-soft)'}}>Suggestion</div>
-                            <div className="text-[10.5px] leading-snug" style={{color:'var(--ink-soft)'}}>This item is not on your shelf yet. Add it if you used it today.</div>
-                          </div>
-                        )}
-                      </div>
-                    );
+              <RoutineSlotList
+                slot={slotKey}
+                products={baseSlotList}
+                overflow={slotOverflow}
+                hiddenProducts={hiddenSlotList}
+                shelfProducts={products}
+                regimenLogs={regimenLogs}
+                canRepeat={false}
+                onRepeat={() => {}}
+                onRemove={(p, slot) => {
+                  if (typeof setRemoveScopePrompt === 'function') {
+                    setRemoveScopePrompt({ product: p, slot, today: viewDate, seedAmIds: amIdsNow, seedPmIds: pmIdsNow });
                   }
-                  const actives = p.activeIngredients || p.mainIngredients || '';
-                  const rawAnalysis = p.aiAnalysis || '';
-                  const sectionText = (label) => {
-                    if (!rawAnalysis) return '';
-                    const re = new RegExp(`${label}\\s*:\\s*([\\s\\S]*?)(?=\\n\\s*(?:MECHANISM|EVIDENCE|REVIEWS|CONFLICTS|ALTERNATIVES|ASSESSMENT)\\s*:|$)`, 'i');
-                    const m = rawAnalysis.match(re);
-                    return m ? m[1].trim().replace(/\n+/g, ' ') : '';
-                  };
-                  const mechanism = sectionText('MECHANISM') || sectionText('ASSESSMENT');
-                  const evidence = sectionText('EVIDENCE');
-                  return (
-                    <div key={p.id} style={{borderTop: i === 0 ? 'none' : '1px solid var(--line)'}}>
-                      <div className="regimen-row regimen-shelf-row">
-                        <div className="font-sans text-[14px] text-center" style={{color:'var(--ink-soft)'}}>{i + 1}</div>
-                        <button type="button" onClick={() => setExpandedRitualItemId(expanded ? null : rowKey)} className="min-w-0 text-left transition hover:opacity-80" style={{cursor:'pointer'}}>
-                          {p.brand && <div className="text-[9px] tracking-[0.22em] uppercase truncate" style={{color:'var(--ink-soft)'}}>{p.brand}</div>}
-                          <div className="font-medium text-[13px] truncate" style={{color:'var(--ink)'}}>{p.name || p.brand || 'Product'}</div>
-                          {p.category && <div className="text-[9.5px] mt-0.5 tracking-[0.12em] uppercase" style={{color: categoryColor, fontWeight:600}}>{p.category.replace(/-/g, ' ')}</div>}
-                        </button>
-                        <div className="flex items-center justify-end gap-0.5">
-                          <button type="button" onClick={() => setExpandedRitualItemId(expanded ? null : rowKey)} className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)]" style={{color: rowActionColor, cursor:'pointer'}} title={expanded ? 'Collapse details' : 'Expand details'} aria-label={expanded ? 'Collapse details' : 'Expand details'}>
-                            <Icon name={expanded ? 'ChevronUp' : 'ChevronDown'} size={13} />
-                          </button>
-                          <button onClick={() => removeFromRegimenSlot(p, slotKey)} className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)]" style={{color: rowActionColor, cursor:'pointer'}} title="Remove from routine" type="button">
-                            <Icon name="X" size={12} />
-                          </button>
-                        </div>
-                      </div>
-                      {expanded && (
-                        <div className="regimen-shelf-detail">
-                          {p.brand && <div className="text-[9px] tracking-[0.2em] uppercase mb-2" style={{color:'var(--ink-soft)'}}>{p.brand}</div>}
-                          {actives && (
-                            <div className="text-[10.5px] leading-snug mb-2" style={{color:'var(--ink-soft)'}}>
-                              <span className="tracking-[0.2em] uppercase mr-1.5" style={{fontSize:9, color:'var(--ink-soft)', fontWeight:600}}>Also</span>
-                              {actives}
-                            </div>
-                          )}
-                          {p.tags && p.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mb-2">
-                              {p.tags.map((t, tagIdx) => <span key={tagIdx} className="text-[9px] tracking-[0.1em] px-1.5 py-0.5 border rounded-full" style={{borderColor: 'var(--line)', color:'var(--ink-soft)', background:'var(--cream)'}}>{t}</span>)}
-                            </div>
-                          )}
-                          <div className="text-[10px] font-light mb-2" style={{color:'var(--ink-soft)'}}>
-                            {p.frequency ? p.frequency.replace(/-/g, ' ') : 'as needed'}
-                            {Array.isArray(p.useTimes) && p.useTimes.length > 0 ? ` · ${p.useTimes.map(t => t.toUpperCase()).join(' + ')}` : ''}
-                            {p.startDate ? ` · started ${new Date(p.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
-                          </div>
-                          {(mechanism || evidence) && (
-                            <div className="pt-2 mt-2 border-t space-y-2" style={{borderColor: 'var(--line)'}}>
-                              {mechanism && (() => {
-                                const trimmed = mechanism.trim();
-                                const isLong = trimmed.length > 240;
-                                const w = trimmed.slice(0, 280);
-                                const cut = w.match(/^(.{60,}?[.!?])(?:\s|$)/);
-                                const concise = isLong ? (cut ? cut[1].trim() : w.slice(0, w.lastIndexOf(' ')).trim() + '…') : trimmed;
-                                return (
-                                  <div>
-                                    <div className="text-[8px] tracking-[0.2em] uppercase mb-1" style={{color:'var(--ink-soft)'}}>Mechanism</div>
-                                    <div className="flex gap-1.5 text-[11px] leading-snug font-light" style={{color:'var(--ink)'}}>
-                                      <span style={{color:'var(--accent)'}}>·</span>
-                                      <span className="flex-1">
-                                        {mechExpandedForRow[rowKey] ? trimmed : concise}
-                                        {isLong && (
-                                          <button type="button" onClick={(e) => { e.stopPropagation(); setMechExpandedForRow(prev => ({...prev, [rowKey]: !prev[rowKey]})); }} className="ml-1.5 text-[9.5px] tracking-[0.14em] uppercase" style={{color:'var(--accent)', fontWeight:600, cursor:'pointer'}}>
-                                            {mechExpandedForRow[rowKey] ? 'Less' : 'More'}
-                                          </button>
-                                        )}
-                                      </span>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                              {evidence && (() => {
-                                const trimmed = evidence.trim();
-                                const isLong = trimmed.length > 240;
-                                const w = trimmed.slice(0, 280);
-                                const cut = w.match(/^(.{60,}?[.!?])(?:\s|$)/);
-                                const concise = isLong ? (cut ? cut[1].trim() : w.slice(0, w.lastIndexOf(' ')).trim() + '…') : trimmed;
-                                return (
-                                  <div>
-                                    <div className="text-[8px] tracking-[0.2em] uppercase mb-1" style={{color:'var(--ink-soft)'}}>Evidence</div>
-                                    <div className="flex gap-1.5 text-[11px] leading-snug font-light" style={{color:'var(--ink)'}}>
-                                      <span style={{color:'var(--accent)'}}>·</span>
-                                      <span className="flex-1">
-                                        {evidenceExpandedForRow[rowKey] ? trimmed : concise}
-                                        {isLong && (
-                                          <button type="button" onClick={(e) => { e.stopPropagation(); setEvidenceExpandedForRow(prev => ({...prev, [rowKey]: !prev[rowKey]})); }} className="ml-1.5 text-[9.5px] tracking-[0.14em] uppercase" style={{color:'var(--accent)', fontWeight:600, cursor:'pointer'}}>
-                                            {evidenceExpandedForRow[rowKey] ? 'Less' : 'More'}
-                                          </button>
-                                        )}
-                                      </span>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          )}
-                          {p.notes && <div className="mt-2 text-[11px] font-light" style={{color:'var(--ink-soft)'}}>{p.notes}</div>}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                }}
+                onMove={moveToday}
+                editMode={editToday}
+                onOverflow={() => {}}
+                doneIds={doneIdsRender}
+                onToggleDone={toggleDoneToday}
+              />
+              {editToday && (
+                <div className="mt-2 rounded-[12px] px-2 py-2" style={{background:'var(--cream)', border:'1px dashed var(--line)'}}>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen({ open: true, slot: slotKey, date: viewDate }); }}
+                      className="flex-1 h-9 rounded-full flex items-center justify-center gap-1 transition hover:opacity-90"
+                      style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:10, letterSpacing:'0.08em', textTransform:'uppercase', cursor:'pointer'}}
+                    >
+                      <Icon name="Plus" size={11} />
+                      <span>Add to {slotKey.toUpperCase()}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { editTodaySnapshotRef.current = null; setEditToday(false); }}
+                      className="h-9 rounded-full px-4 flex items-center justify-center gap-1 transition hover:opacity-90"
+                      style={{background:'var(--ink)', color:'var(--cream)', border:'1px solid var(--ink)', fontWeight:700, fontSize:10, letterSpacing:'0.08em', textTransform:'uppercase', cursor:'pointer'}}
+                    >
+                      <Icon name="Check" size={11} />
+                      <span>Done</span>
+                    </button>
+                  </div>
+                  {addedCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={applyGoingForward}
+                      className="w-full text-center pt-2 transition hover:opacity-70"
+                      style={{background:'transparent', border:'none', color:'var(--ink-soft)', fontSize:10.5, letterSpacing:'0.14em', textTransform:'uppercase', cursor:'pointer', fontWeight:600}}
+                      title="Add this session's new products to your weekly plan"
+                    >
+                      Make {addedCount === 1 ? 'it' : 'these'} recurring →
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-          );
-        })()}
-        {(() => {
-          const slotOverflow = ritualSlot === 'pm' ? pmOverflowRegimen : amOverflowRegimen;
-          if (!slotOverflow) return null;
-          return (
-            <button
-              type="button"
-              onClick={() => setShowAllRitualItems(v => !v)}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-[10px] transition hover:opacity-80 mb-4"
-              style={{background:'var(--surface-selected-soft)', border:'1px dashed var(--border-mid)', color:'var(--accent)', fontWeight:600, fontSize:10.5, letterSpacing:'0.04em', cursor:'pointer'}}
-              title={showAllRitualItems ? 'Collapse extra routine items' : 'Show every product logged for this slot'}
-            >
-              <Icon name={showAllRitualItems ? 'ChevronUp' : 'ChevronDown'} size={11} />
-              <span>{showAllRitualItems ? 'Show fewer' : `+${slotOverflow} more items`}</span>
-            </button>
           );
         })()}
 
@@ -1100,7 +906,7 @@ const RegimenTodayView = ({
               type="button"
             >
               <Icon name={activeSlotSubmitted ? 'Check' : (ritualSlot === 'pm' ? 'Moon' : 'Sun')} size={13} style={activeSlotSubmitted ? {color:'var(--accent-blue)'} : undefined} />
-              <span className="truncate">{activeSlotSubmitted ? 'Done today' : (ritualSlot === 'pm' ? 'Yes, I did PM' : 'Yes, I did AM')}</span>
+              <span className="truncate">{activeSlotSubmitted ? 'Done today' : (ritualSlot === 'pm' ? 'Done PM' : 'Done AM')}</span>
             </button>
           </>
         )}
