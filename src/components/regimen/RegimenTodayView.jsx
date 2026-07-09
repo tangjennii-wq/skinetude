@@ -184,7 +184,7 @@ const RegimenTodayView = ({
     setRegimenLogs(newList);
     persistRegimenLogs(newList, 'repeat-yesterday');
     setCoverRoutineRebuildToken(t => t + 1);
-    toast('Logged — same as yesterday ✨', 'info');
+    toast('Logged — same as yesterday.', 'info');
   };
   // Undo — drop today's auto-log so the user can re-decide.
   // Same code path is used when the user taps the filled "Repeated"
@@ -195,7 +195,7 @@ const RegimenTodayView = ({
     setRegimenLogs(newList);
     persistRegimenLogs(newList, 'undo-repeat');
     setCoverRoutineRebuildToken(t => t + 1);
-    toast('Cleared today’s routine ✨', 'info');
+    toast('Cleared today’s routine.', 'info');
   };
 
   // === Clear today's routine — SLOT-AWARE ===

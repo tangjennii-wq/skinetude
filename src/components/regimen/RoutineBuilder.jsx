@@ -111,7 +111,7 @@ GAPS DETECTED:
 [Critical missing pieces in the routine — e.g., "No SPF logged. A broad-spectrum SPF 30+ is essential for any AM routine." If the routine is complete, write "Routine appears complete."]`;
       const result = await callClaude(prompt, '', null, { voice: true });
       setRoutine(result);
-      toast('Routine optimized ✨');
+      toast('Routine optimized.');
     } catch (e) {
       toast('Unable to build routine', 'error');
     }
@@ -218,7 +218,7 @@ GAPS DETECTED:
 "This is a starter framework — once you add specific products to your shelf, rebuild the routine for personalized ordering."`;
       const result = await callClaude(prompt, '', null, { voice: true });
       setRoutine(result);
-      toast('Starter routine generated ✨');
+      toast('Starter routine generated.');
       // ALSO generate the Mon-Sun weekly rotation in the background — empty-shelf mode
       // produces a fully [suggested]-driven 7-day grid that mirrors the swipeable
       // weekly view shown when the user has products. This gives empty-profile users
@@ -315,7 +315,7 @@ WHY THIS CADENCE:
 ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentences with no more than 5 anchor product CATEGORIES to source first and why these form the AAD-aligned foundation.' : '1 sentence with 2-4 generic product types that would best fill the gaps — no brands and no long list.') + ']' : ''}`;
       const result = await callClaude(prompt, '', null, { voice: true });
       setWeeklyRotation(result);
-      toast('Weekly rotation generated ✨');
+      toast('Weekly rotation generated.');
     } catch (e) {
       console.error(e);
       toast('Unable to build weekly rotation', 'error');
@@ -919,7 +919,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
             if (tips.length === 0) tips.push('Apply thinnest to thickest — water-based serums first, oils and balms last. Wait ~60 seconds between layers.');
             return tips.length > 0 ? (
               <div className="mt-4 px-3 py-2 border-l-2 text-[10px] md:text-[11px] font-light leading-snug" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>
-                <span className="text-[8px] tracking-[0.25em] uppercase mr-2 not-italic" style={{color:'var(--accent)'}}>Pearl</span>
+                <span className="text-[8px] tracking-[0.25em] uppercase mr-2" style={{color:'var(--accent)'}}>Pearl</span>
                 {tips.slice(0, 2).join(' ')}
               </div>
             ) : null;
@@ -1014,7 +1014,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                     {add && (
                       <div className="border-t px-3 py-2 text-[10px] leading-snug flex items-start gap-1.5" style={{borderColor: 'var(--line)', background:'var(--accent-soft)', color:'var(--ink)'}}>
                         <Icon name="Sparkles" size={10} style={{color:'var(--accent)', flexShrink:0, marginTop:'2px'}} />
-                        <span><span className="text-[8px] tracking-[0.25em] uppercase mr-1.5 not-italic" style={{color:'var(--accent)'}}>Round out</span><span className="">{compactWhatToAdd(add[1])}</span></span>
+                        <span><span className="text-[8px] tracking-[0.25em] uppercase mr-1.5" style={{color:'var(--accent)'}}>Round out</span><span className="">{compactWhatToAdd(add[1])}</span></span>
                       </div>
                     )}
                   </>
@@ -1139,7 +1139,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
           {/* Actives summary */}
           {activesThisWeek.length > 0 && (
             <div className="mt-2.5 text-[10px] font-light leading-snug" style={{color:'var(--ink-soft)'}}>
-              <span className="text-[8px] tracking-[0.25em] uppercase mr-2 not-italic" style={{color:'var(--ink-soft)'}}>This week</span>
+              <span className="text-[8px] tracking-[0.25em] uppercase mr-2" style={{color:'var(--ink-soft)'}}>This week</span>
               {activesThisWeek.map(([label, count], i) => (
                 <span key={label}>
                   {i > 0 && <span className="mx-1" style={{color:'var(--line)'}}>·</span>}
@@ -1338,7 +1338,7 @@ ${(sparseShelf || emptyShelf) ? '\nWHAT TO ADD:\n[' + (emptyShelf ? '1-2 sentenc
                   <div className="text-[8px] tracking-[0.25em] uppercase mb-1" style={{color:'var(--rose)'}}>Procedure</div>
                   {procsHere.map(p => (
                     <div key={p.id} className="text-[11px] font-sans" style={{color:'var(--ink)'}}>
-                      {p.name} <span className="text-[10px] not-italic font-light" style={{color:'var(--ink-soft)'}}>· {p.type?.replace(/-/g, ' ')}</span>
+                      {p.name} <span className="text-[10px] font-light" style={{color:'var(--ink-soft)'}}>· {p.type?.replace(/-/g, ' ')}</span>
                     </div>
                   ))}
                 </div>

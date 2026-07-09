@@ -153,7 +153,7 @@ const EventModal = ({
             saveData('events', next);
             return next;
           });
-          toast(`Prep plan for ${form.name} ready ✨`);
+          toast(`Prep plan for ${form.name} ready.`);
         } catch (e) {
           // === T6 FIX (May 2026) ===
           // Was: silent failure — `analyzing` cleared, but the user

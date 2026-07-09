@@ -171,12 +171,12 @@ const useSyncedArray = ({ lsKey, cloudKey, keyFn = (x) => x, onAdd, onRemove, to
 
 // === EDITORIAL PRIMITIVES ===
 // Small set of reusable building blocks that encode the cover's editorial language
-// (eyebrow → serif italic display → ink-soft body, terracotta accent links, cream-deep
+// (eyebrow → serif display → ink-soft body, terracotta accent links, cream-deep
 // rounded-[20px] section cards). Used across Journal, Compare, Pearls, Counsel, and the
 // modal layer so the design stays cohesive without copy-pasting Tailwind class strings.
 //
 // Why a small set: each primitive captures ONE pattern (typography label / page header /
-// section card / italic action link). Composing them keeps page code readable.
+// section card / action link). Composing them keeps page code readable.
 
 // Tracked uppercase eyebrow label — used above titles, as section labels inside cards,
 // and as group dividers in lists. Default ink-soft so it whispers, not shouts.
@@ -189,20 +189,20 @@ const Eyebrow = ({ children, className = '', style = {}, tone = 'soft', size = '
 };
 
 // Page-level editorial header — eyebrow on top, serif-italic display title, optional
-// ink-soft body line, optional terracotta italic action link on the right (no heavy
-// black pill — the cover language is a quiet italic CTA). Replaces SectionHeader for
+// ink-soft body line, optional terracotta action link on the right (no heavy
+// black pill — the cover language is a quiet CTA). Replaces SectionHeader for
 // pages we want to feel editorial; SectionHeader stays available for deeper utility tabs.
 const EditorialPageHeader = ({ eyebrow, title, body, action, actionLabel, actionIcon = 'ArrowRight' }) => {
   // When the page action is a "Plus" (i.e. an add CTA like + Product),
   // render it as a proper terracotta-outlined pill button with leading icon
   // — uniform across every section so it reads as the standard add affordance.
-  // Other actionIcons stay as the quieter italic text-link (e.g. ArrowRight).
+  // Other actionIcons stay as the quieter text-link (e.g. ArrowRight).
   const isAddCta = actionIcon === 'Plus';
   return (
     <header className="mb-2.5 md:mb-3">
       {eyebrow && <Eyebrow size="lg" className="mb-0.5 md:mb-0.5">{eyebrow}</Eyebrow>}
       <div className="flex items-end justify-between gap-2 md:gap-3 flex-wrap">
-        <h1 className="font-serif italic text-[23px] md:text-[28px] leading-[1.05] tracking-tight" style={{color:'var(--ink)'}}>
+        <h1 className="font-sans text-[23px] md:text-[28px] leading-[1.05] tracking-tight" style={{color:'var(--ink)'}}>
           {title}
         </h1>
         {action && actionLabel && (
@@ -218,7 +218,7 @@ const EditorialPageHeader = ({ eyebrow, title, body, action, actionLabel, action
           ) : (
             <button
               onClick={action}
-              className="text-[10.5px] tracking-[0.18em] uppercase italic flex items-center gap-1 transition hover:opacity-70 pb-1.5"
+              className="text-[10.5px] tracking-[0.18em] uppercase flex items-center gap-1 transition hover:opacity-70 pb-1.5"
               style={{color:'var(--accent)'}}
             >
               {actionLabel} <Icon name={actionIcon} size={11} />
@@ -320,7 +320,7 @@ const EditorialCard = ({ children, eyebrow, title, action, actionLabel, actionIc
           <div className="min-w-0">
             {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
             {title && (
-              <h2 className="font-serif italic text-[20px] md:text-[24px] leading-[1.15] mt-0.5" style={{color:'var(--ink)'}}>
+              <h2 className="font-sans text-[20px] md:text-[24px] leading-[1.15] mt-0.5" style={{color:'var(--ink)'}}>
                 {title}
               </h2>
             )}
@@ -328,7 +328,7 @@ const EditorialCard = ({ children, eyebrow, title, action, actionLabel, actionIc
           {action && actionLabel && (
             <button
               onClick={action}
-              className="text-[10px] tracking-[0.18em] uppercase italic flex items-center gap-1 transition hover:opacity-70 flex-shrink-0"
+              className="text-[10px] tracking-[0.18em] uppercase flex items-center gap-1 transition hover:opacity-70 flex-shrink-0"
               style={{color:'var(--accent)'}}
             >
               {actionLabel} <Icon name={actionIcon} size={11} />
@@ -350,7 +350,7 @@ const AccentLink = ({ children, onClick, icon, iconAfter = 'ArrowRight', tone = 
   return (
     <button
       onClick={onClick}
-      className={`${sizing} uppercase italic flex items-center gap-1 transition hover:opacity-70 ${className}`}
+      className={`${sizing} uppercase flex items-center gap-1 transition hover:opacity-70 ${className}`}
       style={{color}}
       {...rest}
     >
@@ -551,7 +551,7 @@ const generateCompareShareCanvas = async ({
   ctx.textAlign = 'center';
   ctx.fillText('FRIDA · COMPARE', W / 2, 90);
   ctx.fillStyle = '#2a2520';
-  ctx.font = 'italic 56px Georgia, serif';
+  ctx.font = '600 56px Figtree, sans-serif';
   if (daysApart != null) ctx.fillText(`${daysApart} ${daysApart === 1 ? 'day' : 'days'} apart`, W / 2, 160);
   // Photo squares — two side-by-side, each 480x480, gap 30, centered.
   const photoSize = 480;
@@ -577,9 +577,9 @@ const generateCompareShareCanvas = async ({
       ctx.drawImage(img, x + (photoSize - dw) / 2, photoY + (photoSize - dh) / 2, dw, dh);
       ctx.restore();
     } else {
-      // Fallback — score as big serif italic.
+      // Fallback — score as big serif .
       ctx.fillStyle = '#9c9080';
-      ctx.font = 'italic 140px Georgia, serif';
+      ctx.font = '700 140px Figtree, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(score || '—', x + photoSize / 2, photoY + photoSize / 2 + 50);
     }
@@ -596,7 +596,7 @@ const generateCompareShareCanvas = async ({
     // Score + date footer
     ctx.fillStyle = '#2a2520';
     ctx.textAlign = 'center';
-    ctx.font = 'italic 32px Georgia, serif';
+    ctx.font = '600 32px Figtree, sans-serif';
     if (score) {
       ctx.fillStyle = '#c2622a';
       ctx.fillText(`✦ ${score}`, x + photoSize / 2, photoY + photoSize + 56);
@@ -630,13 +630,13 @@ const generateCompareShareCanvas = async ({
       ctx.textAlign = 'center';
       ctx.fillText(m.label.toUpperCase(), cx + chipW / 2, chipsY + 24);
       ctx.fillStyle = m.color || '#2a2520';
-      ctx.font = 'italic 24px Georgia, serif';
+      ctx.font = '400 24px Figtree, sans-serif';
       ctx.fillText(m.dir || '—', cx + chipW / 2, chipsY + 54);
     });
   }
-  // Watermark — "Frida" italic serif bottom-center.
+  // Watermark — "Frida" serif bottom-center.
   ctx.fillStyle = '#9c9080';
-  ctx.font = 'italic 36px Georgia, serif';
+  ctx.font = '600 36px Figtree, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('Frida', W / 2, H - 50);
   return canvas;
@@ -4462,7 +4462,7 @@ const TaggedAnalysisBullets = ({ text, onOpen, IconComponent, withPearlsFn }) =>
   return (
     <div>
       {intro.length > 0 && (
-        <p className="font-serif italic text-[13px] leading-relaxed mb-3" style={{color:'var(--ink)'}}>
+        <p className="font-sans text-[13px] leading-relaxed mb-3" style={{color:'var(--ink)'}}>
           {renderInline(intro.join(' '))}
         </p>
       )}
@@ -6621,7 +6621,7 @@ Return JSON in EXACTLY this shape (no markdown fences, no commentary):
   // Day-detail bottom sheet — null when closed, ISO date string when a weekly
   // day tile is tapped. Drives the magical signature interaction.
   const [ritualDaySheet, setRitualDaySheet] = useState(null);
-  // Why-this-today bottom sheet — boolean, opened by italic link under hero.
+  // Why-this-today bottom sheet — boolean, opened by link under hero.
   const [ritualWhySheet, setRitualWhySheet] = useState(false);
   // Per-day completed-step ledger keyed by ISO date. Persisted to localStorage
   // so progress survives reloads. Each entry is an array of "am-<id>" / "pm-<id>"
@@ -8548,7 +8548,7 @@ Write 1–2 sentences only. Lowercase or sentence-cased prose, not headlines.`;
           .update({ data: localData, updated_at: new Date().toISOString() })
           .eq('user_id', userId);
         if (!error) {
-          toast(`Migrated ${localData.logs.length} entries, ${localData.products.length} products to cloud ✨`);
+          toast(`Migrated ${localData.logs.length} entries, ${localData.products.length} products to cloud.`);
         }
       }
     } catch (err) {
@@ -8642,7 +8642,7 @@ Write 1–2 sentences only. Lowercase or sentence-cased prose, not headlines.`;
       migrated++;
     }
     if (migrated > 0) {
-      toast(`Moved ${migrated} photo${migrated > 1 ? 's' : ''} to private storage ✨`);
+      toast(`Moved ${migrated} photo${migrated > 1 ? 's' : ''} to private storage.`);
     }
   };
 
@@ -9198,7 +9198,7 @@ Default UP, not to the middle. If the photo is closer to the upper bucket than t
           >
             <div className="text-left">
               <div className="text-[10px] tracking-[0.22em] uppercase" style={{color:'var(--accent)'}}>Skin Profile</div>
-              <div className="text-[12px] italic mt-0.5" style={{color:'var(--ink-soft)'}}>
+              <div className="text-[12px] mt-0.5" style={{color:'var(--ink-soft)'}}>
                 {[
                   userProfile.ageBand && `Age ${userProfile.ageBand}`,
                   userProfile.fitzpatrick && `Fitz ${userProfile.fitzpatrick}`,
@@ -9215,7 +9215,7 @@ Default UP, not to the middle. If the photo is closer to the upper bucket than t
 
           <div>
             <div className="text-[10px] tracking-[0.25em] uppercase mb-2" style={{color:'var(--ink-soft)'}}>Hormonal Context</div>
-            <p className="text-xs font-light italic mb-3 leading-relaxed" style={{color:'var(--ink-soft)'}}>This shapes which lessons surface, whether the cycle tracker shows, and how the AI tailors recommendations. The relevant variable for skin is the hormonal milieu, not identity — so trans users on HRT, post-menopausal users, and pregnant users get treated by their actual physiology rather than by an assigned category. Change anytime.</p>
+            <p className="text-xs font-light mb-3 leading-relaxed" style={{color:'var(--ink-soft)'}}>This shapes which lessons surface, whether the cycle tracker shows, and how the AI tailors recommendations. The relevant variable for skin is the hormonal milieu, not identity — so trans users on HRT, post-menopausal users, and pregnant users get treated by their actual physiology rather than by an assigned category. Change anytime.</p>
             <div className="space-y-2">
               {contextOptions.map(opt => (
                 <button key={opt.id} onClick={() => setContext(opt.id)} className="w-full p-3 text-left border transition" style={{
@@ -9242,15 +9242,15 @@ Default UP, not to the middle. If the photo is closer to the upper bucket than t
               <div>
                 <div className="text-[10px] tracking-[0.25em] uppercase" style={{color:'var(--ink-soft)'}}>Color Profile</div>
                 {colorProfile?.season || colorProfile?.undertone ? (
-                  <p className="text-sm font-light italic mt-1" style={{color:'var(--ink)'}}>
+                  <p className="text-sm font-light mt-1" style={{color:'var(--ink)'}}>
                     {colorProfile.season ? colorProfile.season.replace(/-/g, ' ') : 'Season not set'}
                     {colorProfile.undertone && ` · ${colorProfile.undertone} undertone`}
                   </p>
                 ) : (
-                  <p className="text-sm font-light italic mt-1" style={{color:'var(--ink-soft)'}}>Not yet analyzed.</p>
+                  <p className="text-sm font-light mt-1" style={{color:'var(--ink-soft)'}}>Not yet analyzed.</p>
                 )}
               </div>
-              <button onClick={() => { setShowYouModal(false); setShowColorModal(true); }} className="text-[10px] tracking-[0.2em] uppercase italic flex-shrink-0" style={{color:'var(--ink)', borderBottom:'1px dotted var(--ink)'}}>Edit</button>
+              <button onClick={() => { setShowYouModal(false); setShowColorModal(true); }} className="text-[10px] tracking-[0.2em] uppercase flex-shrink-0" style={{color:'var(--ink)', borderBottom:'1px dotted var(--ink)'}}>Edit</button>
             </div>
           </div>
         </div>
@@ -9300,7 +9300,7 @@ Default UP, not to the middle. If the photo is closer to the upper bucket than t
         <div onClick={e => e.stopPropagation()} className="rounded-lg max-w-2xl w-full overflow-hidden shadow-2xl" style={{background:'var(--cream)'}}>
           <div className="flex items-center gap-3 px-5 py-4 border-b" style={{borderColor: 'var(--line)'}}>
             <Icon name="Search" size={18} className="" />
-            <input autoCapitalize="off" autoCorrect="off" spellCheck={false} ref={inputRef} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search journal, products, procedures, occasions…" className="flex-1 bg-transparent border-none outline-none text-base font-light italic" style={{color:'var(--ink)'}} />
+            <input autoCapitalize="off" autoCorrect="off" spellCheck={false} ref={inputRef} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search journal, products, procedures, occasions…" className="flex-1 bg-transparent border-none outline-none text-base font-light " style={{color:'var(--ink)'}} />
             <kbd className="text-[10px] tracking-wider px-2 py-1 border rounded" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>ESC</kbd>
           </div>
           <div className="max-h-[60vh] overflow-y-auto">
@@ -9314,7 +9314,7 @@ Default UP, not to the middle. If the photo is closer to the upper bucket than t
                       <Icon name={c.icon} size={14} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-serif italic text-base truncate" style={{color:'var(--ink)'}}>{c.label}</div>
+                      <div className="font-sans text-base truncate" style={{color:'var(--ink)'}}>{c.label}</div>
                       <div className="text-[10px] tracking-[0.15em] uppercase mt-0.5 truncate" style={{color:'var(--ink-soft)'}}>{c.hint}</div>
                     </div>
                     <Icon name="ArrowUpRight" size={12} className="flex-shrink-0" />
@@ -9328,7 +9328,7 @@ Default UP, not to the middle. If the photo is closer to the upper bucket than t
             {!q && (
               <div className="p-8 text-center">
                 <Icon name="Search" size={28} className="mx-auto mb-3 opacity-40" />
-                <div className="text-sm font-light italic" style={{color:'var(--ink-soft)'}}>Start typing to search across everything…</div>
+                <div className="text-sm font-light " style={{color:'var(--ink-soft)'}}>Start typing to search across everything…</div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-6">
                   {[
                     {q:'acne', icon:'AlertCircle'}, {q:'retinol', icon:'Beaker'},
@@ -9340,7 +9340,7 @@ Default UP, not to the middle. If the photo is closer to the upper bucket than t
               </div>
             )}
             {q && totalResults === 0 && (
-              <div className="p-8 text-center font-light italic text-sm" style={{color:'var(--ink-soft)'}}>No matches found.</div>
+              <div className="p-8 text-center font-light text-sm" style={{color:'var(--ink-soft)'}}>No matches found.</div>
             )}
             {matches.map((m, i) => (
               <button key={`${m._type}-${m.id}`} onClick={() => goToTab(m._type)} className="w-full px-5 py-3 flex items-center gap-3 text-left transition border-b hover:opacity-80" style={{borderColor: 'var(--line)'}}>
@@ -9348,7 +9348,7 @@ Default UP, not to the middle. If the photo is closer to the upper bucket than t
                   <Icon name={m._icon} size={14} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-serif italic text-base truncate" style={{color:'var(--ink)'}}>{m.name || m.notes?.slice(0, 60) || `${m.area} entry`}</div>
+                  <div className="font-sans text-base truncate" style={{color:'var(--ink)'}}>{m.name || m.notes?.slice(0, 60) || `${m.area} entry`}</div>
                   <div className="text-[10px] tracking-[0.15em] uppercase mt-0.5 truncate" style={{color:'var(--ink-soft)'}}>{m._type} · {m._label}</div>
                 </div>
                 <Icon name="ArrowUpRight" size={12} className="flex-shrink-0" />
@@ -9811,7 +9811,7 @@ ALTERNATIVES:
       .map(l => l.replace(/^\s*[12]\.\s*(?:CHEAPER|SIMILAR-OR-HIGHER)\s*\|\s*/i, '').replace(/\|.*$/, '').trim())
       .filter(Boolean);
     await assessProduct(product, { diversitySeed: altLines.join(' / ') || 'previous attempt' });
-    toast('Fresh alternatives ✨');
+    toast('Fresh alternatives.');
   };
 
   const deleteLog = async (id) => { const u = logs.filter(l => l.id !== id); setLogs(u); await saveData('logs', u); };
@@ -10404,7 +10404,7 @@ Format as 3-4 distinct observations, each starting with a bold pattern name and 
       setPatternInsight(insight);
       const userKey = user.email.replace(/[^a-zA-Z0-9]/g, '');
       await storage.set(`pattern:${userKey}`, JSON.stringify(insight));
-      toast('Pattern analysis complete ✨');
+      toast('Pattern analysis complete.');
     } catch (e) {
       toast('Pattern analysis failed', 'error');
     }
@@ -10811,15 +10811,15 @@ If the user references something not in their data ("started retinol 6 weeks ago
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@300;400&display=swap');
         body { font-family: 'Inter', sans-serif; color: #2a2520; padding: 40px; max-width: 800px; margin: 0 auto; background: #f5f0e8; }
-        h1, h2, h3 { font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 500; color: #2a2520; }
+        h1, h2, h3 { font-family: 'Cormorant Garamond', serif; font-style: ; font-weight: 500; color: #2a2520; }
         h1 { font-size: 36px; margin-bottom: 4px; }
         h2 { font-size: 24px; margin-top: 32px; padding-bottom: 8px; border-bottom: 1px solid #d8cfbf; }
         h3 { font-size: 18px; margin-top: 16px; margin-bottom: 4px; }
         .meta { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #786a5e; }
         .entry { padding: 12px 0; border-bottom: 1px solid #ede4d3; }
-        .rating { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 24px; }
+        .rating { font-family: 'Cormorant Garamond', serif; font-style: ; font-size: 24px; }
         .concern { display: inline-block; font-size: 10px; padding: 2px 8px; background: #ede4d3; border-radius: 12px; margin-right: 4px; }
-        .observation { font-size: 12px; color: #786a5e; padding: 8px; background: #ede4d3; margin-top: 8px; font-style: italic; }
+        .observation { font-size: 12px; color: #786a5e; padding: 8px; background: #ede4d3; margin-top: 8px; font-style: ; }
         img { max-width: 200px; border-radius: 4px; margin: 8px 0; }
         @media print { body { background: white; } }
       </style>
@@ -10829,19 +10829,19 @@ If the user references something not in their data ("started retinol 6 weeks ago
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
           <div>
             <div class="meta">${esc((l.area || '').replace(/-/g, ' '))}</div>
-            <div style="font-family:'Cormorant Garamond',serif; font-style:italic; font-size:18px;">${esc(new Date(l.date).toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' }))}</div>
+            <div style="font-family:'Cormorant Garamond',serif; font-style: ; font-size:18px;">${esc(new Date(l.date).toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' }))}</div>
           </div>
           <div class="rating">${esc(l.rating)}/10</div>
         </div>
         ${l.concerns?.length ? `<div style="margin:6px 0;">${l.concerns.map(c => `<span class="concern">${esc(c)}</span>`).join('')}</div>` : ''}
-        ${l.notes ? `<div style="font-size:13px; font-style:italic; color:#786a5e;">"${esc(l.notes)}"</div>` : ''}
+        ${l.notes ? `<div style="font-size:13px; font-style: ; color:#786a5e;">"${esc(l.notes)}"</div>` : ''}
         ${l.aiAnalysis ? `<div class="observation"><strong>Observation:</strong> ${esc(l.aiAnalysis)}</div>` : ''}
       </div>
     `).join('');
     const productSection = products.map(p => `
       <div class="entry">
         <div class="meta">${esc(p.brand || 'Unknown')} · ${esc(p.category)}</div>
-        <div style="font-family:'Cormorant Garamond',serif; font-style:italic; font-size:18px;">${esc(p.name)}</div>
+        <div style="font-family:'Cormorant Garamond',serif; font-style: ; font-size:18px;">${esc(p.name)}</div>
         <div style="font-size:12px; color:#786a5e;">${esc(p.activeIngredients || 'No actives listed')} · ${esc((p.frequency || '').replace(/-/g, ' '))} · ${esc(p.startDate)}${p.endDate ? ` to ${esc(p.endDate)}` : ' to present'}</div>
         ${p.aiAnalysis ? `<div class="observation">${esc(p.aiAnalysis)}</div>` : ''}
       </div>
@@ -10852,7 +10852,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
         <h3>${esc(p.name)}</h3>
         ${p.provider ? `<div style="font-size:12px; color:#786a5e;">Provider: ${esc(p.provider)}${p.cost ? ` · ${esc(p.cost)}` : ''}</div>` : ''}
         ${p.notes ? `<div style="font-size:13px; margin-top:4px;">${esc(p.notes)}</div>` : ''}
-        ${p.results ? `<div style="font-size:13px; font-style:italic; margin-top:4px;"><strong>Results:</strong> ${esc(p.results)}</div>` : ''}
+        ${p.results ? `<div style="font-size:13px; font-style: ; margin-top:4px;"><strong>Results:</strong> ${esc(p.results)}</div>` : ''}
       </div>
     `).join('');
     w.document.write(`
@@ -10901,7 +10901,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--cream)', color: 'var(--ink)' }}>
         <div className="text-center px-6">
-          <div className="font-serif text-4xl leading-none" style={{ color: 'var(--accent)' }}>Frida</div>
+          <div className="font-sans text-4xl leading-none" style={{ color: 'var(--accent)' }}>Frida</div>
           <div className="mt-4 text-[10px] uppercase tracking-[0.3em]" style={{ color: 'var(--ink-soft)' }}>opening your study</div>
         </div>
       </div>
@@ -11224,7 +11224,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
         <div className="max-w-7xl mx-auto px-6 py-1.5 flex justify-between items-center">
           <div className="flex items-center gap-8 min-w-0">
             {/* Compact: just Frida. The 'Est. 2026 · Tang & Gainey' line lives in the global footer. */}
-            <div className="font-serif text-base italic leading-none" style={{color:'var(--ink)'}}>Frida</div>
+            <div className="font-sans text-base leading-none" style={{color:'var(--ink)'}}>Frida</div>
           </div>
           <div className="flex items-center gap-0.5 md:gap-2">
             <button onClick={() => setShowSearch(true)} className="p-1.5 transition hidden md:inline-flex" style={{color:'var(--ink-soft)'}} title="Search (⌘K)">
@@ -11279,7 +11279,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
             </button>
             <div className="text-right hidden sm:block">
               <div className="text-[8px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>Logged in</div>
-              <div className="text-xs font-serif italic leading-tight" style={{color:'var(--ink)'}}>{user.name}{user.cloud && <span className="ml-1" style={{color:'var(--accent-blue)'}} title="Cloud synced">·</span>}</div>
+              <div className="text-xs font-sans leading-tight" style={{color:'var(--ink)'}}>{user.name}{user.cloud && <span className="ml-1" style={{color:'var(--accent-blue)'}} title="Cloud synced">·</span>}</div>
             </div>
             <button onClick={handleSignOut} className="p-1.5 transition hidden md:inline-flex" style={{color:'var(--ink-soft)'}} title="Sign out"><Icon name="LogOut" size={14} /></button>
             {/* Skin Profile header shortcut intentionally stays hidden
@@ -12667,7 +12667,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                                         </div>
                                         <div className="text-[10.5px] mt-1 leading-snug" style={{color:'var(--ink-soft)'}}>{watcherInterpretation(r, activeProductsForBudget || products)}</div>
                                       </div>
-                                      <div className="font-serif text-[18px] leading-none flex-shrink-0" style={{color:'var(--ink-soft)', fontWeight:500, letterSpacing:'-0.01em', marginTop:'2px'}}>
+                                      <div className="font-sans text-[18px] leading-none flex-shrink-0" style={{color:'var(--ink-soft)', fontWeight:500, letterSpacing:'-0.01em', marginTop:'2px'}}>
                                         {r.delta.toFixed(1)}
                                       </div>
                                     </li>
@@ -12807,7 +12807,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   return (
                     <div className="border p-10 text-center" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
                       <Icon name="BookmarkPlus" size={28} className="mx-auto mb-3" style={{color:'var(--ink-soft)'}} />
-                      <p className="font-serif text-base mb-1" style={{color:'var(--ink)'}}>No saved pearls yet.</p>
+                      <p className="font-sans text-base mb-1" style={{color:'var(--ink)'}}>No saved pearls yet.</p>
                       <p className="text-xs font-light" style={{color:'var(--ink-soft)'}}>Open any lesson and tap the Save icon to keep it as a reference card here.</p>
                     </div>
                   );
@@ -12819,7 +12819,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         <button onClick={() => setOpenLesson(l)} className="flex-1 min-w-0 text-left transition hover:opacity-80">
                           <div className="text-[9px] tracking-[0.25em] uppercase mb-1" style={{color:'var(--ink-soft)'}}>{l.category}</div>
                           <div className="flex items-baseline gap-2 md:gap-3 flex-wrap">
-                            <span className="font-serif text-base md:text-xl leading-tight" style={{color:'var(--ink)'}}>{l.title}</span>
+                            <span className="font-sans text-base md:text-xl leading-tight" style={{color:'var(--ink)'}}>{l.title}</span>
                             <span className="text-xs md:text-sm font-light leading-snug" style={{color:'var(--ink-soft)'}}>— {l.excerpt}</span>
                           </div>
                         </button>
@@ -13926,7 +13926,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
         {activeTab === 'about' && (
           <div className="md:max-w-md md:mx-auto pb-6">
             <div className="text-[10px] tracking-[0.32em] uppercase mb-2" style={{color:'var(--ink-soft)'}}>About</div>
-            <h2 className="font-serif italic text-[26px] md:text-[28px] leading-[1.1] mb-7" style={{color:'var(--ink)'}}>Two doctors, one quiet study of skin.</h2>
+            <h2 className="font-sans text-[26px] md:text-[28px] leading-[1.1] mb-7" style={{color:'var(--ink)'}}>Two doctors, one quiet study of skin.</h2>
 
             <div className="flex items-center justify-center gap-6 mb-7">
               <div className="flex flex-col items-center">
@@ -13934,20 +13934,20 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   <Icon name="User" size={32} />
                 </div>
                 <div className="text-[9.5px] tracking-[0.22em] uppercase mt-2.5" style={{color:'var(--ink)'}}>Dr. Jenni Tang</div>
-                <div className="text-[9px] italic mt-0.5" style={{color:'var(--ink-soft)'}}>Co-founder</div>
+                <div className="text-[9px] mt-0.5" style={{color:'var(--ink-soft)'}}>Co-founder</div>
               </div>
               <div className="flex flex-col items-center">
                 <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{background:'var(--cream-deep)', border: '1px solid var(--line)', color:'var(--accent)'}}>
                   <Icon name="User" size={32} />
                 </div>
                 <div className="text-[9.5px] tracking-[0.22em] uppercase mt-2.5" style={{color:'var(--ink)'}}>Dr. Christiana Gainey</div>
-                <div className="text-[9px] italic mt-0.5" style={{color:'var(--ink-soft)'}}>Co-founder</div>
+                <div className="text-[9px] mt-0.5" style={{color:'var(--ink-soft)'}}>Co-founder</div>
               </div>
             </div>
 
             <div className="text-center pt-5 mt-3" style={{borderTop:'1px solid var(--line)'}}>
               <div className="text-[10px] tracking-[0.32em] uppercase mb-1.5" style={{color:'var(--accent)'}}>Coming soon</div>
-              <p className="font-serif italic text-[13px] leading-relaxed" style={{color:'var(--ink-soft)'}}>
+              <p className="font-sans text-[13px] leading-relaxed" style={{color:'var(--ink-soft)'}}>
                 More on who we are, why we built this, and how we think about skin.
               </p>
             </div>
@@ -13973,7 +13973,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
             {!colorProfile ? (
               <div className="border p-12 text-center" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
                 <div className="flex justify-center mb-4" style={{color:'var(--ink-soft)'}}><Icon name="Palette" size={40} /></div>
-                <h3 className="font-serif text-2xl italic mb-2" style={{color:'var(--ink)'}}>Begin with your palette</h3>
+                <h3 className="font-sans text-2xl mb-2" style={{color:'var(--ink)'}}>Begin with your palette</h3>
                 <p className="text-sm font-light max-w-sm mx-auto mb-6" style={{color:'var(--ink-soft)'}}>Set your color analysis profile so recommendations align with your season and undertone.</p>
                 <button onClick={() => setShowColorModal(true)} className="px-6 py-3 tracking-[0.2em] text-[10px] uppercase" style={{background:'var(--ink)', color:'var(--cream)'}}>Set Profile</button>
               </div>
@@ -13991,9 +13991,9 @@ If the user references something not in their data ("started retinol 6 weeks ago
                           </span>
                         )}
                       </div>
-                      <h3 className="font-serif text-3xl italic mt-1 capitalize" style={{color:'var(--ink)'}}>{colorProfile.season?.replace(/-/g, ' ') || 'Undefined Season'}</h3>
+                      <h3 className="font-sans text-3xl mt-1 capitalize" style={{color:'var(--ink)'}}>{colorProfile.season?.replace(/-/g, ' ') || 'Undefined Season'}</h3>
                       {colorProfile.aiAnalysis?.predictedSeason && colorProfile.aiAnalysis.predictedSeason !== colorProfile.season && (
-                        <div className="text-[10px] mt-1 italic flex items-center gap-1" style={{color:'#a04555'}}>
+                        <div className="text-[10px] mt-1 flex items-center gap-1" style={{color:'#a04555'}}>
                           <Icon name="AlertCircle" size={11} /> AI suggests <span className="capitalize">{colorProfile.aiAnalysis.predictedSeason.replace(/-/g, ' ')}</span> instead — <button onClick={() => setShowColorModal(true)} className="underline">review</button>
                         </div>
                       )}
@@ -14034,7 +14034,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
                   <div className="text-[10px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>Ask the Artist</div>
                   {makeupMessages.length > 0 && (
-                    <button onClick={clearMakeupChat} className="text-[10px] tracking-[0.15em] uppercase italic underline" style={{color:'var(--ink-soft)'}}>New conversation</button>
+                    <button onClick={clearMakeupChat} className="text-[10px] tracking-[0.15em] uppercase underline" style={{color:'var(--ink-soft)'}}>New conversation</button>
                   )}
                 </div>
 
@@ -14049,7 +14049,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         "Blush colors that flatter my undertone",
                         "What metals (gold/silver/rose) suit me?"
                       ].map(q => (
-                        <button key={q} onClick={() => handleMakeup(q)} className="border p-4 text-left text-sm font-light italic transition hover:border-[var(--ink)]" style={{background:'var(--cream)', borderColor: 'var(--line)', color:'var(--ink)'}}>"{q}"</button>
+                        <button key={q} onClick={() => handleMakeup(q)} className="border p-4 text-left text-sm font-light transition hover:border-[var(--ink)]" style={{background:'var(--cream)', borderColor: 'var(--line)', color:'var(--ink)'}}>"{q}"</button>
                       ))}
                     </div>
                   </div>
@@ -14097,7 +14097,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleMakeup(); } }}
                     placeholder={makeupMessages.length === 0 ? "What lipstick shades for daytime? Best blush for my undertone?" : "Continue the conversation…"}
                     rows="2"
-                    className="w-full px-4 py-3 border-0 focus:outline-none font-light italic resize-none"
+                    className="w-full px-4 py-3 border-0 focus:outline-none font-light resize-none"
                     style={{background:'transparent', color:'var(--ink)'}}
                   />
                   <div className="flex items-center justify-between px-3 pb-3">
@@ -14259,7 +14259,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
             } else {
               await saveData('logs', updated);
             }
-            toast(`${shots.length} photo${shots.length > 1 ? 's' : ''} added ✨`);
+            toast(`${shots.length} photo${shots.length > 1 ? 's' : ''} added.`);
             // Upload to Supabase Storage in the background if cloud user.
             // Mirrors the per-log path swap pattern used elsewhere so we
             // never persist raw base64 to the cloud row.
@@ -15328,7 +15328,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   <Icon name={r.icon || 'Sparkles'} size={12} style={{color:'var(--accent)'}} />
                   <div className="text-[9px] tracking-[0.26em] uppercase" style={{color:'var(--accent)', fontWeight:600}}>Sample Routine</div>
                 </div>
-                <h3 className="font-serif text-[22px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>{r.label}</h3>
+                <h3 className="font-sans text-[22px] leading-tight mb-1" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>{r.label}</h3>
                 <p className="text-[11.5px] leading-snug" style={{color:'var(--ink-soft)'}}>{r.blurb}</p>
               </div>
               <div className="px-5 py-4">
@@ -16096,7 +16096,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                             </div>
                           ))}
                         </div>
-                        <p className="text-[10px] mt-2 leading-snug italic" style={{color:'var(--ink-soft)'}}>
+                        <p className="text-[10px] mt-2 leading-snug " style={{color:'var(--ink-soft)'}}>
                           Recommended references — not affiliate. Add manually via Evolve → Add a product if one fits.
                         </p>
                       </div>
@@ -16702,7 +16702,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
           onCapture={(dataUrl) => {
             if (!dataUrl) { setShowCheckInCamera(false); return; }
             // Friendly confirmation.
-            toast('Photo logged ✨', 'success');
+            toast('Photo logged.', 'success');
             // Trigger background AI analysis if API key configured.
             if (getApiKey()) {
               (async () => {
@@ -16798,7 +16798,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
           }
           setCoverRoutineRebuildToken(t => t + 1);
           setUseTodayPrompt(null);
-          toast(`Added to ${slot.toUpperCase()} routine ✨`, 'success');
+          toast(`Added to ${slot.toUpperCase()} routine.`, 'success');
         };
         return (
           <div className="fixed top-4 left-1/2 z-40 px-3 max-w-md w-full" style={{transform:'translateX(-50%)'}}>
@@ -16899,7 +16899,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   setPromoteToRoutinePrompt(null);
                   setActiveTab('regimen');
                   setRegimenView('today');
-                  toast(count > 1 ? `${count} added to your weekly routine ✨` : `Added to your weekly routine ✨`, 'success');
+                  toast(count > 1 ? `${count} added to your weekly routine.` : `Added to your weekly routine.`, 'success');
                 }}
                 className="text-[10px] tracking-[0.18em] uppercase px-3 py-1.5 rounded-full transition hover:opacity-90"
                 style={{background:'var(--accent)', color:'var(--cream)', fontWeight:600, cursor:'pointer'}}
@@ -17011,7 +17011,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     setPostSaveSuggestion(null);
                     setShowProcedureModal(true);
                   }}
-                  className="text-[10px] tracking-[0.15em] uppercase italic px-2 py-1 border rounded-full transition hover:bg-[var(--cream-deep)]"
+                  className="text-[10px] tracking-[0.15em] uppercase px-2 py-1 border rounded-full transition hover:bg-[var(--cream-deep)]"
                   style={{borderColor: 'var(--line)', color:'var(--ink)'}}
                 >
                   + procedure
@@ -17023,7 +17023,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     setPostSaveSuggestion(null);
                     setShowProductModal(true);
                   }}
-                  className="text-[10px] tracking-[0.15em] uppercase italic px-2 py-1 border rounded-full transition hover:bg-[var(--cream-deep)]"
+                  className="text-[10px] tracking-[0.15em] uppercase px-2 py-1 border rounded-full transition hover:bg-[var(--cream-deep)]"
                   style={{borderColor: 'var(--line)', color:'var(--ink)'}}
                 >
                   + product start
@@ -17054,7 +17054,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
           <Modal title={fmt} onClose={close}>
             <div className="space-y-5">
               {dayLogs.length === 0 && procs.length === 0 && newProds.length === 0 && !reg && (
-                <p className="font-serif italic text-base text-center py-6" style={{color:'var(--ink-soft)'}}>Quiet day. Nothing logged.</p>
+                <p className="font-sans text-base text-center py-6" style={{color:'var(--ink-soft)'}}>Quiet day. Nothing logged.</p>
               )}
               {/* Photos */}
               {dayLogs.length > 0 && (
@@ -17069,20 +17069,20 @@ If the user references something not in their data ("started retinol 6 weeks ago
                           </div>
                         ) : (
                           <div className="aspect-square flex items-center justify-center" style={{background:'var(--cream-deep)'}}>
-                            <span className="font-serif italic text-5xl" style={{color:'var(--ink-soft)'}}>{l.rating}</span>
+                            <span className="font-sans text-5xl" style={{color:'var(--ink-soft)'}}>{l.rating}</span>
                           </div>
                         )}
                         <div className="px-3 py-2.5">
                           <div className="flex items-baseline justify-between gap-2">
-                            <span className="font-serif italic text-base" style={{color:'var(--ink)'}}>{(l.area || 'full-face').replace(/-/g, ' ')}</span>
-                            <span className="font-serif italic text-lg" style={{color:'var(--accent)'}}>{l.rating}<span className="text-[10px]" style={{color:'var(--ink-soft)'}}>/10</span></span>
+                            <span className="font-sans text-base" style={{color:'var(--ink)'}}>{(l.area || 'full-face').replace(/-/g, ' ')}</span>
+                            <span className="font-sans text-lg" style={{color:'var(--accent)'}}>{l.rating}<span className="text-[10px]" style={{color:'var(--ink-soft)'}}>/10</span></span>
                           </div>
                           {(l.concerns || []).length > 0 && (
                             <div className="text-xs font-light mt-1" style={{color:'var(--ink-soft)'}}>{l.concerns.join(' · ')}</div>
                           )}
-                          {l.notes && <p className="text-xs italic mt-1.5 leading-snug" style={{color:'var(--ink)'}}>"{l.notes}"</p>}
+                          {l.notes && <p className="text-xs mt-1.5 leading-snug" style={{color:'var(--ink)'}}>"{l.notes}"</p>}
                           {(l.aiAnalysis || l.ratingExplanation) && (
-                            <p className="font-serif italic text-xs mt-2 leading-relaxed line-clamp-3" style={{color:'var(--ink)'}}>{(l.aiAnalysis || l.ratingExplanation).slice(0, 220)}…</p>
+                            <p className="font-sans text-xs mt-2 leading-relaxed line-clamp-3" style={{color:'var(--ink)'}}>{(l.aiAnalysis || l.ratingExplanation).slice(0, 220)}…</p>
                           )}
                         </div>
                       </div>
@@ -17096,13 +17096,13 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   <div className="text-[10px] tracking-[0.25em] uppercase mb-2" style={{color:'var(--ink-soft)'}}>Regimen</div>
                   <div className="text-sm font-light leading-relaxed" style={{color:'var(--ink)'}}>
                     {reg.amProducts?.length > 0 && (
-                      <div><span className="font-serif italic text-xs" style={{color:'var(--ink-soft)'}}>AM · </span>{(reg.amProducts || []).map(id => products.find(p => p.id === id)?.name).filter(Boolean).join(', ')}</div>
+                      <div><span className="font-sans text-xs" style={{color:'var(--ink-soft)'}}>AM · </span>{(reg.amProducts || []).map(id => products.find(p => p.id === id)?.name).filter(Boolean).join(', ')}</div>
                     )}
                     {reg.pmProducts?.length > 0 && (
-                      <div><span className="font-serif italic text-xs" style={{color:'var(--ink-soft)'}}>PM · </span>{(reg.pmProducts || []).map(id => products.find(p => p.id === id)?.name).filter(Boolean).join(', ')}</div>
+                      <div><span className="font-sans text-xs" style={{color:'var(--ink-soft)'}}>PM · </span>{(reg.pmProducts || []).map(id => products.find(p => p.id === id)?.name).filter(Boolean).join(', ')}</div>
                     )}
                     {(reg.devices?.length > 0) && (
-                      <div className="text-xs italic mt-1" style={{color:'var(--ink-soft)'}}>devices · {(reg.devices || []).join(', ')}</div>
+                      <div className="text-xs mt-1" style={{color:'var(--ink-soft)'}}>devices · {(reg.devices || []).join(', ')}</div>
                     )}
                   </div>
                 </div>
@@ -17113,7 +17113,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   <div className="text-[10px] tracking-[0.25em] uppercase mb-2" style={{color:'var(--ink-soft)'}}>Procedure</div>
                   {procs.map(p => (
                     <div key={p.id} className="text-sm font-light" style={{color:'var(--ink)'}}>
-                      <span className="font-serif italic">{p.name}</span> {p.type ? <span className="text-xs italic" style={{color:'var(--ink-soft)'}}>· {p.type}</span> : null}
+                      <span className="font-sans ">{p.name}</span> {p.type ? <span className="text-xs " style={{color:'var(--ink-soft)'}}>· {p.type}</span> : null}
                     </div>
                   ))}
                 </div>
@@ -17194,8 +17194,8 @@ If the user references something not in their data ("started retinol 6 weeks ago
               {!a.hasEnoughData ? (
                 <div className="border p-8 text-center" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
                   <Icon name="Hourglass" size={28} className="mx-auto mb-3 opacity-40" />
-                  <p className="font-serif italic text-base mb-1" style={{color:'var(--ink)'}}>Not enough data yet</p>
-                  <p className="text-sm font-light italic" style={{color:'var(--ink-soft)'}}>{a.reasonShort || 'Log more photos to see a comparison.'}</p>
+                  <p className="font-sans text-base mb-1" style={{color:'var(--ink)'}}>Not enough data yet</p>
+                  <p className="text-sm font-light " style={{color:'var(--ink-soft)'}}>{a.reasonShort || 'Log more photos to see a comparison.'}</p>
                 </div>
               ) : (
                 <>
@@ -17211,13 +17211,13 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       >
                         <div className="aspect-square overflow-hidden" style={{background:'var(--cream-deep)'}}>
                           <Photo item={a.anchorPhotoLog} alt="" className="w-full h-full object-cover"
-                            renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-serif italic text-5xl" style={{color:'var(--ink-soft)'}}>{a.anchorPhotoLog.rating}</span></div>}
+                            renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-sans text-5xl" style={{color:'var(--ink-soft)'}}>{a.anchorPhotoLog.rating}</span></div>}
                           />
                         </div>
                       </button>
                       <div className="px-3 py-2.5">
                         <div className="text-[10px] tracking-[0.25em] uppercase mb-0.5" style={{color:'var(--accent)'}}>Before</div>
-                        <div className="font-serif italic text-base" style={{color:'var(--ink)'}}>{fmt(a.anchorPhotoLog.date)}</div>
+                        <div className="font-sans text-base" style={{color:'var(--ink)'}}>{fmt(a.anchorPhotoLog.date)}</div>
                         <div className="text-xs font-light" style={{color:'var(--ink-soft)'}}>
                           {(a.anchorPhotoLog.area || 'full-face').replace(/-/g, ' ')} · {a.anchorPhotoLog.rating}/10
                         </div>
@@ -17234,13 +17234,13 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       >
                         <div className="aspect-square overflow-hidden" style={{background:'var(--cream-deep)'}}>
                           <Photo item={a.latestPhotoLog} alt="" className="w-full h-full object-cover"
-                            renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-serif italic text-5xl" style={{color:'var(--ink-soft)'}}>{a.latestPhotoLog.rating}</span></div>}
+                            renderFallback={() => <div className="w-full h-full flex items-center justify-center"><span className="font-sans text-5xl" style={{color:'var(--ink-soft)'}}>{a.latestPhotoLog.rating}</span></div>}
                           />
                         </div>
                       </button>
                       <div className="px-3 py-2.5">
                         <div className="text-[10px] tracking-[0.25em] uppercase mb-0.5" style={{color:'var(--accent)'}}>After · today</div>
-                        <div className="font-serif italic text-base" style={{color:'var(--ink)'}}>{fmt(a.latestPhotoLog.date)}</div>
+                        <div className="font-sans text-base" style={{color:'var(--ink)'}}>{fmt(a.latestPhotoLog.date)}</div>
                         <div className="text-xs font-light" style={{color:'var(--ink-soft)'}}>
                           {(a.latestPhotoLog.area || 'full-face').replace(/-/g, ' ')} · {a.latestPhotoLog.rating}/10
                         </div>
@@ -17273,20 +17273,20 @@ If the user references something not in their data ("started retinol 6 weeks ago
                               IconComponent={Icon}
                               withPearlsFn={withPearls}
                             />
-                            <button onClick={() => runComparePairAnalysisShared(a.anchorPhotoLog, a.latestPhotoLog)} disabled={compareTimeAnalyzing} className="mt-3 text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1.5" style={{color:'var(--ink-soft)'}}>
+                            <button onClick={() => runComparePairAnalysisShared(a.anchorPhotoLog, a.latestPhotoLog)} disabled={compareTimeAnalyzing} className="mt-3 text-[10px] tracking-[0.2em] uppercase flex items-center gap-1.5" style={{color:'var(--ink-soft)'}}>
                               {compareTimeAnalyzing ? <><Icon name="Loader2" size={11} className="spin" /> Re-running</> : <>Refresh analysis</>}
                             </button>
                           </>
                         ) : compareTimeAnalyzing ? (
-                          <p className="font-serif italic text-sm flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
+                          <p className="font-sans text-sm flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
                             <Icon name="Loader2" size={13} className="spin" style={{color:'var(--accent)'}} /> Reading the difference…
                           </p>
                         ) : !getApiKey() ? (
-                          <button onClick={() => setShowApiKeyModal(true)} className="text-[11px] tracking-[0.18em] uppercase italic flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
+                          <button onClick={() => setShowApiKeyModal(true)} className="text-[11px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
                             <Icon name="Key" size={11} /> Add API key to analyze
                           </button>
                         ) : (
-                          <button onClick={() => runComparePairAnalysisShared(a.anchorPhotoLog, a.latestPhotoLog)} className="text-[11px] tracking-[0.18em] uppercase italic flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
+                          <button onClick={() => runComparePairAnalysisShared(a.anchorPhotoLog, a.latestPhotoLog)} className="text-[11px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
                             <Icon name="Sparkles" size={11} /> Analyze {product.name}'s impact
                           </button>
                         )}
@@ -17339,11 +17339,11 @@ If the user references something not in their data ("started retinol 6 weeks ago
         return (
           <Modal eyebrow="Compare" title={side === 'before' ? 'Pick the "before" photo' : 'Pick the "after" photo'} onClose={close}>
             <div className="space-y-4">
-              <p className="text-sm font-light italic" style={{color:'var(--ink-soft)'}}>
+              <p className="text-sm font-light " style={{color:'var(--ink-soft)'}}>
                 {side === 'before' ? 'Choose any photo from your timeline as the earlier comparison anchor.' : 'Choose any photo as the later comparison anchor — defaults to today.'}
               </p>
               {allPhotoLogs.length === 0 ? (
-                <p className="font-serif italic text-base text-center py-6" style={{color:'var(--ink-soft)'}}>No photos in your journal yet.</p>
+                <p className="font-sans text-base text-center py-6" style={{color:'var(--ink-soft)'}}>No photos in your journal yet.</p>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {allPhotoLogs.map(l => {
@@ -17368,7 +17368,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                           )}
                         </div>
                         <div className="px-2 py-1.5">
-                          <div className="font-serif italic text-sm leading-tight" style={{color:'var(--ink)'}}>{fmt(l.date)}</div>
+                          <div className="font-sans text-sm leading-tight" style={{color:'var(--ink)'}}>{fmt(l.date)}</div>
                           <div className="text-[10px] font-light" style={{color:'var(--ink-soft)'}}>{(l.area || 'full-face').replace(/-/g, ' ')} · {l.rating}/10</div>
                         </div>
                       </button>
@@ -17380,7 +17380,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
               {side === 'after' && compareTimeAfterId && (
                 <button
                   onClick={() => { setCompareTimeAfterId(null); close(); }}
-                  className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1.5"
+                  className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1.5"
                   style={{color:'var(--ink-soft)'}}
                 ><Icon name="RotateCcw" size={11} /> Reset to today's photo</button>
               )}
@@ -17398,11 +17398,11 @@ If the user references something not in their data ("started retinol 6 weeks ago
         return (
           <Modal eyebrow="Cover" title="Choose today's photo" onClose={() => setShowCoverPickerForDate(null)}>
             <div className="space-y-4">
-              <p className="text-sm font-light italic" style={{color:'var(--ink-soft)'}}>
+              <p className="text-sm font-light " style={{color:'var(--ink-soft)'}}>
                 Cover and timeline default to the full-face photo. Pick a different angle to use as today's view.
               </p>
               {candidates.length === 0 ? (
-                <p className="font-serif italic text-base text-center py-6" style={{color:'var(--ink-soft)'}}>No photos for this day yet.</p>
+                <p className="font-sans text-base text-center py-6" style={{color:'var(--ink-soft)'}}>No photos for this day yet.</p>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {candidates.map(l => {
@@ -17442,7 +17442,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         </div>
                         <div className="px-2 py-1.5 flex items-baseline justify-between gap-2">
                           <span className="font-sans text-[10px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{l.area.replace(/-/g, ' ')}</span>
-                          <span className="font-serif italic text-sm" style={{color:'var(--accent)'}}>{l.rating}<span className="text-[10px]" style={{color:'var(--ink-soft)'}}>/10</span></span>
+                          <span className="font-sans text-sm" style={{color:'var(--accent)'}}>{l.rating}<span className="text-[10px]" style={{color:'var(--ink-soft)'}}>/10</span></span>
                         </div>
                       </button>
                     );
@@ -17460,7 +17460,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     setShowCoverPickerForDate(null);
                     toast('Reset to full-face default');
                   }}
-                  className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1.5"
+                  className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1.5"
                   style={{color:'var(--ink-soft)'}}
                 >
                   <Icon name="RotateCcw" size={11} /> Reset to full-face default
@@ -17889,7 +17889,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
               {/* Header */}
               <div className="px-4 pt-4 pb-2 flex items-start justify-between">
                 <div className="min-w-0">
-                  <div className="font-serif italic text-[18px]" style={{color:'var(--ink)'}}>Add from shelf</div>
+                  <div className="font-sans text-[18px]" style={{color:'var(--ink)'}}>Add from shelf</div>
                   <div className="text-[11px] mt-0.5" style={{color:'var(--ink-soft)'}}>
                     Tap +AM or +PM to add to today’s routine.
                   </div>
@@ -17955,7 +17955,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
               <div className="shelf-scroll-area">
                 {visible.length === 0 ? (
                   <div className="py-12 text-center">
-                    <div className="font-serif italic text-[14px] mb-1" style={{color:'var(--ink)'}}>
+                    <div className="font-sans text-[14px] mb-1" style={{color:'var(--ink)'}}>
                       {activeProductsList.length === 0 ? 'Empty shelf, empty mind.' : 'Nothing here. Try less.'}
                     </div>
                     <div className="text-[11px]" style={{color:'var(--ink-soft)'}}>
@@ -18190,7 +18190,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
               </div>
               <div className="px-5 pt-4 md:pt-6 pb-6 md:px-7">
                 <Eyebrow tone="accent" className="mb-1.5">Why this today</Eyebrow>
-                <h2 className="font-serif italic text-[20px] md:text-[22px] leading-[1.15] mb-4" style={{color:'var(--ink)'}}>
+                <h2 className="font-sans text-[20px] md:text-[22px] leading-[1.15] mb-4" style={{color:'var(--ink)'}}>
                   Tuned to where your skin is.
                 </h2>
 
@@ -18198,7 +18198,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   <div>
                     <Eyebrow className="mb-1">What we're targeting</Eyebrow>
                     <p className="text-[13px] leading-relaxed" style={{color:'var(--ink)'}}>
-                      Today's plan focuses on <span className="italic">{concernText}</span>{recentRating ? <> with your last skin reading at {recentRating}</> : null}. The actives chosen have evidence-grade A or B for these targets and pair safely with the rest of your shelf.
+                      Today's plan focuses on <span className=" ">{concernText}</span>{recentRating ? <> with your last skin reading at {recentRating}</> : null}. The actives chosen have evidence-grade A or B for these targets and pair safely with the rest of your shelf.
                     </p>
                   </div>
 
@@ -18206,7 +18206,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     <Eyebrow className="mb-1">What we avoided</Eyebrow>
                     <p className="text-[13px] leading-relaxed" style={{color:'var(--ink)'}}>
                       {sensText
-                        ? <>Your sensitivities to <span className="italic">{sensText}</span> are filtered out before any product reaches the plan.</>
+                        ? <>Your sensitivities to <span className=" ">{sensText}</span> are filtered out before any product reaches the plan.</>
                         : <>Antagonistic actives (e.g. retinol stacked with high-strength acids) are spaced across the week so nothing competes for skin tolerance on the same night.</>}
                     </p>
                   </div>
@@ -18218,7 +18218,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     </p>
                     <button
                       onClick={() => { setRitualWhySheet(false); setRegimenView('today'); /* surface technique lesson */ if (typeof setOpenLesson === 'function') {/* opening a lesson would go here */} }}
-                      className="mt-2 text-[10.5px] tracking-[0.18em] uppercase italic flex items-center gap-1 transition hover:opacity-70"
+                      className="mt-2 text-[10.5px] tracking-[0.18em] uppercase flex items-center gap-1 transition hover:opacity-70"
                       style={{color:'var(--accent)'}}
                     >
                       <Icon name="BookOpen" size={11} /> Read the technique guide
@@ -18229,7 +18229,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 <div className="mt-6 flex justify-end">
                   <button
                     onClick={() => setRitualWhySheet(false)}
-                    className="text-[10.5px] tracking-[0.18em] uppercase italic flex items-center gap-1 transition hover:opacity-70"
+                    className="text-[10.5px] tracking-[0.18em] uppercase flex items-center gap-1 transition hover:opacity-70"
                     style={{color:'var(--ink-soft)'}}
                   >
                     Close <Icon name="X" size={11} />
@@ -18244,8 +18244,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
       {/* === RITUAL · WEEKLY DAY DETAIL BOTTOM SHEET ===
           THE signature interaction. Triggered by tapping any Mon-Sun tile in
           the Weekly Rotation card. Designed to feel magical: backdrop blur,
-          slide-up animation, the tapped day's theme rendered as serif italic
-          display, AI reasoning paragraph, full numbered AM/PM regimen, and
+          slide-up animation, the tapped day's theme rendered as serif display, AI reasoning paragraph, full numbered AM/PM regimen, and
           three action buttons (Use this plan today / Edit this day / Ask AI
           why). On mobile renders as a bottom sheet, on desktop as a centered
           modal — same component handles both. */}
@@ -18366,7 +18365,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   <Icon name="ChevronLeft" size={16} />
                 </button>
                 <div className="text-center flex-1">
-                  <div className="font-serif italic text-[18px] md:text-[20px] leading-tight" style={{color:'var(--ink)'}}>
+                  <div className="font-sans text-[18px] md:text-[20px] leading-tight" style={{color:'var(--ink)'}}>
                     {date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                   </div>
                 </div>
@@ -18412,11 +18411,11 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         Photo · {(dayPhotoLog.area || 'full-face').replace(/-/g, ' ')}
                       </div>
                       {aiScoreOut10(dayPhotoLog) && (
-                        <div className="font-serif italic text-[18px] leading-tight mt-1" style={{color:'var(--ink)'}}>
+                        <div className="font-sans text-[18px] leading-tight mt-1" style={{color:'var(--ink)'}}>
                           <span style={{color:'var(--accent)'}}>✦</span> {aiScoreOut10(dayPhotoLog)}<span className="text-[10px]" style={{color:'var(--ink-soft)'}}> /10</span>
                         </div>
                       )}
-                      <div className="text-[10px] tracking-[0.15em] uppercase italic mt-1" style={{color:'var(--accent)'}}>
+                      <div className="text-[10px] tracking-[0.15em] uppercase mt-1" style={{color:'var(--accent)'}}>
                         Tap for analysis →
                       </div>
                     </div>
@@ -18443,7 +18442,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                             <li key={p.id} className="flex items-center gap-3 rounded-[12px] px-3 py-2.5" style={{background:'var(--cream-deep)'}}>
                               <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] flex-shrink-0" style={{background:'var(--cream)', color:'var(--ink-soft)', border: '1px solid var(--line)'}}>{i + 1}</div>
                               <div className="flex-1 min-w-0">
-                                <div className="font-serif italic text-[14px] leading-tight truncate" style={{color:'var(--ink)'}}>{p.name}</div>
+                                <div className="font-sans text-[14px] leading-tight truncate" style={{color:'var(--ink)'}}>{p.name}</div>
                                 {p.category && <div className="text-[10.5px] tracking-[0.15em] uppercase" style={{color:'var(--ink-soft)'}}>{p.category}</div>}
                               </div>
                               <div className="w-9 h-12 flex items-end justify-center flex-shrink-0 overflow-hidden">
@@ -18462,7 +18461,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         })}
                       </ol>
                     ) : (
-                      <p className="text-[11.5px] italic" style={{color:'var(--ink-soft)'}}>No AM plan logged for this day.</p>
+                      <p className="text-[11.5px] " style={{color:'var(--ink-soft)'}}>No AM plan logged for this day.</p>
                     )}
                   </div>
                 )}
@@ -18482,7 +18481,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                             <li key={p.id} className="flex items-center gap-3 rounded-[12px] px-3 py-2.5" style={{background:'var(--cream-deep)'}}>
                               <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] flex-shrink-0" style={{background:'var(--cream)', color:'var(--ink-soft)', border: '1px solid var(--line)'}}>{i + 1}</div>
                               <div className="flex-1 min-w-0">
-                                <div className="font-serif italic text-[14px] leading-tight truncate" style={{color:'var(--ink)'}}>{p.name}</div>
+                                <div className="font-sans text-[14px] leading-tight truncate" style={{color:'var(--ink)'}}>{p.name}</div>
                                 {p.category && <div className="text-[10.5px] tracking-[0.15em] uppercase" style={{color:'var(--ink-soft)'}}>{p.category}</div>}
                               </div>
                               <div className="w-9 h-12 flex items-end justify-center flex-shrink-0 overflow-hidden">
@@ -18501,13 +18500,13 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         })}
                       </ol>
                     ) : (
-                      <p className="text-[11.5px] italic" style={{color:'var(--ink-soft)'}}>No PM plan logged for this day.</p>
+                      <p className="text-[11.5px] " style={{color:'var(--ink-soft)'}}>No PM plan logged for this day.</p>
                     )}
                   </div>
                 )}
 
                 {/* Action row — primary edit/use-plan pill, then secondary
-                    accent links. The "Edit this day" italic link was removed
+                    accent links. The "Edit this day" link was removed
                     since the big primary button already opens the editor —
                     duplicating it under was redundant + the disabled state
                     on the primary made the big button look broken on mobile. */}
@@ -18530,14 +18529,14 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       setRitualSuggestSheet({ dateISO: iso, source: 'day' });
                       setRitualDaySheet(null);
                     }}
-                    className="text-[10.5px] tracking-[0.18em] uppercase italic flex items-center gap-1 transition hover:opacity-70 cursor-pointer"
+                    className="text-[10.5px] tracking-[0.18em] uppercase flex items-center gap-1 transition hover:opacity-70 cursor-pointer"
                     style={{color:'var(--accent)', cursor:'pointer'}}
                   >
                     <Icon name="Sparkles" size={11} /> Suggest with AI
                   </button>
                   <button
                     onClick={askWhy}
-                    className="text-[10.5px] tracking-[0.18em] uppercase italic flex items-center gap-1 transition hover:opacity-70"
+                    className="text-[10.5px] tracking-[0.18em] uppercase flex items-center gap-1 transition hover:opacity-70"
                     style={{color:'var(--ink-soft)'}}
                   >
                     <Icon name="MessageCircle" size={11} /> Ask AI why
@@ -18628,7 +18627,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   </button>
                   <div className="text-center">
                     <div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Photo log</div>
-                    <h2 className="font-serif italic text-[20px] mt-0.5" style={{color:'var(--ink)'}}>{monthLabel}</h2>
+                    <h2 className="font-sans text-[20px] mt-0.5" style={{color:'var(--ink)'}}>{monthLabel}</h2>
                   </div>
                   <button
                     onClick={() => stepMonth(1)}
@@ -18671,18 +18670,18 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         {c.log ? (
                           <>
                             <Photo item={c.log} alt="" className="w-full h-full object-cover"
-                              renderFallback={() => <span className="font-serif italic text-[11px]" style={{color:'var(--ink-soft)'}}>{c.dayNum}</span>}
+                              renderFallback={() => <span className="font-sans text-[11px]" style={{color:'var(--ink-soft)'}}>{c.dayNum}</span>}
                             />
-                            <span className="absolute bottom-0 right-0.5 text-[8.5px] font-serif italic" style={{color:'var(--cream)', textShadow:'0 1px 2px rgba(0,0,0,0.4)'}}>{c.dayNum}</span>
+                            <span className="absolute bottom-0 right-0.5 text-[8.5px] font-sans " style={{color:'var(--cream)', textShadow:'0 1px 2px rgba(0,0,0,0.4)'}}>{c.dayNum}</span>
                           </>
                         ) : (
-                          <span className="text-[10px] font-serif italic" style={{color:'var(--ink-soft)'}}>{c.dayNum}</span>
+                          <span className="text-[10px] font-sans " style={{color:'var(--ink-soft)'}}>{c.dayNum}</span>
                         )}
                       </button>
                     );
                   })}
                 </div>
-                <div className="text-[10px] italic mt-3 text-center" style={{color:'var(--ink-soft)'}}>
+                <div className="text-[10px] mt-3 text-center" style={{color:'var(--ink-soft)'}}>
                   Tap any day with a photo to open its analysis
                 </div>
                 <button
@@ -18825,7 +18824,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       // (system sheet handled it); fall through means we
                       // downloaded instead.
                       const canShareFiles = typeof navigator !== 'undefined' && typeof navigator.canShare === 'function';
-                      toast(canShareFiles ? 'Ready to share ✨' : 'Saved to downloads', 'success');
+                      toast(canShareFiles ? 'Ready to share.' : 'Saved to downloads', 'success');
                     } finally {
                       if (card.parentNode) card.parentNode.removeChild(card);
                     }
@@ -18920,7 +18919,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       {!isCurrentCover && (
                         <button
                           onClick={setAsMain}
-                          className="w-full text-[10px] tracking-[0.18em] uppercase italic flex items-center justify-center gap-1.5 py-1 transition hover:opacity-80 cursor-pointer"
+                          className="w-full text-[10px] tracking-[0.18em] uppercase flex items-center justify-center gap-1.5 py-1 transition hover:opacity-80 cursor-pointer"
                           style={{color:'var(--accent)', cursor:'pointer'}}
                         >
                           <Icon name="Star" size={11} /> Set as main photo
@@ -18931,7 +18930,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 })()}
 
                 {/* === HEADER (editorial score + descriptor) ===
-                    Mirrors the Today tab: italic serif score, /10 hairline,
+                    Mirrors the Today tab: serif score, /10 hairline,
                     single-word descriptor (Radiant / Balanced / Steady /
                     Tending / Reactive). When no snapshot yet, falls back to
                     the gentler "Reading your skin…" headline. */}
@@ -18960,35 +18959,35 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         {aiFmt != null ? (
                           <div className="flex items-baseline gap-1.5 mt-1">
                             <span style={{color:'var(--accent)', fontSize:'13px', lineHeight:1}} title="AI-derived score">✦</span>
-                            <div className="font-serif italic leading-none" style={{color:'var(--ink)', fontSize:'34px'}}>{aiFmt}</div>
-                            <div className="font-serif italic leading-none text-[12px]" style={{color:'var(--ink-soft)'}}>/10</div>
-                            {desc && <div className="font-serif italic text-[16px] leading-none ml-2 pb-0.5" style={{color:'var(--accent)'}}>{desc}</div>}
+                            <div className="font-sans leading-none" style={{color:'var(--ink)', fontSize:'34px'}}>{aiFmt}</div>
+                            <div className="font-sans leading-none text-[12px]" style={{color:'var(--ink-soft)'}}>/10</div>
+                            {desc && <div className="font-sans text-[16px] leading-none ml-2 pb-0.5" style={{color:'var(--accent)'}}>{desc}</div>}
                           </div>
                         ) : (
-                          <h2 className="font-serif italic text-[20px] leading-[1.15] mt-1" style={{color:'var(--ink)'}}>
+                          <h2 className="font-sans text-[20px] leading-[1.15] mt-1" style={{color:'var(--ink)'}}>
                             {summaryWords || 'Reading your skin…'}
                           </h2>
                         )}
                         {/* AI ✦ (Frida) vs your gut — line up both readings so you
                             can see where intuition diverged from the photo read. */}
                         {aiFmt != null && userFmt != null && (
-                          <div className="text-[10px] tracking-[0.18em] uppercase italic mt-1.5 flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
+                          <div className="text-[10px] tracking-[0.18em] uppercase mt-1.5 flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
                             <span><span style={{color:'var(--accent)'}}>✦</span> Frida {aiFmt}</span>
                             <span style={{opacity:0.5}}>·</span>
                             <span>You {userFmt}</span>
                             {Number(aiFmt) !== Number(userFmt) && (
-                              <span style={{opacity:0.5, fontStyle:'italic'}}>{Math.abs(Number(aiFmt) - Number(userFmt)) >= 1.5 ? 'big gap' : 'close'}</span>
+                              <span style={{opacity:0.5}}>{Math.abs(Number(aiFmt) - Number(userFmt)) >= 1.5 ? 'big gap' : 'close'}</span>
                             )}
                           </div>
                         )}
                         {/* User-only fallback (no AI yet) — shows their rating with subtle "you read" label */}
                         {aiFmt == null && userFmt != null && (
-                          <div className="text-[10px] tracking-[0.18em] uppercase italic mt-1.5" style={{color:'var(--ink-soft)'}}>
+                          <div className="text-[10px] tracking-[0.18em] uppercase mt-1.5" style={{color:'var(--ink-soft)'}}>
                             You read · {userFmt}/10
                           </div>
                         )}
                         {summaryWords && aiFmt != null && (
-                          <div className="text-[12px] italic mt-1" style={{color:'var(--ink-soft)'}}>{summaryWords}</div>
+                          <div className="text-[12px] mt-1" style={{color:'var(--ink-soft)'}}>{summaryWords}</div>
                         )}
                       </div>
                       {/* Inline X removed — sticky close lives at the top-right
@@ -19006,7 +19005,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 <div className="flex items-start gap-3 mb-4">
                   <div className="flex-shrink-0">
                     <Photo item={log} alt="" className="w-24 h-24 object-cover rounded-[14px]"
-                      renderFallback={() => <div className="w-24 h-24 rounded-[14px] flex items-center justify-center font-serif italic text-2xl" style={{background:'var(--cream-deep)', color:'var(--ink-soft)'}}>—</div>}
+                      renderFallback={() => <div className="w-24 h-24 rounded-[14px] flex items-center justify-center font-sans text-2xl" style={{background:'var(--cream-deep)', color:'var(--ink-soft)'}}>—</div>}
                     />
                     {/* Caption directly under the photo: area only — rating dropped. */}
                     <div className="text-[10px] tracking-[0.15em] uppercase mt-1.5 text-center leading-tight" style={{color:'var(--ink-soft)'}}>
@@ -19022,7 +19021,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                           return updated;
                         });
                       }}
-                      className="mt-1.5 mx-auto block px-2 py-0.5 rounded-full text-[9px] tracking-[0.18em] uppercase italic transition hover:opacity-70"
+                      className="mt-1.5 mx-auto block px-2 py-0.5 rounded-full text-[9px] tracking-[0.18em] uppercase transition hover:opacity-70"
                       style={{
                         background: log.daypart === 'pm' ? 'var(--ink)' : 'var(--cream-deep)',
                         color: log.daypart === 'pm' ? 'var(--cream)' : 'var(--ink)',
@@ -19040,7 +19039,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     <div className="flex items-baseline justify-between mb-1">
                       <Eyebrow>7-day trend</Eyebrow>
                       {breakoutN > 0 && (
-                        <span className="text-[9px] italic" style={{color:'var(--ink-soft)'}}>
+                        <span className="text-[9px] " style={{color:'var(--ink-soft)'}}>
                           {breakoutN} breakout{breakoutN === 1 ? '' : 's'}
                         </span>
                       )}
@@ -19060,7 +19059,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       const validIdx = last7.map((v, i) => v == null ? null : i).filter(i => i != null);
                       if (validIdx.length === 0) {
                         return (
-                          <div className="text-[10px] italic py-3 text-center" style={{color:'var(--ink-soft)'}}>
+                          <div className="text-[10px] py-3 text-center" style={{color:'var(--ink-soft)'}}>
                             keep logging
                           </div>
                         );
@@ -19123,8 +19122,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                                   fill={isToday ? 'var(--accent)' : 'var(--ink-soft)'}
                                   fontWeight={isToday ? "600" : "400"}
                                   textAnchor="middle"
-                                  fontStyle="italic"
-                                  opacity={isToday ? 1 : 0.65}
+                                                                    opacity={isToday ? 1 : 0.65}
                                 >{score}</text>
                               );
                             })}
@@ -19134,7 +19132,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                             ))}
                           </svg>
                           {delta != null && (
-                            <div className="text-[9px] italic mt-0.5 text-center flex items-center justify-center gap-1" style={{color: delta > 0 ? 'var(--accent)' : 'var(--ink-soft)'}}>
+                            <div className="text-[9px] mt-0.5 text-center flex items-center justify-center gap-1" style={{color: delta > 0 ? 'var(--accent)' : 'var(--ink-soft)'}}>
                               <span style={{color:'var(--accent)'}}>✦</span>
                               {delta > 0 ? `+${delta.toFixed(1)} this week` : delta < 0 ? `${delta.toFixed(1)} this week` : 'steady this week'}
                             </div>
@@ -19166,7 +19164,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                             <div key={t.key} className="flex flex-col items-center text-center min-w-0">
                               <Icon name={t.icon} size={11} style={{color:'var(--ink-soft)'}} />
                               <span className="text-[8.5px] tracking-[0.08em] uppercase mt-1 truncate w-full" style={{color:'var(--ink-soft)'}}>{t.label}</span>
-                              <span className="font-serif italic text-[12px] leading-tight mt-1" style={{color: v != null && v >= 70 ? 'var(--ink)' : 'var(--ink-soft)'}}>{word}</span>
+                              <span className="font-sans text-[12px] leading-tight mt-1" style={{color: v != null && v >= 70 ? 'var(--ink)' : 'var(--ink-soft)'}}>{word}</span>
                             </div>
                           );
                         })}
@@ -19187,7 +19185,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       doesn't see the wordy previous version flash before the new bullets
                       arrive. Spinner-only state until the new analysis lands. */}
                   {retryingLogId === log.id ? (
-                    <p className="font-serif italic text-[13px] flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
+                    <p className="font-sans text-[13px] flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
                       <Icon name="Loader2" size={12} className="spin" style={{color:'var(--accent)'}} /> Reading your skin…
                     </p>
                   ) : log.aiAnalysis ? (
@@ -19202,7 +19200,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       {getApiKey() && (
                         <button
                           onClick={() => retryLogAnalysis(log.id)}
-                          className="text-[10px] tracking-[0.18em] uppercase italic mt-2 flex items-center gap-1 transition hover:opacity-70"
+                          className="text-[10px] tracking-[0.18em] uppercase mt-2 flex items-center gap-1 transition hover:opacity-70"
                           style={{color:'var(--ink-soft)'}}
                         >
                           <Icon name="RefreshCw" size={10} /> Re-analyze
@@ -19210,13 +19208,13 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       )}
                     </>
                   ) : !getApiKey() ? (
-                    <button onClick={() => setShowApiKeyModal(true)} className="text-[11px] tracking-[0.18em] uppercase italic flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
+                    <button onClick={() => setShowApiKeyModal(true)} className="text-[11px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
                       <Icon name="Key" size={11} /> Add API key to read this photo
                     </button>
                   ) : (
                     <button
                       onClick={() => retryLogAnalysis(log.id)}
-                      className="text-[11px] tracking-[0.18em] uppercase italic flex items-center gap-1.5 transition hover:opacity-70"
+                      className="text-[11px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-70"
                       style={{color:'var(--accent)'}}
                     >
                       <Icon name="Sparkles" size={11} /> Generate analysis
@@ -19233,7 +19231,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     <Icon name="Sparkles" size={11} />
                     <span className="text-[10px] tracking-[0.22em] uppercase">Frida observed</span>
                   </div>
-                  <p className="font-serif italic text-[13px] leading-relaxed" style={{color:'var(--ink)'}}>{insightLine}</p>
+                  <p className="font-sans text-[13px] leading-relaxed" style={{color:'var(--ink)'}}>{insightLine}</p>
                 </div>
 
                 {/* Footer actions — Edit fixes wrong date / area / notes;
@@ -19246,7 +19244,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       setSkinReadDrawerLogId(null);
                       openCheckInDetailsForLog(log);
                     }}
-                    className="text-[10px] tracking-[0.18em] uppercase italic flex items-center gap-1.5 transition hover:opacity-70"
+                    className="text-[10px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-70"
                     style={{color:'var(--ink-soft)'}}
                   >
                     <Icon name="Edit2" size={11} /> Edit entry
@@ -19260,7 +19258,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         toast('Entry deleted', 'info');
                       }
                     }}
-                    className="text-[10px] tracking-[0.18em] uppercase italic flex items-center gap-1.5 transition hover:opacity-70"
+                    className="text-[10px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-70"
                     style={{color:'var(--rose, #c08a8a)'}}
                   >
                     <Icon name="Trash2" size={11} /> Delete
@@ -19347,7 +19345,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
             ? 'Already in your routine'
             : gapCount > 0
               ? `Added ${addedCount} · ${gapCount} need products added to your shelf`
-              : `Added ${addedCount} step${addedCount === 1 ? '' : 's'} ✨`;
+              : `Added ${addedCount} step${addedCount === 1 ? '' : 's'}.`;
           toast(msg, 'success');
           // === STAY OPEN + REFRESH ===
           // Don't close the sheet — user often wants to add more in one pass.
@@ -19420,7 +19418,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
               </div>
               {/* Name + 1-line why + 1 concern chip */}
               <div className="flex-1 min-w-0">
-                <div className="font-serif italic text-[13px] leading-tight truncate" style={{color:'var(--ink)'}} title={displayName}>
+                <div className="font-sans text-[13px] leading-tight truncate" style={{color:'var(--ink)'}} title={displayName}>
                   {displayName}
                 </div>
                 {subtitle && (
@@ -19490,7 +19488,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
               <div className="px-4 md:px-6 pt-4 pb-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <Icon name="Sparkles" size={20} style={{color:'var(--accent)', flexShrink:0}} />
-                  <h2 className="font-serif italic text-[22px] md:text-[24px] leading-[1.1] truncate" style={{color:'var(--ink)'}}>
+                  <h2 className="font-sans text-[22px] md:text-[24px] leading-[1.1] truncate" style={{color:'var(--ink)'}}>
                     Frida suggests
                   </h2>
                 </div>
@@ -19507,7 +19505,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
               <div className="px-4 md:px-6 pb-6">
                 {/* === LOADING STATE ===
                     Two lines: a live status ("Reading your shelf and recent
-                    skin reads…") above, and a quieter italic helper
+                    skin reads…") above, and a quieter helper
                     explaining what's actually happening behind the scenes
                     ("Frida learns from your log..."). The helper used to
                     live as a static card on the ritual surface — moved here
@@ -19528,10 +19526,10 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 {ritualSuggestError && !ritualSuggestLoading && (
                   <div className="rounded-[14px] px-4 py-3 mb-4" style={{background:'var(--cream-deep)', border:'1px solid var(--rose, #c08a8a)'}}>
                     <div className="text-[10px] tracking-[0.2em] uppercase mb-1" style={{color:'var(--accent)'}}>Suggestion failed</div>
-                    <p className="text-[12px] italic" style={{color:'var(--ink-soft)'}}>{ritualSuggestError}</p>
+                    <p className="text-[12px] " style={{color:'var(--ink-soft)'}}>{ritualSuggestError}</p>
                     <button
                       onClick={requestSuggestion}
-                      className="mt-2 text-[10.5px] tracking-[0.18em] uppercase italic flex items-center gap-1 cursor-pointer"
+                      className="mt-2 text-[10.5px] tracking-[0.18em] uppercase flex items-center gap-1 cursor-pointer"
                       style={{color:'var(--accent)', cursor:'pointer'}}
                     >
                       <Icon name="RefreshCw" size={11} /> Try again
@@ -19578,7 +19576,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <Icon name="Sun" size={14} style={{color:'var(--accent)'}} />
-                          <div className="font-serif italic text-[15px] leading-tight" style={{color:'var(--ink)'}}>AM</div>
+                          <div className="font-sans text-[15px] leading-tight" style={{color:'var(--ink)'}}>AM</div>
                         </div>
                         <button
                           onClick={refreshIdeas}
@@ -19595,7 +19593,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                             .map(({ item, origIdx }, i, arr) => renderSuggestRow('am', item, origIdx, i === arr.length - 1))}
                         </div>
                       ) : (
-                        <p className="text-[11px] italic py-3 text-center" style={{color:'var(--ink-soft)'}}>No AM suggestions.</p>
+                        <p className="text-[11px] py-3 text-center" style={{color:'var(--ink-soft)'}}>No AM suggestions.</p>
                       )}
                     </div>
 
@@ -19604,7 +19602,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <Icon name="Moon" size={14} style={{color:'var(--accent)'}} />
-                          <div className="font-serif italic text-[15px] leading-tight" style={{color:'var(--ink)'}}>PM</div>
+                          <div className="font-sans text-[15px] leading-tight" style={{color:'var(--ink)'}}>PM</div>
                         </div>
                         <button
                           onClick={refreshIdeas}
@@ -19621,7 +19619,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                             .map(({ item, origIdx }, i, arr) => renderSuggestRow('pm', item, origIdx, i === arr.length - 1))}
                         </div>
                       ) : (
-                        <p className="text-[11px] italic py-3 text-center" style={{color:'var(--ink-soft)'}}>No PM suggestions.</p>
+                        <p className="text-[11px] py-3 text-center" style={{color:'var(--ink-soft)'}}>No PM suggestions.</p>
                       )}
                     </div>
                   </>
@@ -20040,10 +20038,10 @@ If the user references something not in their data ("started retinol 6 weeks ago
             <div className="flex items-center gap-1.5">
               <Icon name={icon} size={11} style={{color:'var(--accent)'}} />
               <span className="text-[10px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>{label}</span>
-              {count > 0 && <span className="text-[10px] italic" style={{color:'var(--ink-soft)'}}>({count})</span>}
+              {count > 0 && <span className="text-[10px] " style={{color:'var(--ink-soft)'}}>({count})</span>}
             </div>
             {onSeeAll && (
-              <button onClick={onSeeAll} className="text-[10px] tracking-[0.22em] uppercase italic" style={{color:'var(--accent)'}}>See all</button>
+              <button onClick={onSeeAll} className="text-[10px] tracking-[0.22em] uppercase " style={{color:'var(--accent)'}}>See all</button>
             )}
           </div>
         );
@@ -20068,7 +20066,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
 
               {/* Header */}
               <div className="flex items-center justify-between px-4 pt-3 pb-3 flex-shrink-0">
-                <div className="font-serif italic text-[20px] leading-tight flex items-center gap-1.5" style={{color:'var(--ink)'}}><Icon name="Plus" size={16} style={{color:'var(--accent)'}} /> Product</div>
+                <div className="font-sans text-[20px] leading-tight flex items-center gap-1.5" style={{color:'var(--ink)'}}><Icon name="Plus" size={16} style={{color:'var(--accent)'}} /> Product</div>
                 <button
                   onClick={() => setAddRitualSheet(null)}
                   className="w-8 h-8 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)]"
@@ -20090,7 +20088,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   <LocalSearchInput
                     initial={addRitualSearch}
                     placeholder="Search products, brands, ingredients…"
-                    className="flex-1 bg-transparent border-0 focus:outline-none text-[12.5px] italic"
+                    className="flex-1 bg-transparent border-0 focus:outline-none text-[12.5px] "
                     style={{color:'var(--ink)'}}
                     debounceMs={140}
                     onCommit={(v) => setAddRitualSearch(v)}
@@ -20110,7 +20108,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       <div className="flex items-center gap-1.5">
                         <Icon name="Sparkles" size={11} style={{color:'var(--accent)'}} />
                         <span className="text-[10px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>Suggested next</span>
-                        <span className="text-[10px] italic" style={{color:'var(--ink-soft)'}}>({suggestedNext.length})</span>
+                        <span className="text-[10px] " style={{color:'var(--ink-soft)'}}>({suggestedNext.length})</span>
                       </div>
                       <button
                         onClick={() => setAddRitualSuggestSeed(s => s + 1)}
@@ -20150,7 +20148,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         <div className="flex items-center gap-1.5">
                           <Icon name="Package" size={11} style={{color:'var(--accent)'}} />
                           <span className="text-[10px] tracking-[0.22em] uppercase" style={{color:'var(--ink-soft)'}}>Your products</span>
-                          <span className="text-[10px] italic" style={{color:'var(--ink-soft)'}}>
+                          <span className="text-[10px] " style={{color:'var(--ink-soft)'}}>
                             ({yourProducts.length}{totalPages > 1 ? ` · ${page + 1}/${totalPages}` : ''})
                           </span>
                         </div>
@@ -20167,7 +20165,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         )}
                       </div>
                       {yourProducts.length === 0 ? (
-                        <p className="text-[11.5px] italic px-4 py-3" style={{color:'var(--ink-soft)'}}>
+                        <p className="text-[11.5px] px-4 py-3" style={{color:'var(--ink-soft)'}}>
                           {search ? 'Nothing matches. Try less.' : 'Empty shelf, empty mind. One product to start.'}
                         </p>
                       ) : (
@@ -20191,11 +20189,11 @@ If the user references something not in their data ("started retinol 6 weeks ago
               <div className="flex-shrink-0 px-4 py-3 flex items-center justify-between gap-3" style={{borderTop:'1px solid var(--line)', background:'var(--cream)'}}>
                 <button
                   onClick={() => setAddRitualSheet(null)}
-                  className="text-[10.5px] tracking-[0.22em] uppercase italic px-3 py-2"
+                  className="text-[10.5px] tracking-[0.22em] uppercase px-3 py-2"
                   style={{color:'var(--ink-soft)'}}
                 >Cancel</button>
                 <label className="flex items-center gap-2 text-[10.5px] tracking-[0.05em] cursor-pointer" style={{color:'var(--ink-soft)'}}>
-                  <span className="italic">Add &amp; keep browsing</span>
+                  <span className=" ">Add &amp; keep browsing</span>
                   <span
                     onClick={() => setAddRitualKeepOpen(v => !v)}
                     className="inline-flex items-center w-9 h-5 rounded-full transition relative"
@@ -20488,8 +20486,8 @@ If the user references something not in their data ("started retinol 6 weeks ago
               <div className="flex items-start justify-between px-5 pt-5 pb-3 flex-shrink-0">
                 <div>
                   <div className="text-[9.5px] tracking-[0.32em] uppercase mb-1.5" style={{color:'var(--ink-soft)'}}>What we'd try</div>
-                  <div className="font-serif italic text-[18px] leading-tight" style={{color:'var(--ink)'}}>Suggested matches for you.</div>
-                  <div className="text-[11px] italic mt-1 leading-snug whitespace-nowrap" style={{color:'var(--ink-soft)'}}>Tap a row to analyze · heart to save for later.</div>
+                  <div className="font-sans text-[18px] leading-tight" style={{color:'var(--ink)'}}>Suggested matches for you.</div>
+                  <div className="text-[11px] mt-1 leading-snug whitespace-nowrap" style={{color:'var(--ink-soft)'}}>Tap a row to analyze · heart to save for later.</div>
                   <div className="text-[9.5px] mt-1 leading-snug" style={{color:'var(--ink-soft)'}}>
                     Rules: max 2 per brand · top-tier boost · ingredient fit.
                   </div>
@@ -20572,7 +20570,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         else setMatchesConcernsInputOpen(false);
                       }}
                       placeholder="e.g. rosacea"
-                      className="text-[10px] italic px-2.5 py-1 rounded-full flex-shrink-0 outline-none"
+                      className="text-[10px] px-2.5 py-1 rounded-full flex-shrink-0 outline-none"
                       style={{
                         background:'var(--cream)',
                         border:'1px solid var(--accent)',
@@ -20584,7 +20582,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     <button
                       type="button"
                       onClick={() => setMatchesConcernsInputOpen(true)}
-                      className="flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] tracking-[0.05em] transition flex-shrink-0 italic hover:opacity-80"
+                      className="flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] tracking-[0.05em] transition flex-shrink-0 hover:opacity-80"
                       style={{
                         background:'transparent',
                         color:'var(--accent)',
@@ -20597,7 +20595,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   )}
                   {/* Empty-state hint when user has no concerns yet */}
                   {(!userConcerns || userConcerns.length === 0) && !matchesConcernsInputOpen && (
-                    <span className="text-[10px] italic flex-shrink-0" style={{color:'var(--ink-soft)'}}>Tell us what's bothering you →</span>
+                    <span className="text-[10px] flex-shrink-0" style={{color:'var(--ink-soft)'}}>Tell us what's bothering you →</span>
                   )}
                 </div>
               </div>
@@ -20634,7 +20632,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
               <div className="flex-1 overflow-y-auto px-5 pb-6 space-y-1.5">
                 {ranked.length === 0 ? (
                   <div className="text-center py-10">
-                    <p className="font-serif italic text-[14px] mb-2" style={{color:'var(--ink-soft)'}}>Nothing left in this category.</p>
+                    <p className="font-sans text-[14px] mb-2" style={{color:'var(--ink-soft)'}}>Nothing left in this category.</p>
                     <button
                       onClick={refreshMatchesDrawer}
                       className="text-[10px] tracking-[0.18em] uppercase inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition hover:opacity-80"
@@ -20711,12 +20709,12 @@ If the user references something not in their data ("started retinol 6 weeks ago
                         {/* Row 2: brand · name */}
                         <div className="flex items-baseline gap-1.5 mt-0.5 min-w-0">
                           <span className="text-[8.5px] tracking-[0.05em] uppercase flex-shrink-0 truncate max-w-[35%]" style={{color:'var(--ink-soft)'}}>{p.brand}</span>
-                          <span className="font-serif italic text-[11.5px] leading-tight truncate flex-1" style={{color:'var(--ink)'}}>{p.name}</span>
+                          <span className="font-sans text-[11.5px] leading-tight truncate flex-1" style={{color:'var(--ink)'}}>{p.name}</span>
                         </div>
                         {/* Row 3: actives + fit signal + heart */}
                         <div className="flex items-center gap-1.5 mt-1 min-w-0">
                           {(p.actives) && (
-                            <div className="text-[9px] italic leading-tight truncate flex-1 min-w-0" style={{color:'var(--ink-soft)'}}>{p.actives}</div>
+                            <div className="text-[9px] leading-tight truncate flex-1 min-w-0" style={{color:'var(--ink-soft)'}}>{p.actives}</div>
                           )}
                           {/* Tang & Gainey fit signal */}
                           {(() => {
@@ -20728,7 +20726,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                                 : { background: 'transparent', color: 'var(--ink-soft)', border: '1px solid var(--line)' };
                             return (
                               <div
-                                className="text-[8.5px] tracking-[0.15em] uppercase px-1.5 py-px rounded-full flex-shrink-0 whitespace-nowrap italic"
+                                className="text-[8.5px] tracking-[0.15em] uppercase px-1.5 py-px rounded-full flex-shrink-0 whitespace-nowrap "
                                 style={sigStyle}
                                 title={
                                   sig.tone === 'strong' ? "We'd hand you this"
@@ -20787,7 +20785,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                           </div>
                         )}
                         {!analyzing && !analysis && (
-                          <div className="pt-2 text-[10.5px] italic" style={{color:'var(--ink-soft)'}}>
+                          <div className="pt-2 text-[10.5px] " style={{color:'var(--ink-soft)'}}>
                             Couldn't pull an analysis right now. Tap to retry.
                           </div>
                         )}
@@ -20883,9 +20881,9 @@ If the user references something not in their data ("started retinol 6 weeks ago
                                             <span className="text-[8px] tracking-[0.15em] uppercase" style={{color:'var(--ink-soft)'}}>
                                               {isCheap ? '↓ Cheap' : '↑ Premium'}
                                             </span>
-                                            {a.price && <span className="font-serif italic text-[10.5px] leading-none" style={{color:'var(--accent)'}}>{a.price}</span>}
+                                            {a.price && <span className="font-sans text-[10.5px] leading-none" style={{color:'var(--accent)'}}>{a.price}</span>}
                                           </div>
-                                          <div className="font-serif italic text-[11.5px] leading-tight mb-1" style={{color:'var(--ink)'}}>{a.name}</div>
+                                          <div className="font-sans text-[11.5px] leading-tight mb-1" style={{color:'var(--ink)'}}>{a.name}</div>
                                           {a.active && (
                                             <div className="text-[9.5px] leading-tight" style={{color:'var(--ink-soft)'}}>{a.active}</div>
                                           )}
@@ -20972,7 +20970,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
             </div>
 
             {openLesson.excerpt && (
-              <p className="text-[12.5px] font-light italic leading-snug" style={{color:'var(--ink-soft)'}}>{openLesson.excerpt}</p>
+              <p className="text-[12.5px] font-light leading-snug" style={{color:'var(--ink-soft)'}}>{openLesson.excerpt}</p>
             )}
 
             <div className="text-[13.5px] leading-[1.55] font-light whitespace-pre-wrap" style={{color:'var(--ink)'}}>{openLesson.body}</div>
@@ -20986,7 +20984,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 }}
               >
                 <div className="text-[9px] tracking-[0.22em] uppercase mb-1" style={{color:'var(--accent-sage-dark)', fontWeight:600}}>The Splurge & Save Take</div>
-                <div className="text-[13px] font-light italic leading-snug" style={{color:'var(--ink)'}}>{openLesson.splurgeSaveTake}</div>
+                <div className="text-[13px] font-light leading-snug" style={{color:'var(--ink)'}}>{openLesson.splurgeSaveTake}</div>
               </div>
             )}
 
@@ -21035,7 +21033,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
               <Icon name={openLesson.verifiedBy?.length ? 'ShieldCheck' : 'Clock'} size={10} />
               {openLesson.verifiedBy?.length > 0
                 ? <>Verified by {openLesson.verifiedBy.map(v => 'Dr. ' + v).join(' & ')}</>
-                : <span className="italic">Draft — pending MD review</span>
+                : <span className=" ">Draft — pending MD review</span>
               }
             </div>
           </div>
@@ -21051,7 +21049,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
             <div className="px-5 py-4 border-b flex items-start justify-between gap-3" style={{borderColor: 'var(--line)'}}>
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{chatPanel.subtitle || 'Follow-up'}</div>
-                <h3 className="font-serif text-xl italic mt-0.5 truncate" style={{color:'var(--ink)'}}>{chatPanel.title}</h3>
+                <h3 className="font-sans text-xl mt-0.5 truncate" style={{color:'var(--ink)'}}>{chatPanel.title}</h3>
               </div>
               <button onClick={closeChat} style={{color:'var(--ink-soft)'}}><Icon name="X" size={20} /></button>
             </div>
@@ -21067,7 +21065,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                       </div>
                       <div className="px-2 py-1.5">
                         <div className="text-[9px] tracking-[0.2em] uppercase" style={{color: idx === 1 ? 'var(--accent)' : 'var(--ink-soft)'}}>{idx === 0 ? 'Earlier' : 'Later'}</div>
-                        <div className="font-serif italic text-xs mt-0.5" style={{color:'var(--ink)'}}>{new Date(l.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                        <div className="font-sans text-xs mt-0.5" style={{color:'var(--ink)'}}>{new Date(l.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                         <div className="text-[10px] font-light" style={{color:'var(--ink-soft)'}}>{l.rating}/10</div>
                       </div>
                     </div>
@@ -21123,7 +21121,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 <div className="space-y-2">
                   <div className="text-[10px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>Try asking</div>
                   {chatPanel.suggestions.map((s, i) => (
-                    <button key={i} onClick={() => sendChat(s)} className="w-full text-left p-3 rounded-md border text-sm font-light italic transition" style={{background:'var(--cream-deep)', borderColor: 'var(--line)', color:'var(--ink)'}}>
+                    <button key={i} onClick={() => sendChat(s)} className="w-full text-left p-3 rounded-md border text-sm font-light transition" style={{background:'var(--cream-deep)', borderColor: 'var(--line)', color:'var(--ink)'}}>
                       "{s}"
                     </button>
                   ))}
@@ -21151,9 +21149,9 @@ If the user references something not in their data ("started retinol 6 weeks ago
        * Centers the brand line so it reads as a magazine colophon rather than chrome. */}
       <footer className="max-w-7xl mx-auto px-6 py-8 mt-12 mb-20 md:mb-8 border-t flex justify-center" style={{borderColor: 'var(--line)'}}>
         <div className="text-center leading-tight">
-          <div className="font-serif italic text-[13px]" style={{color:'var(--ink-soft)'}}>Frida</div>
+          <div className="font-sans text-[13px]" style={{color:'var(--ink-soft)'}}>Frida</div>
           <div className="text-[8px] tracking-[0.3em] uppercase mt-1" style={{color:'var(--ink-soft)'}}>Est. 2026</div>
-          <div className="text-[9px] font-light italic mt-0.5" style={{color:'var(--ink-soft)'}}>by Dr. Christina Gainey · Dr. Jenni Tang</div>
+          <div className="text-[9px] font-light mt-0.5" style={{color:'var(--ink-soft)'}}>by Dr. Christina Gainey · Dr. Jenni Tang</div>
         </div>
       </footer>
 
@@ -21227,7 +21225,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
             <div className="px-6 pt-7 pb-5 border-b" style={{borderColor: 'var(--line)'}}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-serif text-2xl italic leading-tight" style={{color:'var(--ink)'}}>Frida</div>
+                  <div className="font-sans text-2xl leading-tight" style={{color:'var(--ink)'}}>Frida</div>
                   <div className="text-[9px] tracking-[0.3em] uppercase mt-1" style={{color:'var(--ink-soft)'}}>{user?.name || 'Atelier'}</div>
                 </div>
                 <button onClick={() => setShowMobileMenu(false)} className="p-1.5 -mr-1.5" style={{color:'var(--ink-soft)'}} aria-label="Close menu">
@@ -21262,7 +21260,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 <Icon name="Sparkles" size={15} style={{color:'var(--accent)'}} />
                 <div className="flex-1">
                   <div className="text-[12px] tracking-[0.1em] font-medium">Clinical Skin Profile</div>
-                  <div className="text-[10px] italic" style={{color:'var(--ink-soft)'}}>11-step science-backed setup</div>
+                  <div className="text-[10px] " style={{color:'var(--ink-soft)'}}>11-step science-backed setup</div>
                 </div>
                 {(userProfile.sunReactivity || userProfile.skinType || userProfile.monkSkinTone) && (
                   <span className="w-1.5 h-1.5 rounded-full" style={{background:'var(--accent-blue)'}} title="Profile started" />
@@ -21301,7 +21299,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 <Icon name="RotateCcw" size={15} />
                 <div className="flex-1">
                   <div className="text-[12px] tracking-[0.1em] font-medium">Replay onboarding</div>
-                  <div className="text-[10px] italic" style={{color:'var(--ink-soft)'}}>Walk through the setup again</div>
+                  <div className="text-[10px] " style={{color:'var(--ink-soft)'}}>Walk through the setup again</div>
                 </div>
               </button>
               {/* Sunday Digest (May 2026 — roadmap item 2).
@@ -21319,7 +21317,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 <Icon name="Calendar" size={15} style={{color:'var(--accent)'}} />
                 <div className="flex-1">
                   <div className="text-[12px] tracking-[0.1em] font-medium">Sunday Digest</div>
-                  <div className="text-[10px] italic" style={{color:'var(--ink-soft)'}}>This week, on one page — add to calendar</div>
+                  <div className="text-[10px] " style={{color:'var(--ink-soft)'}}>This week, on one page — add to calendar</div>
                 </div>
               </button>
               <button onClick={() => { setShowMobileMenu(false); handleSignOut(); }} className="w-full flex items-center gap-3 px-4 py-3 text-left transition" style={{color:'var(--ink-soft)'}}>
@@ -21327,7 +21325,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
               </button>
             </div>
 
-            <div className="px-6 py-4 border-t text-[9px] tracking-[0.25em] uppercase italic" style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>
+            <div className="px-6 py-4 border-t text-[9px] tracking-[0.25em] uppercase " style={{borderColor: 'var(--line)', color:'var(--ink-soft)'}}>
               by Dr. Christina Gainey & Dr. Jenni Tang
             </div>
           </div>
@@ -21342,7 +21340,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                   <div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Save your account</div>
-                  <h3 className="font-serif text-xl italic mt-1" style={{color:'var(--ink)'}}>Add Frida to your home screen</h3>
+                  <h3 className="font-sans text-xl mt-1" style={{color:'var(--ink)'}}>Add Frida to your home screen</h3>
                 </div>
                 <button onClick={() => {
                   localStorage.setItem('lumiere:installPromptDismissed', '1');
@@ -21388,11 +21386,11 @@ If the user references something not in their data ("started retinol 6 weeks ago
         <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center" style={{background:'rgba(28,25,23,0.5)', backdropFilter:'blur(4px)'}} onClick={() => setShowLauncher(false)}>
           <div onClick={e => e.stopPropagation()} className="w-full md:max-w-xl rounded-t-2xl md:rounded-lg p-5 md:p-7 max-h-[85vh] flex flex-col shadow-2xl" style={{background:'var(--cream)'}}>
             <div className="text-[10px] tracking-[0.32em] uppercase mb-1.5" style={{color:'var(--ink-soft)'}}>Frida · quick chat</div>
-            <h3 className="font-serif text-[22px] md:text-2xl italic mb-1 leading-tight" style={{color:'var(--ink)'}}>
+            <h3 className="font-sans text-[22px] md:text-2xl mb-1 leading-tight" style={{color:'var(--ink)'}}>
               {launcherMessages.length === 0 ? 'What would you like to do?' : 'Frida'}
             </h3>
             {launcherMessages.length === 0 && (
-              <p className="text-[12px] font-light italic mb-4" style={{color:'var(--ink-soft)'}}>Ask anything — about your data, a concern, a product, an ingredient.</p>
+              <p className="text-[12px] font-light mb-4" style={{color:'var(--ink-soft)'}}>Ask anything — about your data, a concern, a product, an ingredient.</p>
             )}
 
             {/* === INLINE CHAT THREAD ===
@@ -21404,7 +21402,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
               <div className="flex-1 overflow-y-auto -mx-1 px-1 py-2 space-y-2.5 mb-3" style={{minHeight:'160px', maxHeight:'50vh'}}>
                 {launcherMessages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-[14px] px-3 py-2 ${m.role === 'user' ? '' : 'font-serif italic'}`} style={{
+                    <div className={`max-w-[85%] rounded-[14px] px-3 py-2 ${m.role === 'user' ? '' : 'font-sans '}`} style={{
                       background: m.role === 'user' ? 'var(--accent)' : 'var(--cream-deep)',
                       color: m.role === 'user' ? 'var(--cream)' : 'var(--ink)',
                       border: m.role === 'user' ? 'none' : '1px solid var(--line)',
@@ -21417,7 +21415,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   <div className="flex justify-start">
                     <div className="px-3 py-2 rounded-[14px] flex items-center gap-2" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
                       <Icon name="Loader2" size={11} className="spin" style={{color:'var(--accent)'}} />
-                      <span className="text-[11px] italic" style={{color:'var(--ink-soft)'}}>Frida is thinking…</span>
+                      <span className="text-[11px] " style={{color:'var(--ink-soft)'}}>Frida is thinking…</span>
                     </div>
                   </div>
                 )}
@@ -21432,7 +21430,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 placeholder={launcherMessages.length === 0 ? "Ask Frida anything…" : "Ask a follow-up…"}
                 rows={launcherMessages.length === 0 ? '3' : '2'}
                 autoFocus
-                className="w-full px-3 py-2.5 border-0 focus:outline-none font-light italic text-[13px] resize-none"
+                className="w-full px-3 py-2.5 border-0 focus:outline-none font-light text-[13px] resize-none"
                 style={{background:'transparent', color:'var(--ink)'}}
               />
               <div className="flex items-center justify-between px-3 pb-2">
@@ -21479,15 +21477,15 @@ If the user references something not in their data ("started retinol 6 weeks ago
 
             <div className="mt-4 pt-3 border-t flex items-center justify-between gap-3" style={{borderColor: 'var(--line)'}}>
               {launcherMessages.length > 0 ? (
-                <button onClick={() => { setLauncherMessages([]); setLauncherInput(''); }} className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1.5" style={{color:'var(--ink-soft)'}}>
+                <button onClick={() => { setLauncherMessages([]); setLauncherInput(''); }} className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1.5" style={{color:'var(--ink-soft)'}}>
                   <Icon name="RefreshCw" size={11} /> New chat
                 </button>
               ) : (
-                <button onClick={() => { setShowLauncher(false); setShowMobileMenu(true); }} className="text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1.5" style={{color:'var(--ink)'}}>
+                <button onClick={() => { setShowLauncher(false); setShowMobileMenu(true); }} className="text-[10px] tracking-[0.2em] uppercase flex items-center gap-1.5" style={{color:'var(--ink)'}}>
                   <Icon name="Menu" size={11} /> All sections
                 </button>
               )}
-              <button onClick={() => setShowLauncher(false)} className="text-[10px] tracking-[0.2em] uppercase italic" style={{color:'var(--ink-soft)'}}>Close</button>
+              <button onClick={() => setShowLauncher(false)} className="text-[10px] tracking-[0.2em] uppercase " style={{color:'var(--ink-soft)'}}>Close</button>
             </div>
           </div>
         </div>
@@ -21515,7 +21513,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
           <Icon name="Download" size={11} /> Export Diary as PDF
         </button>
         <div className="text-[9px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Frida — Get To Know Your Skin</div>
-        <div className="font-serif italic text-sm mt-2" style={{color:'var(--ink-soft)'}}>"Care, in its quiet repetition."</div>
+        <div className="font-sans text-sm mt-2" style={{color:'var(--ink-soft)'}}>"Care, in its quiet repetition."</div>
       </footer>
     </div>
   );
@@ -21543,14 +21541,14 @@ const PatternCard = ({ insight, loading, onGenerate, entryCount, onOpenLesson })
       <div className="flex justify-between items-start gap-4 flex-wrap mb-4">
         <div>
           <div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>Patterns in your data</div>
-          <h3 className="font-serif text-3xl italic mt-1" style={{color:'var(--ink)'}}>What your skin is telling you</h3>
+          <h3 className="font-sans text-3xl mt-1" style={{color:'var(--ink)'}}>What your skin is telling you</h3>
         </div>
         <button onClick={onGenerate} disabled={loading} className="text-[10px] tracking-[0.2em] uppercase border px-4 py-2 transition disabled:opacity-50 flex items-center gap-2" style={{borderColor:'var(--ink)', color:'var(--ink)'}}>
           {loading ? <><Icon name="Loader2" size={11} className="spin" /> Analyzing</> : <><Icon name="Sparkles" size={11} /> {insight ? 'Refresh' : 'Analyze'}</>}
         </button>
       </div>
       {!insight && !loading && (
-        <p className="text-sm font-light italic" style={{color:'var(--ink-soft)'}}>You have {entryCount} entries — enough for a meaningful pattern analysis. Tap analyze to surface correlations across your journal, products, and procedures.</p>
+        <p className="text-sm font-light " style={{color:'var(--ink-soft)'}}>You have {entryCount} entries — enough for a meaningful pattern analysis. Tap analyze to surface correlations across your journal, products, and procedures.</p>
       )}
       {insight && (
         <>
@@ -21598,7 +21596,7 @@ const CompareContextCard = ({ logs, enterCompare }) => {
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[10px] tracking-[0.3em] uppercase" style={{color:'var(--ink-soft)'}}>{best.days} days{best.sameArea ? ' · same area' : ''}</div>
-          <h3 className="font-serif text-2xl italic mt-1" style={{color:'var(--ink)'}}>Then and now — see what's changed.</h3>
+          <h3 className="font-sans text-2xl mt-1" style={{color:'var(--ink)'}}>Then and now — see what's changed.</h3>
           <p className="text-sm font-light mt-1" style={{color:'var(--ink-soft)'}}>
             {best.log.rating}/10 → {recent.rating}/10
             {recent.rating > best.log.rating ? ' · trending upward' : recent.rating < best.log.rating ? ' · worth a closer look' : ' · steady'}
@@ -21618,7 +21616,7 @@ const QuickAction = ({ icon, label, desc, onClick }) => (
       <Icon name={icon} size={16} />
     </div>
     <div className="flex-1 min-w-0">
-      <div className="font-serif italic" style={{color:'var(--ink)'}}>{label}</div>
+      <div className="font-sans " style={{color:'var(--ink)'}}>{label}</div>
       <div className="text-xs font-light truncate" style={{color:'var(--ink-soft)'}}>{desc}</div>
     </div>
     <Icon name="ChevronRight" size={14} className="flex-shrink-0" />
@@ -21626,11 +21624,11 @@ const QuickAction = ({ icon, label, desc, onClick }) => (
 );
 
 const SectionHeader = ({ title, subtitle, action, actionLabel }) => (
-  // Title scale matches the cover hero greeting (text-2xl md:text-4xl italic) for cross-page uniformity.
+  // Title scale matches the cover hero greeting (text-2xl md:text-4xl ) for cross-page uniformity.
   <div className="flex justify-between items-end flex-wrap gap-3 mb-6 pb-3 border-b" style={{borderColor: 'var(--line)'}}>
     <div className="min-w-0">
-      <h1 className="font-serif text-2xl md:text-4xl italic leading-[1.05] tracking-tight" style={{color:'var(--ink)'}}>{title}</h1>
-      {subtitle && <div className="text-[11px] md:text-xs font-light italic mt-1 leading-snug" style={{color:'var(--ink-soft)'}}>{subtitle}</div>}
+      <h1 className="font-sans text-2xl md:text-4xl leading-[1.05] tracking-tight" style={{color:'var(--ink)'}}>{title}</h1>
+      {subtitle && <div className="text-[11px] md:text-xs font-light mt-1 leading-snug" style={{color:'var(--ink-soft)'}}>{subtitle}</div>}
     </div>
     {action && (
       <button onClick={action} className="px-4 py-2 rounded-full tracking-[0.15em] text-[10px] uppercase transition flex items-center gap-1.5" style={{background:'var(--ink)', color:'var(--cream)'}}>
@@ -21643,7 +21641,7 @@ const SectionHeader = ({ title, subtitle, action, actionLabel }) => (
 const EmptyState = ({ icon, text, action, actionText }) => (
   <div className="border p-16 text-center" style={{background:'var(--cream-deep)', borderColor: 'var(--line)'}}>
     <div className="flex justify-center mb-4 opacity-50" style={{color:'var(--ink-soft)'}}><Icon name={icon} size={32} /></div>
-    <p className="font-serif italic text-xl mb-6" style={{color:'var(--ink)'}}>{text}</p>
+    <p className="font-sans text-xl mb-6" style={{color:'var(--ink)'}}>{text}</p>
     {action && <button onClick={action} className="px-6 py-3 tracking-[0.2em] text-[10px] uppercase" style={{background:'var(--ink)', color:'var(--cream)'}}>{actionText}</button>}
   </div>
 );
@@ -21651,7 +21649,7 @@ const EmptyState = ({ icon, text, action, actionText }) => (
 const ProfileTrait = ({ label, value }) => (
   <div>
     <div className="text-[9px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>{label}</div>
-    <div className="font-serif italic mt-0.5 capitalize" style={{color:'var(--ink)'}}>{value || '—'}</div>
+    <div className="font-sans mt-0.5 capitalize" style={{color:'var(--ink)'}}>{value || '—'}</div>
   </div>
 );
 
@@ -21704,7 +21702,7 @@ const ProcedureCard = ({ procedure: p, logs = [], onOpenLesson, onOpenChat, onDe
             <div className="text-[8px] tracking-wider" style={{color:'var(--ink-soft)', opacity:0.7}}>{new Date(p.date).getFullYear()}</div>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-serif italic text-base md:text-lg leading-tight truncate" style={{color:'var(--ink)'}}>{p.name}</div>
+            <div className="font-sans text-base md:text-lg leading-tight truncate" style={{color:'var(--ink)'}}>{p.name}</div>
             <div className="text-[10px] tracking-[0.15em] uppercase mt-0.5 truncate" style={{color:'var(--ink-soft)'}}>{p.type?.replace(/-/g, ' ')}{p.provider ? ` · ${p.provider}` : ''}</div>
           </div>
           <Icon name={expanded ? 'ChevronUp' : 'ChevronDown'} size={14} className="flex-shrink-0 opacity-50" />
@@ -21721,7 +21719,7 @@ const ProcedureCard = ({ procedure: p, logs = [], onOpenLesson, onOpenChat, onDe
                     {iv.log ? (
                       <Photo item={iv.log} alt="" className="w-full h-full object-cover"
                         renderFallback={() => (
-                          <div className="w-full h-full flex items-center justify-center font-serif italic text-sm" style={{color:'var(--ink-soft)'}}>{iv.log.rating}</div>
+                          <div className="w-full h-full flex items-center justify-center font-sans text-sm" style={{color:'var(--ink-soft)'}}>{iv.log.rating}</div>
                         )}
                       />
                     ) : (
@@ -21759,12 +21757,12 @@ const ProcedureCard = ({ procedure: p, logs = [], onOpenLesson, onOpenChat, onDe
             {p.results && (
               <div className="mt-3 pt-3 border-t" style={{borderColor: 'var(--line)'}}>
                 <span className="text-[9px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>Results</span>
-                <p className="text-sm italic font-light mt-0.5" style={{color:'var(--ink)'}}>{p.results}</p>
+                <p className="text-sm font-light mt-0.5" style={{color:'var(--ink)'}}>{p.results}</p>
               </div>
             )}
             {p.aiAnalysis && <ProcedureBriefing analysis={p.aiAnalysis} onOpenLesson={onOpenLesson} />}
             {p.aiAnalysis && onOpenChat && (
-              <button onClick={(e) => { e.stopPropagation(); onOpenChat(p); }} className="mt-3 text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1" style={{color:'var(--ink)'}}>
+              <button onClick={(e) => { e.stopPropagation(); onOpenChat(p); }} className="mt-3 text-[10px] tracking-[0.2em] uppercase flex items-center gap-1" style={{color:'var(--ink)'}}>
                 <Icon name="MessageCircle" size={11} /> Ask follow-up
               </button>
             )}
@@ -21776,7 +21774,7 @@ const ProcedureCard = ({ procedure: p, logs = [], onOpenLesson, onOpenChat, onDe
             )}
             <div className="mt-3 flex justify-end gap-3">
               {onEdit && (
-                <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="text-[10px] tracking-[0.15em] uppercase italic flex items-center gap-1" style={{color:'var(--ink)'}}>
+                <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="text-[10px] tracking-[0.15em] uppercase flex items-center gap-1" style={{color:'var(--ink)'}}>
                   <Icon name="Edit2" size={10} /> Edit
                 </button>
               )}
@@ -21809,13 +21807,13 @@ const EventCard = ({ event: e, onOpenChat, onDelete }) => {
         </div>
         <div className="flex justify-between items-start gap-3">
           <div className="flex-1 min-w-0">
-            <h3 className="font-serif text-xl md:text-2xl italic leading-tight" style={{color:'var(--ink)'}}>{e.name}</h3>
+            <h3 className="font-sans text-xl md:text-2xl leading-tight" style={{color:'var(--ink)'}}>{e.name}</h3>
             <div className="text-[10px] tracking-[0.15em] uppercase mt-0.5" style={{color:'var(--ink-soft)'}}>{new Date(e.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
             {!expanded && planPreview && (
-              <p className="text-sm font-light italic mt-2 leading-relaxed line-clamp-2" style={{color:'var(--ink-soft)'}}>{planPreview}</p>
+              <p className="text-sm font-light mt-2 leading-relaxed line-clamp-2" style={{color:'var(--ink-soft)'}}>{planPreview}</p>
             )}
             {!expanded && !planPreview && e.notes && (
-              <p className="text-sm font-light italic mt-2 leading-relaxed line-clamp-2" style={{color:'var(--ink-soft)'}}>{e.notes}</p>
+              <p className="text-sm font-light mt-2 leading-relaxed line-clamp-2" style={{color:'var(--ink-soft)'}}>{e.notes}</p>
             )}
           </div>
           <Icon name={expanded ? 'ChevronUp' : 'ChevronDown'} size={14} className="flex-shrink-0 opacity-50 mt-1" />
@@ -21832,7 +21830,7 @@ const EventCard = ({ event: e, onOpenChat, onDelete }) => {
               </div>
               <div className="text-sm whitespace-pre-wrap leading-relaxed font-light" style={{color:'var(--ink)'}}>{e.plan}</div>
               {onOpenChat && (
-                <button onClick={(ev) => { ev.stopPropagation(); onOpenChat(e); }} className="mt-3 text-[10px] tracking-[0.2em] uppercase italic flex items-center gap-1" style={{color:'var(--ink)'}}>
+                <button onClick={(ev) => { ev.stopPropagation(); onOpenChat(e); }} className="mt-3 text-[10px] tracking-[0.2em] uppercase flex items-center gap-1" style={{color:'var(--ink)'}}>
                   <Icon name="MessageCircle" size={11} /> Ask follow-up
                 </button>
               )}
@@ -21892,7 +21890,7 @@ const ProcedureBriefing = ({ analysis, onOpenLesson }) => {
         ))}
       </div>
       {sections.length > 3 && (
-        <button onClick={() => setExpanded(!expanded)} className="mt-3 text-[10px] tracking-[0.2em] uppercase italic" style={{color:'var(--ink-soft)'}}>
+        <button onClick={() => setExpanded(!expanded)} className="mt-3 text-[10px] tracking-[0.2em] uppercase " style={{color:'var(--ink-soft)'}}>
           {expanded ? '— Show less' : `+ Show ${sections.length - 3} more sections`}
         </button>
       )}
@@ -21918,7 +21916,7 @@ const ProcedureRecommendations = ({ logs, procedures, callClaude, setShowApiKeyM
       <div className="flex justify-between items-start gap-4 flex-wrap">
         <div>
           <div className="text-[10px] tracking-[0.2em] uppercase" style={{color:'var(--ink-soft)'}}>Curated for you</div>
-          <h3 className="font-serif text-xl italic mt-1" style={{color:'var(--ink)'}}>Recommended Procedures</h3>
+          <h3 className="font-sans text-xl mt-1" style={{color:'var(--ink)'}}>Recommended Procedures</h3>
           <p className="text-xs font-light mt-1" style={{color:'var(--ink-soft)'}}>Based on your tracked patterns and concerns.</p>
         </div>
         {!recs && (

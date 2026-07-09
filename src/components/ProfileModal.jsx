@@ -329,7 +329,7 @@ Respond ONLY with this JSON, no prose, no code fences:
     } else {
       // No API key — just close with a toast.
       setShowProfileModal(false);
-      toast('Skin profile saved ✨', 'info');
+      toast('Skin profile saved.', 'info');
     }
   };
 

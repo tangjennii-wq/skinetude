@@ -180,7 +180,7 @@ const TodayRitualModal = ({
     ritualFormRef.current = null;
     setReorderMode(false);
     setAddPickerOpen(false);
-    toast(existing ? 'Regimen updated ✨' : 'Regimen saved ✨');
+    toast(existing ? 'Regimen updated.' : 'Regimen saved.');
     saveData('regimenLogs', next).catch(e => {
       console.error('[ritual] saveData failed:', e);
       toast(`Save error: ${e?.message || 'unknown'}`, 'error');

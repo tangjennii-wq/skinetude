@@ -320,7 +320,7 @@ const TravelSetupModal = ({
                 style={{color:'var(--accent)', fontWeight:600, background:'transparent', border:'none', cursor:'pointer'}}
                 title={!startDate || !endDate ? 'Add dates first' : !locationKind ? 'Pick a climate first' : 'Auto-build essentials'}
               >
-                ✨ Suggest
+               . Suggest
               </button>
               <button
                 type="button"

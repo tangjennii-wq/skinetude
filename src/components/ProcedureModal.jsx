@@ -111,7 +111,7 @@ EVIDENCE NOTE: [Brief note on the strength of clinical evidence for this procedu
             saveData('procedures', next);
             return next;
           });
-          toast(`${form.name} briefing ready ✨`);
+          toast(`${form.name} briefing ready.`);
         } catch (e) {
           setProcedures(prev => {
             const next = prev.map(p => p.id === id ? { ...p, analyzing: false } : p);

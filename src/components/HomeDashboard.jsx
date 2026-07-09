@@ -454,7 +454,7 @@ CRITICAL OUTPUT REQUIREMENTS:
         }
         setCoverRoutine(trimmed);
         await saveData('coverRoutine', trimmed);
-        toast('Routine built ✨');
+        toast('Routine built.');
       }
     } catch (e) {
       console.warn('[buildCoverRoutine]', e);
@@ -2807,7 +2807,7 @@ CRITICAL OUTPUT REQUIREMENTS:
         persistRegimenLogs(newList, 'repeat');
         setCoverRoutineRebuildToken(t => t + 1);
         const sourceLabel = repeatSourceLog === yesterdayCheckIn ? 'yesterday' : `last logged (${repeatSourceLog.date})`;
-        toast(`Logged — same as ${sourceLabel} ✨`, 'info');
+        toast(`Logged — same as ${sourceLabel}.`, 'info');
       };
       // Undo the just-clicked repeat — drops the view date's auto-created
       // check-in entirely so the pill flips back to its default state.
@@ -3252,7 +3252,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                             setRegimenLogs(nextLogs);
                             persistRegimenLogs(nextLogs, 'fill-scheduled');
                             setCoverRoutineRebuildToken(t => t + 1);
-                            toast('Filled in from your schedule ✨', 'success');
+                            toast('Filled in from your schedule.', 'success');
                           } catch (e) {
                             console.warn('[fill-scheduled]', e);
                             toast('Couldn\'t fill — try again', 'error');

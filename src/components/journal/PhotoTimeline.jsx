@@ -283,13 +283,13 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
             {procs.length > 0 && (
               <div className="pt-3 border-t" style={{borderColor: 'var(--line)'}}>
                 <div className="text-[9px] tracking-[0.3em] uppercase mb-1" style={{color:'var(--ink-soft)'}}>Procedure</div>
-                {procs.map(p => <div key={p.id} className="font-sans text-base" style={{color:'var(--ink)'}}>{p.name} <span className="text-xs not-italic" style={{color:'var(--ink-soft)'}}>· {p.type?.replace(/-/g, ' ')}</span></div>)}
+                {procs.map(p => <div key={p.id} className="font-sans text-base" style={{color:'var(--ink)'}}>{p.name} <span className="text-xs" style={{color:'var(--ink-soft)'}}>· {p.type?.replace(/-/g, ' ')}</span></div>)}
               </div>
             )}
             {followUps.length > 0 && (
               <div className="pt-3 border-t" style={{borderColor: 'var(--line)'}}>
                 <div className="text-[9px] tracking-[0.3em] uppercase mb-1" style={{color:'var(--accent)'}}>Follow-up</div>
-                {followUps.map((f, i) => <div key={i} className="font-sans text-sm" style={{color:'var(--ink)'}}>{f.label} <span className="text-xs not-italic" style={{color:'var(--ink-soft)'}}>· {f.procedure.name}</span></div>)}
+                {followUps.map((f, i) => <div key={i} className="font-sans text-sm" style={{color:'var(--ink)'}}>{f.label} <span className="text-xs" style={{color:'var(--ink-soft)'}}>· {f.procedure.name}</span></div>)}
               </div>
             )}
             {log.notes && <p className="text-sm font-light leading-relaxed pt-2" style={{color:'var(--ink-soft)'}}>"{log.notes}"</p>}
@@ -636,7 +636,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                               const signMap = { positive: '↑', negative: '↓', watching: '·', neutral: '·' };
                               return (
                                 <div key={n.product.id} className="flex items-baseline gap-2 leading-snug">
-                                  <span className="not-italic text-[14px] flex-shrink-0" style={{color: colorMap[n.direction]}}>{signMap[n.direction]}</span>
+                                  <span className="text-[14px] flex-shrink-0" style={{color: colorMap[n.direction]}}>{signMap[n.direction]}</span>
                                   <span className="font-sans text-[12px] md:text-sm" style={{color:'var(--ink)'}}>Day {n.daysSince} on {n.product.name}</span>
                                   <span className="text-[10px] font-light flex-1 min-w-0" style={{color:'var(--ink-soft)'}}>
                                     — {n.note}
@@ -659,7 +659,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                                 : 'often followed by flare';
                               return (
                                 <div key={a.product.id} className="flex items-baseline gap-2 leading-snug">
-                                  <span className="not-italic text-[14px] flex-shrink-0" style={{color}}>{sign}</span>
+                                  <span className="text-[14px] flex-shrink-0" style={{color}}>{sign}</span>
                                   <span className="font-sans text-[12px] md:text-sm" style={{color:'var(--ink)'}}>{a.product.name}</span>
                                   <span className="text-[10px] font-light flex-1 min-w-0" style={{color:'var(--ink-soft)'}}>
                                     — {verb} <span style={{color:'var(--ink-soft)', opacity: 0.65}}>· {a.evidenceCount} {a.evidenceCount === 1 ? 'use' : 'uses'}</span>
@@ -839,7 +839,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                             <div className="w-2 h-2 rounded-full flex-shrink-0" style={{background:'var(--rose)'}}></div>
                             <div className="text-[9px] tracking-[0.25em] uppercase flex-shrink-0" style={{color:'var(--ink-soft)'}}>{dayLabel(new Date(e.date))} · {dateShort(new Date(e.date))}</div>
                             <div className="text-[10px] tracking-[0.15em] uppercase px-2 py-0.5 border flex-shrink-0" style={{borderColor:'var(--rose)', color:'var(--rose)'}}>Procedure</div>
-                            <div className="font-sans text-sm md:text-base flex-1 min-w-0 truncate" style={{color:'var(--ink)'}}>{e.procedure.name} <span className="text-xs not-italic" style={{color:'var(--ink-soft)'}}>· {e.procedure.type?.replace(/-/g, ' ')}</span></div>
+                            <div className="font-sans text-sm md:text-base flex-1 min-w-0 truncate" style={{color:'var(--ink)'}}>{e.procedure.name} <span className="text-xs" style={{color:'var(--ink-soft)'}}>· {e.procedure.type?.replace(/-/g, ' ')}</span></div>
                           </button>
                         );
                       }
@@ -860,7 +860,7 @@ const PhotoTimeline = ({ logs, products = [], procedures = [], regimenLogs = [],
                           <div className="w-2 h-2 rounded-full flex-shrink-0" style={{background:'var(--accent-blue)'}}></div>
                           <div className="text-[9px] tracking-[0.25em] uppercase flex-shrink-0" style={{color:'var(--ink-soft)'}}>{dayLabel(new Date(e.date))} · {dateShort(new Date(e.date))}</div>
                           <div className="text-[10px] tracking-[0.15em] uppercase px-2 py-0.5 border flex-shrink-0" style={{borderColor:'var(--accent-blue)', color:'var(--accent-blue)'}}>Product started</div>
-                          <div className="font-sans text-sm md:text-base flex-1 min-w-0 truncate" style={{color:'var(--ink)'}}>{e.product.name} <span className="text-xs not-italic" style={{color:'var(--ink-soft)'}}>· {e.product.category}</span></div>
+                          <div className="font-sans text-sm md:text-base flex-1 min-w-0 truncate" style={{color:'var(--ink)'}}>{e.product.name} <span className="text-xs" style={{color:'var(--ink-soft)'}}>· {e.product.category}</span></div>
                         </div>
                       );
                     })}

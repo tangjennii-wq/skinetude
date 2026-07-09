@@ -492,7 +492,7 @@ CONCERNS: [comma-separated concerns this product targets, ONLY from this list: h
         const cleaned = await cleanProductPhotoWithGemini(b64);
         if (cleaned && cleaned !== b64) {
           setForm(prev => ({ ...prev, photo: cleaned }));
-          toast('Photo cleaned ✨', 'info');
+          toast('Photo cleaned.', 'info');
         }
       } catch (err) {
         console.warn('[product-photo cleanup] failed:', err.message);
@@ -1115,7 +1115,7 @@ VERDICT: [One dry, decisive line: worth it, skip it, or depends-on-what.]`;
       if (!filled.activeIngredients && !filled.mainIngredients) {
         setNeedsLabelHelp(true);
       }
-      toast(`Filled in ${filled.name} ✨`);
+      toast(`Filled in ${filled.name}.`);
     } catch (e) {
       console.warn('Deep fill failed:', e);
       setNeedsLabelHelp(true);
@@ -1148,7 +1148,7 @@ VERDICT: [One dry, decisive line: worth it, skip it, or depends-on-what.]`;
           useDays: sug.days,
           useTimes: sug.times}));
         if (!filled.activeIngredients && !filled.mainIngredients) setNeedsLabelHelp(true);
-        toast(`Found ${filled.name || filled.brand} ✨`);
+        toast(`Found ${filled.name || filled.brand}.`);
       }
     } catch (e) {
       console.error('URL fetch failed:', e);
@@ -1330,7 +1330,7 @@ VERDICT: [One dry, decisive line: worth it, skip it, or depends-on-what.]`;
       // day's log they just touched.
       const todayKey = localDateISO();
       if (ctxDate === todayKey) {
-        toast(`Added to ${ctxSlot.toUpperCase()} routine ✨`, 'success');
+        toast(`Added to ${ctxSlot.toUpperCase()} routine.`, 'success');
         // === PROMOTE-TO-ROUTINE BANNER (May 2026 per Jenni) ===
         // Today-only adds default to one-off. Surface a quiet banner that
         // offers to make it a standing weekly routine entry.
@@ -1352,7 +1352,7 @@ VERDICT: [One dry, decisive line: worth it, skip it, or depends-on-what.]`;
         }
       } else {
         const dLabel = new Date(ctxDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-        toast(`Added to ${ctxSlot.toUpperCase()} for ${dLabel} ✨`, 'success');
+        toast(`Added to ${ctxSlot.toUpperCase()} for ${dLabel}.`, 'success');
       }
       setCoverRoutineRebuildToken(t => t + 1);
     } else {
@@ -1371,7 +1371,7 @@ VERDICT: [One dry, decisive line: worth it, skip it, or depends-on-what.]`;
       // after 1.4s so the next add starts with a fresh SAVE TO SHELF label.
       setProductSaveFlash(true);
       setTimeout(() => setProductSaveFlash(false), 1400);
-      toast(`Added ${tempProduct.name} ✨ Add another or close`, 'info');
+      toast(`Added ${tempProduct.name}. Add another or close`, 'info');
       // New product = new shelf inputs to the AI → regenerate cover Recommended.
       setCoverRoutineRebuildToken(t => t + 1);
       // === USE-TODAY PROMPT (May 2026) ===
@@ -1501,7 +1501,7 @@ ALTERNATIVES:
             saveData('products', next);
             return next;
           });
-          toast(`${detectedName} analyzed ✨`);
+          toast(`${detectedName} analyzed.`);
         } catch (e) {
           setProducts(prev => {
             const next = prev.map(p => p.id === id ? { ...p, name: form.name || 'Unknown Product', analyzing: false } : p);
@@ -1950,7 +1950,7 @@ ALTERNATIVES:
             }
             const todayKey = localDateISO();
             if (ctxDate === todayKey) {
-              toast(`Added ${n} to today's ${ctxSlot.toUpperCase()} ✨`, 'success');
+              toast(`Added ${n} to today's ${ctxSlot.toUpperCase()}.`, 'success');
               // Fire the promote-to-routine banner. Shape extended to
               // accept productIds (array) so multi-add can promote all
               // at once if the user taps Add to routine.
@@ -1962,7 +1962,7 @@ ALTERNATIVES:
               }
             } else {
               const dLabel = new Date(ctxDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-              toast(`Added ${n} to ${ctxSlot.toUpperCase()} for ${dLabel} ✨`, 'success');
+              toast(`Added ${n} to ${ctxSlot.toUpperCase()} for ${dLabel}.`, 'success');
             }
             if (typeof setCoverRoutineRebuildToken === 'function') {
               setCoverRoutineRebuildToken(t => t + 1);
