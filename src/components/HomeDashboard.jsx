@@ -19,6 +19,7 @@ const HomeDashboard = ({
   onboardingState,
   logs,
   products,
+  setProducts, // July 2026 (quick-edit layer): Apply-going-forward promotes today's additions into the weekly plan
   procedures,
   events,
   regimenLogs, setRegimenLogs,
@@ -90,6 +91,14 @@ const HomeDashboard = ({
   // the orphaned bottom-of-card link row that was duplicating top-nav
   // moves.
   const [coverHeroMenuOpen, setCoverHeroMenuOpen] = useState(false);
+  // === EDIT TODAY MODE (July 2026 — Home quick-edit layer) ===
+  // Home answers "what did I do today?" — this mode makes today-only
+  // edits (skip / remove / move / add) one tap deep without routing
+  // through the weekly-plan builder. Snapshot taken on entry so the
+  // exit bar can offer "Apply going forward" for anything ADDED today
+  // (promotion runs through addManyToRoutine — never hand-rolled).
+  const [editToday, setEditToday] = useState(false);
+  const editTodaySnapshotRef = useRef(null);
   const persistRegimenLogs = (nextLogs, label) => {
     saveData('regimenLogs', nextLogs).catch(e => {
       console.error(`[home regimen ${label}] saveData failed:`, e);
@@ -2847,6 +2856,83 @@ CRITICAL OUTPUT REQUIREMENTS:
           seedPmIds: pmList.map(p => p.id),
         });
       };
+      // === MOVE AM⇄PM FOR TODAY (July 2026 — quick-edit layer) ===
+      // Today-only: rewrites today's regimenLog slot membership. Never
+      // touches product cadence/useTimes (that's "Apply going forward" /
+      // the weekly plan editor). Done + skipped marks for the moved id
+      // are cleared in both slots — it's a fresh step where it lands.
+      const moveSlotToday = (product, fromSlot) => {
+        if (!product || !product.id) return;
+        const toSlot = fromSlot === 'am' ? 'pm' : 'am';
+        const fromKey = fromSlot === 'am' ? 'amProducts' : 'pmProducts';
+        const toKey = toSlot === 'am' ? 'amProducts' : 'pmProducts';
+        const existing = (regimenLogs || []).find(r => r.date === viewDate);
+        const seedIds = (slot) => {
+          const key = slot === 'am' ? 'amProducts' : 'pmProducts';
+          if (existing && Array.isArray(existing[key]) && existing[key].length > 0) return [...existing[key]];
+          return (slot === 'am' ? amList : pmList).map(p => p && p.id).filter(Boolean);
+        };
+        const fromIds = seedIds(fromSlot).filter(id => id !== product.id);
+        const toIdsRaw = seedIds(toSlot);
+        const toIds = toIdsRaw.includes(product.id) ? toIdsRaw : [...toIdsRaw, product.id];
+        const base = existing || {
+          id: Date.now(),
+          date: viewDate,
+          amProducts: [], pmProducts: [],
+          amDone: [], pmDone: [],
+          amSkipped: [], pmSkipped: [],
+          amExtras: [], pmExtras: [],
+          notes: '',
+          submitted: false,
+        };
+        const stripId = (arr) => (Array.isArray(arr) ? arr.filter(id => id !== product.id) : []);
+        const updated = {
+          ...base,
+          [fromKey]: fromIds,
+          [toKey]: toIds,
+          amDone: stripId(base.amDone),
+          pmDone: stripId(base.pmDone),
+          amSkipped: stripId(base.amSkipped),
+          pmSkipped: stripId(base.pmSkipped),
+        };
+        const next = existing
+          ? (regimenLogs || []).map(r => r.date === viewDate ? updated : r)
+          : [updated, ...(regimenLogs || [])];
+        setRegimenLogs(next);
+        persistRegimenLogs(next, 'move-slot-today');
+        setCoverRoutineRebuildToken(t => t + 1);
+        toast(`Moved to ${toSlot.toUpperCase()} for today.`, 'info');
+      };
+      // === APPLY GOING FORWARD (July 2026 — quick-edit layer) ===
+      // Promotes anything ADDED to today (vs the edit-session snapshot)
+      // into the standing weekly plan via addManyToRoutine — cadence
+      // comes from suggestedCadence, never hardcoded. Removals/skips are
+      // deliberately NOT auto-applied; the remove prompt already offers
+      // its own "remove from routine" path.
+      const applyTodayGoingForward = () => {
+        const snap = editTodaySnapshotRef.current;
+        if (!snap) return;
+        const curAm = amList.map(p => p && p.id).filter(Boolean);
+        const curPm = pmList.map(p => p && p.id).filter(Boolean);
+        const addedAm = curAm.filter(id => !snap.am.includes(id));
+        const addedPm = curPm.filter(id => !snap.pm.includes(id));
+        if (addedAm.length === 0 && addedPm.length === 0) {
+          toast('Nothing new to apply — today matches your plan.', 'info');
+          return;
+        }
+        let next = products;
+        if (addedAm.length > 0) next = addManyToRoutine(next, addedAm, 'am');
+        if (addedPm.length > 0) next = addManyToRoutine(next, addedPm, 'pm');
+        setProducts(next);
+        saveData('products', next).catch(e => {
+          console.error('[apply-going-forward] save failed:', e);
+          toast(`Save error: ${e?.message || 'unknown'}`, 'error');
+        });
+        setCoverRoutineRebuildToken(t => t + 1);
+        editTodaySnapshotRef.current = { am: curAm, pm: curPm };
+        const n = addedAm.length + addedPm.length;
+        toast(`${n} product${n === 1 ? '' : 's'} added to your weekly plan.`, 'success');
+      };
       // === COVER PRODUCT TILE (May 2026 — rectangular tile redesign) ===
       // Per Jenni: no more big texture sphere. Each product is a
       // rectangular text-forward tile:
@@ -3412,6 +3498,33 @@ CRITICAL OUTPUT REQUIREMENTS:
                   );
                 })}
               </div>
+              {/* === EDIT TODAY (July 2026 — quick-edit layer) ===
+                  Quiet text toggle. On: rows expose move + skip controls
+                  and the exit bar (below the list) offers Apply going
+                  forward. Today-only edits; the weekly plan is untouched
+                  unless explicitly applied. */}
+              <div className="flex justify-end -mt-1 mb-2 pr-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!editToday) {
+                      editTodaySnapshotRef.current = {
+                        am: amList.map(p => p && p.id).filter(Boolean),
+                        pm: pmList.map(p => p && p.id).filter(Boolean),
+                      };
+                    } else {
+                      editTodaySnapshotRef.current = null;
+                    }
+                    setEditToday(v => !v);
+                  }}
+                  className="inline-flex items-center gap-1 transition hover:opacity-70"
+                  style={{background:'transparent', border:'none', color: editToday ? 'var(--accent)' : 'var(--ink-soft)', fontWeight:600, fontSize:10, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', padding:'4px 0'}}
+                  aria-pressed={editToday}
+                >
+                  <Icon name={editToday ? 'X' : 'Pencil'} size={10} />
+                  <span>{editToday ? 'Done editing' : 'Edit today'}</span>
+                </button>
+              </div>
               {/* === SLIM NUMBERED LIST (May 2026) ===
                   Replaces the 168px horizontal scroll row of bottle
                   tiles with a compact vertical numbered list. Each
@@ -3464,6 +3577,8 @@ CRITICAL OUTPUT REQUIREMENTS:
                       canRepeat={canRepeatRitual}
                       onRepeat={repeatYesterday}
                       onRemove={removeFromSlot}
+                      onMove={moveSlotToday}
+                      editMode={editToday}
                       onOverflow={() => {}}
                       doneIds={doneIdsForRender}
                       onToggleDone={(product, slotKey) => {
@@ -3511,6 +3626,52 @@ CRITICAL OUTPUT REQUIREMENTS:
                         persistRegimenLogs(next, 'toggle-product-done');
                       }}
                     />
+                  </div>
+                );
+              })()}
+              {/* === EDIT BAR (July 2026 — quick-edit layer) ===
+                  Only in edit mode. Add opens the same sheet as "Add to
+                  today"; Apply promotes this session's additions to the
+                  weekly plan; Done exits. */}
+              {editToday && (() => {
+                const snap = editTodaySnapshotRef.current;
+                const curAm = amList.map(p => p && p.id).filter(Boolean);
+                const curPm = pmList.map(p => p && p.id).filter(Boolean);
+                const addedCount = snap
+                  ? curAm.filter(id => !snap.am.includes(id)).length + curPm.filter(id => !snap.pm.includes(id)).length
+                  : 0;
+                return (
+                  <div className="flex items-center gap-2 mb-2 rounded-[12px] px-2 py-2" style={{background:'var(--cream-deep)', border:'1px dashed var(--line)'}}>
+                    <button
+                      type="button"
+                      onClick={() => { if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen({ open: true, slot: ritualSlot, date: viewDate }); }}
+                      className="flex-1 h-8 rounded-full flex items-center justify-center gap-1 transition hover:opacity-90"
+                      style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:10, letterSpacing:'0.08em', textTransform:'uppercase', cursor:'pointer'}}
+                    >
+                      <Icon name="Plus" size={11} />
+                      <span>Add to {ritualSlot.toUpperCase()}</span>
+                    </button>
+                    {addedCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={applyTodayGoingForward}
+                        className="flex-1 h-8 rounded-full flex items-center justify-center gap-1 transition hover:opacity-90"
+                        style={{background:'transparent', color:'var(--ink-soft)', border:'1px solid var(--line)', fontWeight:600, fontSize:10, letterSpacing:'0.08em', textTransform:'uppercase', cursor:'pointer'}}
+                        title="Add this session's new products to your weekly plan"
+                      >
+                        <Icon name="Repeat" size={10} />
+                        <span>Make recurring</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { editTodaySnapshotRef.current = null; setEditToday(false); }}
+                      className="h-8 rounded-full px-3 flex items-center justify-center gap-1 transition hover:opacity-90"
+                      style={{background:'var(--ink)', color:'var(--cream)', border:'1px solid var(--ink)', fontWeight:700, fontSize:10, letterSpacing:'0.08em', textTransform:'uppercase', cursor:'pointer'}}
+                    >
+                      <Icon name="Check" size={11} />
+                      <span>Done</span>
+                    </button>
                   </div>
                 );
               })()}
@@ -4002,7 +4163,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                     style={{background:'transparent', color:'var(--ink-soft)', fontWeight:600, fontSize:10, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', border:'none', padding:'4px 0'}}
                     title="Change your routine going forward"
                   >
-                    <span>Edit regimen</span>
+                    <span>Edit weekly plan</span>
                     <Icon name="ArrowRight" size={10} />
                   </button>
                 </div>

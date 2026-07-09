@@ -49,7 +49,7 @@ const truncateAtSentence = (text, maxChars = 240) => {
   return { concise: (lastSpace > 60 ? cut.slice(0, lastSpace) : cut).trim() + '…', isTruncated: true };
 };
 
-const RoutineProductRow = ({ product, index, slot, onRemove, done = false, onToggleDone }) => {
+const RoutineProductRow = ({ product, index, slot, onRemove, onMove, editMode = false, done = false, onToggleDone }) => {
   const [expanded, setExpanded] = React.useState(false);
   const [mechFull, setMechFull] = React.useState(false);
   const [evFull, setEvFull] = React.useState(false);
@@ -142,12 +142,24 @@ const RoutineProductRow = ({ product, index, slot, onRemove, done = false, onTog
           <div className="text-[12px] leading-tight truncate" style={{color:'var(--ink)', fontWeight:500, letterSpacing:'-0.005em', opacity: done ? 0.55 : 1}}>{name || brand || 'Product'}</div>
         </button>
         <div className="flex items-center justify-end gap-0.5">
-          <button type="button" onClick={() => setExpanded(v => !v)} className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)]" style={{color: rowActionColor, cursor:'pointer'}} title={expanded ? 'Collapse details' : 'Expand details'} aria-label={expanded ? 'Collapse details' : 'Expand details'}>
-            <Icon name={expanded ? 'ChevronUp' : 'ChevronDown'} size={13} />
-          </button>
-          <button type="button" onClick={(e) => { e.stopPropagation(); onRemove && onRemove(product, slot); }} className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[rgba(201,138,138,0.10)] hover:text-[var(--rose)]" style={{color: rowActionColor, opacity: 0.65, cursor:'pointer'}} title={`Skip ${name || 'this step'} for today only — stays in your routine going forward`} aria-label={`Skip ${name} today`}>
-            <Icon name="X" size={12} />
-          </button>
+          {/* July 2026 (quick-edit layer): default mode is calm — just the
+              expand chevron. Edit mode swaps in the move (AM⇄PM today) and
+              skip/remove controls. */}
+          {!editMode && (
+            <button type="button" onClick={() => setExpanded(v => !v)} className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)]" style={{color: rowActionColor, cursor:'pointer'}} title={expanded ? 'Collapse details' : 'Expand details'} aria-label={expanded ? 'Collapse details' : 'Expand details'}>
+              <Icon name={expanded ? 'ChevronUp' : 'ChevronDown'} size={13} />
+            </button>
+          )}
+          {editMode && typeof onMove === 'function' && (
+            <button type="button" onClick={(e) => { e.stopPropagation(); onMove(product, slot); }} className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)]" style={{color: rowActionColor, cursor:'pointer'}} title={`Move to ${slot === 'am' ? 'PM' : 'AM'} for today only`} aria-label={`Move ${name} to ${slot === 'am' ? 'PM' : 'AM'} for today`}>
+              <Icon name={slot === 'am' ? 'Moon' : 'Sun'} size={12} />
+            </button>
+          )}
+          {editMode && (
+            <button type="button" onClick={(e) => { e.stopPropagation(); onRemove && onRemove(product, slot); }} className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[rgba(201,138,138,0.10)] hover:text-[var(--rose)]" style={{color: rowActionColor, opacity: 0.65, cursor:'pointer'}} title={`Skip ${name || 'this step'} today, or remove it from the plan`} aria-label={`Skip or remove ${name}`}>
+              <Icon name="X" size={12} />
+            </button>
+          )}
         </div>
       </div>
       {expanded && (

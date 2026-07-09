@@ -11321,6 +11321,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
             onboardingState={onboardingState}
             logs={logs}
             products={products}
+            setProducts={setProducts}
             procedures={procedures}
             events={events}
             regimenLogs={regimenLogs}
@@ -18120,18 +18121,40 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   sheet. One-offs (new product, procedure, supplement, note)
                   moved here as a quiet footer link instead of holding their
                   own button on the cover. */}
-              <button
-                type="button"
-                onClick={() => {
-                  const ctx = { open: true, slot: shelfQuickAddState.slot || 'am', date: shelfQuickAddState.date || localDateISO() };
-                  if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen(null);
-                  setUsedSomethingElseSheet(ctx);
-                }}
-                className="w-full text-center pb-3 pt-1 transition hover:opacity-70"
-                style={{background:'transparent', border:'none', color:'var(--ink-soft)', fontSize:10.5, letterSpacing:'0.14em', textTransform:'uppercase', cursor:'pointer'}}
-              >
-                Something not on your shelf? Add a one-off →
-              </button>
+              <div className="flex items-center justify-center gap-4 pb-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ctx = { open: true, slot: shelfQuickAddState.slot || 'am', date: shelfQuickAddState.date || localDateISO() };
+                    if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen(null);
+                    setUsedSomethingElseSheet(ctx);
+                  }}
+                  className="transition hover:opacity-70"
+                  style={{background:'transparent', border:'none', color:'var(--ink-soft)', fontSize:10.5, letterSpacing:'0.14em', textTransform:'uppercase', cursor:'pointer'}}
+                >
+                  Add a one-off →
+                </button>
+                {/* July 2026 (quick-edit layer): scan shortcut — closes this
+                    sheet, opens the product scanner with today's slot context
+                    so scanned products land in today's regimen directly. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const slot = shelfQuickAddState.slot || 'am';
+                    const date = shelfQuickAddState.date || localDateISO();
+                    if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen(null);
+                    setProductModalRegimenContext({ slot, date });
+                    setEditingProductId(null);
+                    setProductForm(null);
+                    setProductEntryMode('scan');
+                    setShowProductModal(true);
+                  }}
+                  className="transition hover:opacity-70"
+                  style={{background:'transparent', border:'none', color:'var(--ink-soft)', fontSize:10.5, letterSpacing:'0.14em', textTransform:'uppercase', cursor:'pointer'}}
+                >
+                  Scan a product →
+                </button>
+              </div>
             </div>
           </div>
         );
