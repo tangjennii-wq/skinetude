@@ -3326,6 +3326,16 @@ const setApiKey = (k) => {
   catch (e) { console.warn('[setApiKey] localStorage unavailable', e); return false; }
 };
 
+// === ANALYSIS AVAILABILITY (July 2026 — Codex audit P0) ===
+// ONE source of truth for "can a save trigger AI analysis?". The Gemini
+// proxy runs KEYLESS (the Supabase edge function holds the key and
+// enforces per-device daily caps), so analysis is available to every
+// user. An Anthropic key only upgrades the prose voice. Gate analysis
+// features on THIS — never on getApiKey(), which silently excluded
+// every keyless user (scan worked, photo analysis didn't; that split
+// was the single biggest "why did nothing happen" class in the app).
+const canRunAnalysis = () => true;
+
 // === GEMINI API KEY / PROXY ===
 // The Gemini key is no longer shipped in the client bundle. By default all
 // Gemini calls go through a Supabase Edge Function (`gemini-proxy`) which
@@ -5238,7 +5248,7 @@ function App() {
       // Mirrors the onCapture branch in CameraCaptureModal — save first
       // shot as a log, kick analysis, surface chips inline on Step 2.
       if (cameraDestination === 'onboarding') {
-        const apiKeyOn = !!getApiKey();
+        const apiKeyOn = canRunAnalysis(); // July 2026: proxy runs keyless; key only changes prose voice
         const first = shots[0];
         // === CENTRALIZED via createPhotoLogs (June 2026 refactor) ===
         // Single-shot version — same helper, just one shot in the array.
@@ -8913,6 +8923,35 @@ structure exactly. Let the WORDS inside it be in voice.
     return parts.map(p => p.text || '').join('\n').trim();
   };
 
+  // === GEMINI TEXT (no image) — July 2026, keyless-analysis unification ===
+  // Same proxy funnel as callGeminiVision, minus the inlineData part.
+  // Exists so text-only analysis paths (no photo on the log) can run
+  // keyless instead of requiring an Anthropic key.
+  const callGeminiText = async (prompt, opts = {}) => {
+    const model = opts.model || 'gemini-2.5-flash';
+    const { resp, viaProxy } = await callGeminiProxied({
+      mode: 'text',
+      model,
+      payload: {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: opts.temperature ?? 0.3,
+          maxOutputTokens: opts.maxTokens || 1024,
+        },
+      },
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      if (viaProxy && resp.status === 429) {
+        throw new Error('Gemini daily limit reached (200 calls). Add your own Gemini key in Settings to keep going.');
+      }
+      throw new Error(`Gemini API error: ${err.slice(0, 300)}`);
+    }
+    const data = await resp.json();
+    const parts = data?.candidates?.[0]?.content?.parts || [];
+    return parts.map(p => p.text || '').join('\n').trim();
+  };
+
   // === GEMINI PRODUCT PHOTO CLEANUP ===
   // Pass a real product photo through Gemini's image-edit model ("Nano Banana"
   // family) to extract just the product on a clean cream background. Counts
@@ -10135,7 +10174,7 @@ ALTERNATIVES:
   // at most 1 backfill attempt per session.
   const metricBackfillTriedRef = useRef(new Set());
   useEffect(() => {
-    if (!getApiKey()) return;
+    if (!canRunAnalysis()) return; // July 2026: Gemini extractor runs keyless
     if (!Array.isArray(logs) || logs.length === 0) return;
     const targets = logs
       .filter(l => (l.photo || l.photoPath) && !l.metricSnapshot && !l.analyzing)
@@ -10153,7 +10192,7 @@ ALTERNATIVES:
           // if Gemini fails or returns invalid JSON. Both write the same metricSnapshot
           // shape so downstream consumers don't care which model ran.
           let snap = await extractMetricsWithGemini(photoB64);
-          if (!snap) {
+          if (!snap && getApiKey()) { // Haiku fallback needs the Anthropic key; skip keyless
             const snapPrompt = `Look at this skincare progress photo and rate the visible skin. Reply with ONLY this JSON, no prose, no code fences:
 {"redness":"<Clear|Low|Mild|Moderate|High>","hydration":"<Plump|Good|Balanced|Dry|Parched>","texture":"<Smooth|Even|Uneven|Rough|Bumpy>","breakouts":"<Clear|Few|Some|Many|Severe>","barrier":"<Strong|Steady|Holding|Compromised|Stripped>"}
 Pick the single most accurate level per metric. Use the exact capitalized word.`;
@@ -10183,15 +10222,9 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
   // never look like the UI is hung.
   const retryLogAnalysis = async (logId, logHint = null) => {
     console.log('[retryLogAnalysis] called for logId:', logId);
-    if (!getApiKey()) {
-      toast('Set your API key first to run analysis', 'error');
-      setShowApiKeyModal(true);
-      // Clear the analyzing flag so the cover spinner doesn't hang. Without
-      // this the user sees "Reading your skin..." forever after a save when
-      // no API key is set. (Pre-fix the early-return left analyzing stuck.)
-      setLogs(prev => prev.map(l => l.id === logId ? { ...l, analyzing: false, analyzingStartedAt: undefined } : l));
-      return;
-    }
+    // July 2026 (keyless unification): the old `if (!getApiKey())` gate is
+    // gone. The Gemini proxy runs keyless, so analysis works for everyone;
+    // an Anthropic key only routes the prose through Claude below.
     // === STALE-CLOSURE FIX (May 2026 per Jenni) ===
     // Symptom: photo upload → "Reading your skin..." spins forever +
     // "Log not found" toast. Root cause: saveLogFromForm calls
@@ -10281,16 +10314,23 @@ REGION: <Full Face|R Cheek|L Cheek|Forehead|T-zone|Chin|Nose|Jaw|Hairline|Neck|B
 
 Pick the SINGLE most accurate word per METRIC based on what's actually visible. Pick ONE REGION based on what's framed (Full Face when whole face is shown; Other when off-face/specific spot). Capitalize as shown. Do not skip either line.`;
 
-      console.log('[retryLogAnalysis] calling Claude (prose) + Gemini (metrics) in parallel');
-      // === HYBRID READ (June 2026 per Jenni) ===
-      // Claude writes the prose (voice + interpretation + ACTIVELY-USED
-      // grounding). Gemini 2.5 Pro extracts the structured metricSnapshot
-      // (better visual fine-detail). Run in parallel — Gemini's call
-      // hides behind the Claude latency we'd be paying anyway. If Gemini
-      // fails or returns null, we fall back to parseSkinMetrics on the
-      // Claude output (which still includes the METRICS: line).
+      // === HYBRID READ (June 2026 per Jenni; keyless July 2026) ===
+      // With an Anthropic key: Claude writes the prose (voice +
+      // interpretation), Gemini extracts the structured metricSnapshot in
+      // parallel. WITHOUT a key: Gemini does both — prose via the proxy
+      // (voice prefix prepended manually, since callClaude's voice:true
+      // does that on its path) and metrics via the same extractor. If the
+      // metrics call fails, parseSkinMetrics on the prose output (which
+      // includes the METRICS: line) still fills the snapshot.
+      const hasClaudeKey = !!getApiKey();
+      console.log('[retryLogAnalysis] prose via', hasClaudeKey ? 'Claude' : 'Gemini proxy', '+ Gemini metrics in parallel');
+      const prosePromise = hasClaudeKey
+        ? callClaude(prompt, '', photoB64 || null, { voice: true })
+        : (photoB64
+            ? callGeminiVision(photoB64, ETUDE_VOICE_PREFIX + prompt, { maxTokens: 1024 })
+            : callGeminiText(ETUDE_VOICE_PREFIX + prompt, { maxTokens: 1024 }));
       const [result, geminiSnap] = await Promise.all([
-        callClaude(prompt, '', photoB64 || null, { voice: true }),
+        prosePromise,
         photoB64 ? extractMetricsWithGemini(photoB64) : Promise.resolve(null),
       ]);
       console.log('[retryLogAnalysis] result length:', result?.length || 0, 'gemini snap:', !!geminiSnap);
@@ -10848,79 +10888,14 @@ If the user references something not in their data ("started retinol 6 weeks ago
     }
   }, []);
 
-  // === REGIMEN DRAWER BRIDGE (May 30 2026 per Jenni) ===
-  // Publishes the current day's ritual + concerns + action goal to
-  // window.__etudeRegimen so the right-edge drawer (defined at the
-  // bottom of index.html, OUTSIDE the runtime block) can render real
-  // data instead of demo. Also exposes window.__etudeOpenAdd(slot) so
-  // the drawer's empty-slot "+ add cleanser" CTAs can open the
-  // existing add-product modal with the correct AM/PM context.
-  useEffect(() => {
-    try {
-      const todayIso = (typeof localDateISO === 'function') ? localDateISO() : new Date().toISOString().slice(0, 10);
-      // Reuse the canonical resolver — handles submitted/draft/shelf-default/empty.
-      const ritual = (typeof getRitualForDate === 'function')
-        ? getRitualForDate(todayIso, regimenLogs, products)
-        : { amProducts: [], pmProducts: [] };
-      const toDrawer = (p) => ({
-        type: (typeof normalizeProductCategory === 'function')
-          ? (normalizeProductCategory(p.category) === 'treatment' ? 'serum' : normalizeProductCategory(p.category))
-          : String(p.category || 'other').toLowerCase(),
-        brand: p.brand || '',
-        name: p.name || '',
-        actives: p.activeIngredients || p.actives || ''
-      });
-      const goal = (buildAnswers && buildAnswers.actionGoal) ? buildAnswers.actionGoal : 'BARRIER';
-      // Full active shelf (not just today's ritual) — drawer now acts as
-      // a shelf browser with a category filter, not a per-day routine view.
-      const activeShelf = (Array.isArray(products) ? products : []).filter(p => p && !p.endDate);
-      // === SAVED PICKS RESOLUTION ===
-      // favoriteProducts is an array of "brand|name" signature strings.
-      // Resolve each to a full product object (looking in the user's shelf
-      // first, then POPULAR_PRODUCTS catalog). Drawer's "Saved" chip
-      // filters to this list.
-      const savedSigs = Array.isArray(favoriteProducts) ? favoriteProducts : [];
-      const catalog = (typeof POPULAR_PRODUCTS !== 'undefined' && Array.isArray(POPULAR_PRODUCTS)) ? POPULAR_PRODUCTS : [];
-      const savedShelf = savedSigs.map(sig => {
-        const match = [...activeShelf, ...catalog].find(p => (typeof favoriteSig === 'function' ? favoriteSig(p) : '') === sig);
-        return match ? toDrawer(match) : null;
-      }).filter(Boolean);
-      window.__etudeRegimen = {
-        am: (ritual.amProducts || []).map(toDrawer),  // kept for Insights inline comp
-        pm: (ritual.pmProducts || []).map(toDrawer),
-        shelf: activeShelf.map(toDrawer),
-        savedShelf: savedShelf,
-        concerns: Array.isArray(userConcerns) ? userConcerns : [],
-        actionGoal: goal,
-        activeTab: activeTab,
-        // The UI "Insights" tab is internally activeTab === 'pearls'.
-        // Expose pearlsTab + picksView + regimenView so the drawer can
-        // scope to specific surfaces (Insights→Picks→Regimen and
-        // Regimen→Shelf are the only two where it should appear).
-        pearlsTab: (typeof pearlsTab !== 'undefined' ? pearlsTab : null),
-        picksView: (typeof picksView !== 'undefined' ? picksView : null),
-        regimenView: (typeof regimenView !== 'undefined' ? regimenView : null),
-        buildPlan: (buildPlan && (buildPlan.am || buildPlan.pm)) ? buildPlan : null,
-        source: ritual.source || null
-      };
-      window.dispatchEvent(new Event('etude:regimenUpdate'));
-    } catch (e) {
-      console.warn('[etudeRegimen bridge]', e);
-    }
-  }, [regimenLogs, products, userConcerns, buildAnswers, buildPlan, activeTab, pearlsTab, picksView, regimenView, favoriteProducts]);
-
-  // Lets the drawer's "+ add cleanser" empty-slot buttons open the
-  // existing add-product modal pre-scoped to AM or PM, today.
-  useEffect(() => {
-    window.__etudeOpenAdd = (slot) => {
-      try {
-        const d = (typeof localDateISO === 'function') ? localDateISO() : new Date().toISOString().slice(0, 10);
-        setProductModalRegimenContext({ slot: slot === 'pm' ? 'pm' : 'am', date: d });
-        setShowProductModal(true);
-      } catch (e) { console.warn('[etudeOpenAdd]', e); }
-    };
-    return () => { try { delete window.__etudeOpenAdd; } catch (_) {} };
-  }, []);
+  // === REGIMEN DRAWER BRIDGE — REMOVED (July 2026 per Jenni + Codex audit) ===
+  // The floating right-edge Shelf drawer (a vanilla-JS widget that lived
+  // at the bottom of index.html, outside the runtime block) is gone. It
+  // leaked onto the signed-out auth screen (`var visible = true`), fought
+  // the bottom nav for attention, and made Shelf feel like a second app
+  // bolted on. Shelf is now a place users go intentionally: Regimen →
+  // Shelf. The window.__etudeRegimen publisher + window.__etudeOpenAdd
+  // bridge that fed it were deleted along with the widget.
 
   if (loading) {
     return (
@@ -14349,7 +14324,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
             // re-create logs here — just promote analysis on them.
             // Onboarding baseline stays special-cased above.
             if (guidedCaptureCtx?.intent === 'check_in') {
-              const apiKeyOn = !!getApiKey();
+              const apiKeyOn = canRunAnalysis(); // July 2026: proxy runs keyless; key only changes prose voice
               if (apiKeyOn && typeof retryLogAnalysis === 'function') {
                 setLogs(prev => prev.map(l => {
                   if (!newLogs.find(nl => nl.id === l.id)) return l;
@@ -16429,7 +16404,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
             // additional shots for v1 (analyze first, the rest are
             // recoverable later via Journal "log historical photo").
             if (cameraDestination === 'onboarding') {
-              const apiKeyOn = !!getApiKey();
+              const apiKeyOn = canRunAnalysis(); // July 2026: proxy runs keyless; key only changes prose voice
               const firstShot = queue[0];
               const newLog = {
                 id: Date.now(),
@@ -16515,7 +16490,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
           // own capturedAt timestamp. Same rating/concerns/notes still
           // apply to all (the "apply to all" behavior that makes bulk
           // upload worthwhile).
-          const apiKeyOn = !!getApiKey();
+          const apiKeyOn = canRunAnalysis(); // July 2026: proxy runs keyless; key only changes prose voice
           const userOverrideDate = form.date || null;
           // Per-photo region tags (May 2026 per Jenni). CheckInDetailsModal
           // now ships an aligned array of region ids ('full-face', 'left-cheek',
@@ -17531,6 +17506,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
           setBrandSelectedKeys={setBrandSelectedKeys}
           bypassDupeCheckRef={bypassDupeCheckRef}
           callGeminiVision={callGeminiVision}
+          callGeminiText={callGeminiText}
           cleanProductPhotoWithGemini={cleanProductPhotoWithGemini}
           productBrandCatFilter={productBrandCatFilter}
           setProductBrandCatFilter={setProductBrandCatFilter}
@@ -18139,6 +18115,23 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   );
                 })()}
               </div>
+              {/* === July 2026 Day 3: one-off escape hatch ===
+                  "Add to today" on Home is now the single door into this
+                  sheet. One-offs (new product, procedure, supplement, note)
+                  moved here as a quiet footer link instead of holding their
+                  own button on the cover. */}
+              <button
+                type="button"
+                onClick={() => {
+                  const ctx = { open: true, slot: shelfQuickAddState.slot || 'am', date: shelfQuickAddState.date || localDateISO() };
+                  if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen(null);
+                  setUsedSomethingElseSheet(ctx);
+                }}
+                className="w-full text-center pb-3 pt-1 transition hover:opacity-70"
+                style={{background:'transparent', border:'none', color:'var(--ink-soft)', fontSize:10.5, letterSpacing:'0.14em', textTransform:'uppercase', cursor:'pointer'}}
+              >
+                Something not on your shelf? Add a one-off →
+              </button>
             </div>
           </div>
         );

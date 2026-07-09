@@ -2,7 +2,31 @@
 // Module-scope, no React state coupling. Lifted out of index.jsx.source
 // so primitives can be reasoned about + reused without scrolling the sidecar.
 
-const Modal = ({ children, onClose, title, eyebrow, action, actionLabel, compact = false, elevated = false }) => (
+// === ESC-TO-CLOSE (July 2026 Day 4) ===
+// Module-level stack so stacked modals (e.g. ProductModal opened from the
+// regimen editor) close one at a time, top-most first — a global listener
+// per instance would close the whole stack on one keypress.
+const __modalEscStack = [];
+
+const Modal = ({ children, onClose, title, eyebrow, action, actionLabel, compact = false, elevated = false }) => {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const id = {};
+    __modalEscStack.push(id);
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (__modalEscStack[__modalEscStack.length - 1] !== id) return; // only the top modal responds
+      if (onCloseRef.current) onCloseRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      const idx = __modalEscStack.indexOf(id);
+      if (idx >= 0) __modalEscStack.splice(idx, 1);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
+  return (
   // === Centered floating card (both mobile + desktop) ===
   // Modal floats in the middle of the page on every viewport. Capped at
   // 92dvh so the iOS keyboard doesn't push it past the visible area.
@@ -49,4 +73,5 @@ const Modal = ({ children, onClose, title, eyebrow, action, actionLabel, compact
       <div className={compact ? 'px-3 py-2.5 md:px-4 md:py-3' : 'px-4 py-4 md:p-6'}>{children}</div>
     </div>
   </div>
-);
+  );
+};

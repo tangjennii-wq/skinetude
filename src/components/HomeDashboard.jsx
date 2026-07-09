@@ -1435,7 +1435,7 @@ CRITICAL OUTPUT REQUIREMENTS:
       const analysisIsFresh = hasTodayPhoto && heroIsViewingToday && !!todayLog?.aiAnalysis && !analysisHasBeenOpened;
       const openTodayAnalysis = () => {
         if (todayLog?.id == null) return;
-        if (!todayLog.aiAnalysis && !todayLog.analyzing && getApiKey()) {
+        if (!todayLog.aiAnalysis && !todayLog.analyzing && canRunAnalysis()) {
           retryLogAnalysis(todayLog.id);
         }
         if (analysisSeenKey) {
@@ -1712,22 +1712,10 @@ CRITICAL OUTPUT REQUIREMENTS:
                         )}
                       </>
                     )}
-                    {/* Navigation block — present on all states. Border-top
-                        only renders when today-actions sit above it. */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCoverHeroMenuOpen(false);
-                        setActiveTab('journal');
-                        if (typeof setJournalViewOverride === 'function') setJournalViewOverride(null);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
-                      style={{color:'var(--ink-soft)', cursor:'pointer', borderTop: heroIsViewingToday ? '1px solid var(--line)' : 'none'}}
-                    >
-                      <Icon name="BookOpen" size={13} />
-                      <span className="text-[10.5px] tracking-[0.12em] uppercase">Open journal</span>
-                    </button>
+                    {/* July 2026 Day 3 (command-center pass): "Open journal",
+                        "Compare photos", and "Insights" cut — they duplicated
+                        the bottom tabs one thumb-reach away. Timeline stays:
+                        it's a deep link into a Journal sub-view, not a tab. */}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -1740,38 +1728,10 @@ CRITICAL OUTPUT REQUIREMENTS:
                         }
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
-                      style={{color:'var(--ink-soft)', cursor:'pointer'}}
+                      style={{color:'var(--ink-soft)', cursor:'pointer', borderTop: heroIsViewingToday ? '1px solid var(--line)' : 'none'}}
                     >
                       <Icon name="Calendar" size={13} />
                       <span className="text-[10.5px] tracking-[0.12em] uppercase">Timeline</span>
-                    </button>
-                    {canComparePhotos && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCoverHeroMenuOpen(false);
-                          setActiveTab('compare');
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
-                        style={{color:'var(--ink-soft)', cursor:'pointer'}}
-                      >
-                        <Icon name="Eye" size={13} />
-                        <span className="text-[10.5px] tracking-[0.12em] uppercase">Compare photos</span>
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCoverHeroMenuOpen(false);
-                        setActiveTab('insights');
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition hover:bg-[var(--cream-deep)]"
-                      style={{color:'var(--ink-soft)', cursor:'pointer'}}
-                    >
-                      <Icon name="Sparkles" size={13} />
-                      <span className="text-[10.5px] tracking-[0.12em] uppercase">Insights</span>
                     </button>
                   </div>
                 )}
@@ -2081,12 +2041,22 @@ CRITICAL OUTPUT REQUIREMENTS:
                         };
                         const word = compositeWord(todayAvg);
                         const scoreOutOf10 = (todayAvg / 10).toFixed(1);
+                        // === ONE TAP TARGET (July 2026 Day 3 — command-center pass) ===
+                        // Circle + word + the old "Read analysis" link were three
+                        // separate buttons doing the same thing. Merged into one.
+                        // Fresh analysis = small accent dot on the word; analyzing
+                        // = quiet spinner line beneath. One door, not three.
                         return (
-                          <>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); openTodayAnalysis(); }}
-                              className="flex items-center justify-center transition hover:scale-105 focus:outline-none"
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); openTodayAnalysis(); }}
+                            className="flex items-center gap-3 transition hover:opacity-85 focus:outline-none"
+                            style={{background:'transparent', border:0, padding:0, cursor:'pointer'}}
+                            aria-label={`${word} · ${scoreOutOf10} out of 10. Tap to ${analysisIsFresh ? 'read new analysis' : 'view analysis'}.`}
+                            title={`${word} · ${scoreOutOf10} / 10 · tap to view analysis`}
+                          >
+                            <div
+                              className="flex items-center justify-center"
                               style={{
                                 width: 68,
                                 height: 68,
@@ -2094,11 +2064,8 @@ CRITICAL OUTPUT REQUIREMENTS:
                                 background: 'var(--cream)',
                                 border: '2px solid var(--accent)',
                                 boxShadow: '0 2px 8px rgba(28,25,23,0.12)',
-                                cursor: 'pointer',
                                 flexShrink: 0,
                               }}
-                              aria-label={`${word} · ${scoreOutOf10} out of 10. Tap to view analysis.`}
-                              title={`${word} · ${scoreOutOf10} / 10 · tap to view analysis`}
                             >
                               <span style={{
                                 fontSize: 26,
@@ -2109,59 +2076,24 @@ CRITICAL OUTPUT REQUIREMENTS:
                               }}>
                                 {scoreOutOf10}
                               </span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); openTodayAnalysis(); }}
-                              className="font-sans transition hover:opacity-80 focus:outline-none"
-                              style={{
-                                fontSize: 24,
-                                lineHeight: 1.05,
-                                fontWeight: 700,
-                                letterSpacing: '-0.02em',
-                                color: 'var(--ink)',
-                                background: 'transparent',
-                                border: 0,
-                                cursor: 'pointer',
-                                padding: 0,
-                              }}
-                              aria-label={`Today reads ${word}. Tap to view analysis.`}
-                              title={`${word} · tap to view analysis`}
-                            >
-                              {word}
-                            </button>
-                          </>
+                            </div>
+                            <div className="text-left">
+                              <div className="font-sans flex items-center gap-1.5" style={{fontSize: 24, lineHeight: 1.05, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--ink)'}}>
+                                {word}
+                                {analysisIsFresh && (
+                                  <span aria-hidden="true" style={{width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', flexShrink: 0}} />
+                                )}
+                              </div>
+                              {todayLog?.analyzing && (
+                                <div className="flex items-center gap-1 mt-0.5" style={{color:'var(--accent)', fontSize: 11}}>
+                                  <Icon name="Loader2" size={11} className="spin" />
+                                  Reading…
+                                </div>
+                              )}
+                            </div>
+                          </button>
                         );
                       })()}
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); openTodayAnalysis(); }}
-                        className="inline-flex items-center gap-1 transition hover:opacity-75"
-                        style={{
-                          color: 'var(--accent)',
-                          fontSize: 11.5,
-                          fontWeight: analysisIsFresh ? 700 : 600,
-                          letterSpacing: '0.01em',
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                          flexShrink: 0,
-                        }}
-                        disabled={todayLog?.id == null}
-                        aria-label={analysisIsFresh ? 'Read new analysis' : 'View analysis'}
-                      >
-                        {todayLog?.analyzing ? (
-                          <>
-                            <Icon name="Loader2" size={12} className="spin" />
-                            Reading…
-                          </>
-                        ) : (
-                          <>
-                            <Icon name="Sparkles" size={12} />
-                            {analysisIsFresh ? 'Read analysis' : 'View analysis'}
-                            <Icon name="ArrowRight" size={11} />
-                          </>
-                        )}
-                      </button>
                     </div>
                   )}
                   {/* === STREAK INLINE — moved above baseline (June 2026 per Jenni) ===
@@ -2313,17 +2245,21 @@ CRITICAL OUTPUT REQUIREMENTS:
           {/* Action tiles tried + reverted May 28 2026 v11 — too loud
               for the editorial direction. CTAs back in right column
               as text links (see RIGHT COLUMN block above). */}
-          {hasTodayPhoto && !todaySnap && !getApiKey() && (
+          {/* July 2026 (keyless unification): the "set your API key to get
+              metrics" CTA is gone — analysis runs keyless via the proxy.
+              If a photo exists but no read landed and nothing is running,
+              offer the read directly. */}
+          {hasTodayPhoto && !todaySnap && !todayLog?.analyzing && todayLog?.id != null && !todayLog?.aiAnalysis && (
             <button
-              onClick={(e) => { e.stopPropagation(); setShowApiKeyModal(true); }}
+              onClick={(e) => { e.stopPropagation(); retryLogAnalysis(todayLog.id); }}
               className="w-full mt-4 mb-1 text-left text-[11px] px-3 py-2 rounded-[10px] flex items-center gap-2 transition hover:opacity-80"
               style={{background:'var(--cream)', border:'1px dashed var(--accent)', color:'var(--accent)'}}
             >
-              <Icon name="Key" size={11} />
-              <span>Set your Anthropic API key to generate skin metrics →</span>
+              <Icon name="Sparkles" size={11} />
+              <span>Run today’s read →</span>
             </button>
           )}
-          {hasTodayPhoto && !todaySnap && getApiKey() && todayLog?.analyzing && (
+          {hasTodayPhoto && !todaySnap && todayLog?.analyzing && (
             <div className="mt-4 mb-1 text-[11px] px-3 py-2 rounded-[10px] flex items-center gap-2" style={{background:'var(--cream)', border: '1px solid var(--line)', color:'var(--ink-soft)'}}>
               <Icon name="Loader2" size={11} className="spin" />
               <span>Reading your skin…</span>
@@ -2479,12 +2415,20 @@ CRITICAL OUTPUT REQUIREMENTS:
               { key: 'texture',    label: 'Texture', icon: 'Activity', iconColor: 'var(--rose)',           tintBg: 'rgba(184,86,72,0.10)' },
             ];
             return (
+              // July 2026 Day 3: the whole rail is ONE tap surface → the read
+              // drawer. The five tiles stopped being five separate doors.
               <div
-                className="mt-3 rounded-[14px] px-2 py-3 md:px-3"
+                className="mt-3 rounded-[14px] px-2 py-3 md:px-3 transition hover:bg-[var(--cream)]"
+                role="button"
+                tabIndex={0}
+                onClick={(e) => { e.stopPropagation(); if (todayLog?.id != null) openTodayAnalysis(); }}
+                onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && todayLog?.id != null) { e.preventDefault(); openTodayAnalysis(); } }}
+                aria-label="Open today's skin read"
                 style={{
                   background:'var(--cream-deep)',
                   border: '1px solid var(--line)',
                   opacity: isPending ? 0.95 : 1,
+                  cursor: todayLog?.id != null ? 'pointer' : 'default',
                 }}
               >
                 <div className="grid grid-cols-5 gap-1 md:gap-2">
@@ -3424,22 +3368,9 @@ CRITICAL OUTPUT REQUIREMENTS:
               <Icon name="ChevronRight" size={14} />
             </button>
           </div>
-          {/* Preview tomorrow — sits below the chevron row, right-aligned
-              under the forward chevron. Cleaner hierarchy than inline next
-              to "Today" (May 31 2026 per Jenni). */}
-          {isViewingToday && canPreviewTomorrow && (
-            <div className="flex justify-end -mt-2 mb-2 pr-1">
-              <button
-                type="button"
-                onClick={() => shiftDay(1)}
-                className="text-[9px] tracking-[0.2em] uppercase transition hover:opacity-70 flex items-center gap-0.5"
-                style={{color:'var(--ink-soft)'}}
-                aria-label="Preview tomorrow's regimen"
-              >
-                preview tmrw <Icon name="ChevronRight" size={9} />
-              </button>
-            </div>
-          )}
+          {/* July 2026 Day 3: "preview tmrw" text link cut — it duplicated
+              the forward chevron in the date pager above (same shiftDay(1),
+              same canPreviewTomorrow gating). One door, already there. */}
           {/* "From your current routine · Edit plan" subline retired
               May 2026 per Jenni: redundant with the Edit routine link
               at the bottom of the card, and added a third meta-line
@@ -4033,38 +3964,27 @@ CRITICAL OUTPUT REQUIREMENTS:
                                 ? `Save ${ctaSlot.toUpperCase()} · all done`
                                 : partialDone
                                   ? `Save ${doneCount}/${totalCount}`
-                                  : `Yes, I did ${ctaSlot.toUpperCase()}`}
+                                  : `Done ${ctaSlot.toUpperCase()}`}
                           </span>
                         </button>
                       );
                     })()}
-                    <div className="grid grid-cols-2 gap-2">
-                      {/* === June 2026 (per Jenni): direct Shelf entry ===
-                          Most users adding to today are adding from their own
-                          shelf. Was 3 taps (Something else? → From shelf →
-                          +AM/+PM); now 1 tap → opens the shelf-quickadd sheet
-                          directly with the current slot pre-set. */}
-                      <button
-                        onClick={() => { if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen({ open: true, slot: ctaSlot, date: viewDate }); }}
-                        className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:opacity-90"
-                        style={{background:'var(--accent)', color:'var(--cream)', border:'1px solid var(--accent)', fontWeight:700, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'}}
-                        title="Quick-add from your shelf or devices to today"
-                        type="button"
-                      >
-                        <Icon name="Layers" size={12} />
-                        <span className="truncate">Shelf</span>
-                      </button>
-                      <button
-                        onClick={() => setUsedSomethingElseSheet({ open: true, slot: ctaSlot, date: viewDate })}
-                        className="rounded-full py-3 px-3 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)]"
-                        style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'}}
-                        title="Add a one-off product, procedure, supplement, or note for today only"
-                        type="button"
-                      >
-                        <Icon name="Plus" size={12} />
-                        <span className="truncate">Something else?</span>
-                      </button>
-                    </div>
+                    {/* === July 2026 Day 3 (command-center pass) ===
+                        "Shelf" + "Something else?" collapsed into ONE door:
+                        Add to today → the shelf quick-add sheet (the common
+                        case, still 1 tap). One-offs (new product, procedure,
+                        supplement, note) live behind a footer link inside
+                        that sheet, so nothing was lost — just one door in. */}
+                    <button
+                      onClick={() => { if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen({ open: true, slot: ctaSlot, date: viewDate }); }}
+                      className="w-full rounded-full py-3 px-4 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)]"
+                      style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'}}
+                      title="Add something to today — from your shelf, or a one-off"
+                      type="button"
+                    >
+                      <Icon name="Plus" size={12} />
+                      <span className="truncate">Add to today</span>
+                    </button>
                   </div>
                 )}
                 {/* === REFINE ROUTINE LINK (June 2026 per Jenni — bottom right) ===
@@ -4082,7 +4002,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                     style={{background:'transparent', color:'var(--ink-soft)', fontWeight:600, fontSize:10, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', border:'none', padding:'4px 0'}}
                     title="Change your routine going forward"
                   >
-                    <span>Refine routine</span>
+                    <span>Edit regimen</span>
                     <Icon name="ArrowRight" size={10} />
                   </button>
                 </div>

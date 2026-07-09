@@ -40,6 +40,7 @@ const ProductModal = ({
   brandSelectedKeys, setBrandSelectedKeys,
   bypassDupeCheckRef,
   callGeminiVision,
+  callGeminiText,
   cleanProductPhotoWithGemini,
   productBrandCatFilter, setProductBrandCatFilter,
   productBrandSelected, setProductBrandSelected,
@@ -206,7 +207,11 @@ CONCERNS: [comma-separated concerns this product targets, ONLY from this list: h
     // One-shot per product, latency is acceptable here (no typing UX). Opus's broader
     // ingredient/concentration knowledge produces noticeably tighter actives + concerns
     // mapping than Haiku, especially for Korean/Japanese brands.
-    const result = await callClaude(prompt, '', null, { model: 'claude-opus-4-6', maxTokens: 800 });
+    // Keyless (July 2026): Gemini via proxy. With key: Opus stays — its
+    // ingredient/concentration knowledge is tighter, esp. K-beauty.
+    const result = getApiKey()
+      ? await callClaude(prompt, '', null, { model: 'claude-opus-4-6', maxTokens: 800 })
+      : await callGeminiText(prompt, { maxTokens: 800 });
     const grab = (k) => { const m = result.match(new RegExp(k + ':\\s*(.+)')); return m ? m[1].trim() : ''; };
     const validCats = ['cleanser','toner','serum','moisturizer','sunscreen','treatment','exfoliant','mask','oil','other'];
     const VALID_CONCERNS = ['oil-control','pores','redness','uneven-tone','dullness','texture','hyperpigmentation','sensitivity','barrier','acne','dryness','dark-circles','wrinkles','fine-lines','sun-damage'];
@@ -235,7 +240,9 @@ CONCERNS: [comma-separated concerns this product targets, ONLY from this list: h
     if (!q) return;
     if (isUrl(q)) { handleFetchFromUrl(); return; }
     if (q.length < 2) { setSearchError('Type at least a couple of characters first.'); return; }
-    if (!getApiKey()) { setSearchError('Add your Anthropic API key first.'); setShowApiKeyModal(true); return; }
+    // July 2026: key gate removed — search runs keyless via the Gemini
+    // proxy. (The old gate also auto-opened the API-key modal from the
+    // typing debounce, which read as a nag.)
     setSearchError('');
     setHasSearched(true);
     // Cache hit
@@ -275,7 +282,9 @@ Return ONLY a JSON array (no prose, no code fences). Each item must have these e
 Example output:
 [{"name":"Niacinamide 10% + Zinc 1%","brand":"The Ordinary","category":"serum","actives":"Niacinamide 10%, Zinc PCA 1%","main":"Pentylene Glycol, Tamarindus Indica, Glycerin","tags":["niacinamide","oil-control","blemish-prone","texture"],"concerns":["enlarged-pores","oiliness","texture","blemishes"]}]`;
       // Haiku 4.5 — fast for structured product lookups
-      const result = await callClaude(prompt, '', null, { model: 'claude-haiku-4-5-20251001', maxTokens: 1200 });
+      const result = getApiKey()
+        ? await callClaude(prompt, '', null, { model: 'claude-haiku-4-5-20251001', maxTokens: 1200 })
+        : await callGeminiText(prompt, { maxTokens: 1200 });
       let parsed = [];
       try {
         const cleaned = result.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
@@ -410,7 +419,8 @@ Example output:
   // label visually and fills any missing fields without overwriting what the user has typed.
   const readLabelFromPhoto = async (photoB64) => {
     if (!photoB64) return;
-    if (!getApiKey()) { setShowApiKeyModal && setShowApiKeyModal(true); return; }
+    // July 2026: key gate removed — this path already tries
+    // callGeminiVision first, which works keyless via the proxy.
     setReadingLabel(true);
     try {
       const prompt = `A bottle/label photo is attached. Read the label visually and extract the product details. Use OCR + your training knowledge of skincare products. Prefer evidence-based answers — but DO NOT invent percentages, ingredients, or claims that the brand does not publicly disclose. When a value is not on the label and not publicly disclosed by the brand, return "unknown" for that field. Honesty about gaps is more useful than guessed numbers.
@@ -870,6 +880,14 @@ VERDICT: [One dry, decisive line: worth it, skip it, or depends-on-what.]`;
       && (!p.saveToToday || p.amSel || p.pmSel)
     );
     if (toSave.length === 0) return;
+    if (detectedProducts.some(p => p.savingState === 'saving')) return; // double-tap guard
+    // July 2026 Day 4: visible saving state. Rows dim + spin, the Save
+    // button reads "Saving…", and any failure resets cleanly instead of
+    // leaving a silently half-saved list.
+    const toSaveSet = new Set(toSave);
+    setDetectedProducts(prev => prev.map(x => toSaveSet.has(x) ? { ...x, savingState: 'saving' } : x));
+    const resetSaving = () => setDetectedProducts(prev => prev.map(x => ({ ...x, savingState: 'idle' })));
+    try {
     const validCats = ['cleanser','toner','serum','moisturizer','sunscreen','treatment','exfoliant','mask','oil','other'];
     const newProducts = toSave.map(p => {
       // Scan AM/PM picks are for today's regimen log, not the standing weekly
@@ -898,7 +916,7 @@ VERDICT: [One dry, decisive line: worth it, skip it, or depends-on-what.]`;
         photoPath: null,
         status: 'active',
         aiAnalysis: null,
-        analyzing: getApiKey() ? true : false});
+        analyzing: canRunAnalysis()});
     });
     const updated = [...newProducts, ...products];
     setProducts(updated);
@@ -948,13 +966,7 @@ VERDICT: [One dry, decisive line: worth it, skip it, or depends-on-what.]`;
         ? (regimenLogs || []).map(r => r.date === ctxDate ? nextLog : r)
         : [nextLog, ...(regimenLogs || [])];
       setRegimenLogs(nextLogs);
-      try {
-        await saveData('regimenLogs', nextLogs);
-      } catch (e) {
-        console.error('[scan products → today regimen]', e);
-        toast(`Save error: ${e?.message || 'unknown'}`, 'error');
-        throw e;
-      }
+      await saveData('regimenLogs', nextLogs);
     }
     if (user?.cloud && user?.id && supabaseClient) {
       newProducts.forEach(np => {
@@ -1001,31 +1013,48 @@ VERDICT: [One dry, decisive line: worth it, skip it, or depends-on-what.]`;
       if (!productModalRegimenContext) setActiveTab && setActiveTab('home');
       setShowProductModal(false);
       setProductModalRegimenContext && setProductModalRegimenContext(null);
-      toast(`Saved ${newProducts.length} and added to today ✨`, 'success');
+      toast(`Saved ${newProducts.length} and added to today.`, 'success');
     } else {
       // Shelf-only scans stay open so the user can add another batch.
-      toast(`Saved ${newProducts.length} ✨ Add another or close`, 'info');
+      toast(`Saved ${newProducts.length}. Add another or close.`, 'info');
     }
-    // Background deep-fill to enrich each
-    if (getApiKey()) {
-      newProducts.forEach(async (np) => {
-        try {
-          const filled = await deepFillProduct({ name: np.name, brand: np.brand, category: np.category });
-          setProducts(prev => {
-            const next = prev.map(pp => pp.id === np.id ? {
-              ...pp,
-              activeIngredients: pp.activeIngredients || filled.activeIngredients,
-              mainIngredients: filled.mainIngredients,
-              tags: filled.tags.length ? filled.tags : pp.tags,
-              concerns: filled.concerns.length ? filled.concerns : pp.concerns,
-              analyzing: false} : pp);
-            saveData('products', next);
-            return next;
-          });
-        } catch (e) {
-          console.warn('Deep fill failed for', np.name, e);
-        }
-      });
+    // === BACKGROUND DEEP-FILL (July 2026 Day 4: keyless + partial-failure toast) ===
+    // Runs keyless via the Gemini proxy (deepFillProduct routes itself).
+    // Failures used to vanish into console.warn — now they're counted and
+    // surfaced once, with a next step.
+    (async () => {
+      const results = await Promise.allSettled(newProducts.map(async (np) => {
+        const filled = await deepFillProduct({ name: np.name, brand: np.brand, category: np.category });
+        setProducts(prev => {
+          const next = prev.map(pp => pp.id === np.id ? {
+            ...pp,
+            activeIngredients: pp.activeIngredients || filled.activeIngredients,
+            mainIngredients: filled.mainIngredients,
+            tags: filled.tags.length ? filled.tags : pp.tags,
+            concerns: filled.concerns.length ? filled.concerns : pp.concerns,
+            analyzing: false} : pp);
+          saveData('products', next);
+          return next;
+        });
+      }));
+      const failed = results.filter(r => r.status === 'rejected');
+      if (failed.length > 0) {
+        console.warn('[scan deep-fill] failures:', failed.map(f => f.reason?.message));
+        toast(`${failed.length} product${failed.length === 1 ? '' : 's'} saved without full details — open ${failed.length === 1 ? 'it' : 'them'} on your shelf to finish.`, 'error');
+        // Clear the analyzing flag on the ones that failed so they don't spin forever.
+        setProducts(prev => {
+          const next = prev.map(pp => (pp.analyzing && newProducts.some(np => np.id === pp.id)) ? { ...pp, analyzing: false } : pp);
+          saveData('products', next);
+          return next;
+        });
+      }
+    })();
+    } catch (e) {
+      // Any failure above (products save, regimen save) resets the rows so
+      // the user can retry — no half-saved dead state.
+      console.error('[saveScannedProducts] failed:', e);
+      resetSaving();
+      toast(`Couldn’t save: ${e?.message || 'unknown error'}. Try again.`, 'error');
     }
   };
 
@@ -1097,7 +1126,7 @@ VERDICT: [One dry, decisive line: worth it, skip it, or depends-on-what.]`;
   const handleFetchFromUrl = async () => {
     const url = searchInput.trim();
     if (!url || !isUrl(url)) return;
-    if (!getApiKey()) { setUrlFetchError('Add your Anthropic API key first.'); return; }
+    // July 2026: key gate removed — deepFillProduct routes keyless via Gemini.
     setUrlFetching(true);
     setUrlFetchError('');
     try {
@@ -2311,15 +2340,21 @@ ALTERNATIVES:
                     {detectedProducts.filter(p => p.checked).length} selected
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={saveScannedProducts}
-                  disabled={detectedProducts.filter(p => p.checked && p.name && (p.saveToShelf !== false || p.saveToToday) && (!p.saveToToday || p.amSel || p.pmSel)).length === 0}
-                  className="h-8 rounded-full px-3 text-[9px] tracking-[0.12em] uppercase flex items-center gap-1 transition hover:opacity-90 disabled:opacity-40 cursor-pointer whitespace-nowrap"
-                  style={{background:'var(--accent)', color:'var(--cream)', cursor:'pointer'}}
-                >
-                  Save selected <Icon name="ArrowRight" size={10} />
-                </button>
+                {(() => {
+                  const batchSaving = detectedProducts.some(p => p.savingState === 'saving');
+                  const saveableCount = detectedProducts.filter(p => p.checked && p.name && (p.saveToShelf !== false || p.saveToToday) && (!p.saveToToday || p.amSel || p.pmSel)).length;
+                  return (
+                    <button
+                      type="button"
+                      onClick={saveScannedProducts}
+                      disabled={batchSaving || saveableCount === 0}
+                      className="h-8 rounded-full px-3 text-[9px] tracking-[0.12em] uppercase flex items-center gap-1 transition hover:opacity-90 disabled:opacity-40 cursor-pointer whitespace-nowrap"
+                      style={{background:'var(--accent)', color:'var(--cream)', cursor: batchSaving ? 'wait' : 'pointer'}}
+                    >
+                      {batchSaving ? (<><Icon name="Loader2" size={10} className="spin" /> Saving…</>) : (<>Save selected <Icon name="ArrowRight" size={10} /></>)}
+                    </button>
+                  );
+                })()}
               </div>
 
               <div className="text-[9px] tracking-[0.25em] uppercase mb-1.5 flex items-center justify-between" style={{color:'var(--ink-soft)'}}>
@@ -2341,12 +2376,102 @@ ALTERNATIVES:
                 {detectedProducts.map((p, i) => {
                   const validCats = ['cleanser','toner','serum','moisturizer','sunscreen','treatment','exfoliant','mask','oil','other'];
                   const updateDetected = (patch) => setDetectedProducts(prev => prev.map((x, j) => j === i ? { ...x, ...patch } : x));
+                  const isSaving = p.savingState === 'saving';
+                  // === COLLAPSED CHECKOUT ROW (July 2026 Day 4) ===
+                  // Default state: one compact line per product — check, name/
+                  // brand, Shelf/AM/PM toggles, expand chevron. The full edit
+                  // card (inputs, category, actives, analyze-fit) only renders
+                  // when the user expands. Scan review reads like a checkout
+                  // list instead of a stack of giant cards.
+                  if (!p._expanded) {
+                    const slotToggle = (slot) => {
+                      const on = slot === 'am' ? !!p.amSel : !!p.pmSel;
+                      const other = slot === 'am' ? !!p.pmSel : !!p.amSel;
+                      updateDetected(slot === 'am'
+                        ? { amSel: !on, saveToToday: !on ? true : other, saveToShelf: true }
+                        : { pmSel: !on, saveToToday: !on ? true : other, saveToShelf: true });
+                    };
+                    return (
+                      <div
+                        key={i}
+                        className="rounded-lg border px-2 py-1.5 flex items-center gap-2"
+                        style={{borderColor: p.checked ? 'rgba(229,60,45,0.32)' : 'var(--line)', background: p.checked ? 'rgba(229,60,45,0.025)' : 'var(--cream)', opacity: isSaving ? 0.7 : 1}}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => updateDetected({ checked: !p.checked })}
+                          className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition cursor-pointer"
+                          style={{background: p.checked ? 'var(--accent)' : 'transparent', border:'1px solid ' + (p.checked ? 'var(--accent)' : 'var(--line)'), color: p.checked ? 'var(--cream)' : 'var(--ink-soft)', cursor:'pointer'}}
+                          aria-label={p.checked ? 'Exclude product' : 'Include product'}
+                        >
+                          {p.checked ? <Icon name="Check" size={11} /> : <Icon name="Plus" size={11} />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateDetected({ _expanded: true })}
+                          className="flex-1 min-w-0 text-left cursor-pointer"
+                          style={{background:'transparent', border:'none', padding:0, cursor:'pointer'}}
+                          aria-label={`Edit details for ${p.name || 'unnamed product'}`}
+                        >
+                          <div className="truncate leading-tight" style={{color:'var(--ink)', fontWeight:600, fontSize:13}}>{p.name || 'Unnamed product'}</div>
+                          <div className="truncate leading-tight" style={{color: p.confidence === 'low' ? 'var(--rose)' : 'var(--ink-soft)', fontSize:10.5}}>
+                            {p.brand || 'Unknown brand'}{p.confidence === 'low' ? ' · low confidence' : ''}
+                          </div>
+                        </button>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => updateDetected({ saveToShelf: p.saveToToday ? true : p.saveToShelf === false })}
+                            disabled={!!p.saveToToday}
+                            className="h-7 text-[8.5px] tracking-[0.1em] uppercase px-1.5 rounded-full border transition cursor-pointer whitespace-nowrap disabled:opacity-60"
+                            style={{
+                              background: p.saveToShelf !== false ? 'var(--ink)' : 'transparent',
+                              color: p.saveToShelf !== false ? 'var(--cream)' : 'var(--ink-soft)',
+                              borderColor: p.saveToShelf !== false ? 'var(--ink)' : 'var(--line)',
+                              cursor: p.saveToToday ? 'default' : 'pointer',
+                            }}
+                          >Shelf</button>
+                          {['am','pm'].map(slot => {
+                            const on = slot === 'am' ? !!p.amSel : !!p.pmSel;
+                            return (
+                              <button
+                                key={slot}
+                                type="button"
+                                onClick={() => slotToggle(slot)}
+                                className="h-7 min-w-8 text-[8.5px] tracking-[0.1em] uppercase px-1.5 rounded-full border transition cursor-pointer whitespace-nowrap"
+                                style={{background: on ? 'var(--accent)' : 'transparent', color: on ? 'var(--cream)' : 'var(--ink-soft)', borderColor: on ? 'var(--accent)' : 'var(--line)', cursor:'pointer'}}
+                              >{slot}</button>
+                            );
+                          })}
+                          <button
+                            type="button"
+                            onClick={() => updateDetected({ _expanded: true })}
+                            className="w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer"
+                            style={{color:'var(--ink-soft)', border:'none', background:'transparent', cursor:'pointer'}}
+                            aria-label="Edit details"
+                          >
+                            {isSaving ? <Icon name="Loader2" size={12} className="spin" /> : <Icon name="ChevronDown" size={13} />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
                   return (
                     <div
                       key={i}
-                      className="rounded-lg p-2 border"
+                      className="rounded-lg p-2 border relative"
                       style={{borderColor: p.checked ? 'rgba(229,60,45,0.32)' : 'var(--line)', background: p.checked ? 'rgba(229,60,45,0.025)' : 'var(--cream)'}}
                     >
+                      {/* Collapse back to the compact row */}
+                      <button
+                        type="button"
+                        onClick={() => updateDetected({ _expanded: false })}
+                        className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer z-10"
+                        style={{color:'var(--ink-soft)', border:'none', background:'transparent', cursor:'pointer'}}
+                        aria-label="Collapse details"
+                      >
+                        <Icon name="ChevronUp" size={13} />
+                      </button>
                       <div className="flex items-start gap-2">
                         <button
                           type="button"

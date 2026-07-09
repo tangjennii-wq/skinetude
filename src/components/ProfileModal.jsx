@@ -164,7 +164,9 @@ DEFAULT_USER_PROFILE = PROFILE_MODAL_DEFAULT_USER_PROFILE}) => {
   useEffect(() => {
     if (stepIdx !== 1) return;
     if (!tonePhoto || toneSuggestion || toneSuggesting) return;
-    if (!getApiKey()) return;
+    // July 2026: getApiKey() gate removed — this runs on callGeminiVision,
+    // which works keyless via the proxy. The old gate silently hid the
+    // tone suggestion from every keyless user.
     let cancelled = false;
     setToneSuggesting(true);
     setToneError(null);
