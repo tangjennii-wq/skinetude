@@ -169,6 +169,16 @@ const GuidedPhotoCaptureModal = ({
     video.play().catch(() => {});
   }, [currentStep.angle, currentHasShot, showDetailed]);
 
+  // July 2026 Day 7 (mobile QA): keep the active tray circle visible.
+  // With 10 slots in a horizontal scroll, steps 6–10 sat off-screen at
+  // 380px — auto-advance moved the step but not the tray.
+  const activeTrayRef = useRef(null);
+  useEffect(() => {
+    const el = activeTrayRef.current;
+    if (!el || typeof el.scrollIntoView !== 'function') return;
+    try { el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); } catch {}
+  }, [stepIdx, detailedIdx, showDetailed]);
+
   // === snap() — square crop, downscaled to 800px @ 0.85. Same parameters
   // as CameraCaptureModal so photo payload size is consistent regardless
   // of which surface produced it. Compression here is NOT optional — we
@@ -601,7 +611,7 @@ const GuidedPhotoCaptureModal = ({
                 ? (guidedIndex >= 0 ? `Review step ${guidedIndex + 1}: ${s.label}` : `Review focus-area photo: ${s.label}`)
                 : (guidedIndex >= 0 ? `Capture ${s.label}` : `Add focus photo: ${s.label}`);
               return (
-                <div key={s.angle} className="relative flex flex-col items-center gap-1 flex-shrink-0">
+                <div key={s.angle} ref={active ? activeTrayRef : null} className="relative flex flex-col items-center gap-1 flex-shrink-0">
                   <button
                     type="button"
                     onClick={goToStep}

@@ -150,14 +150,17 @@ const RoutineProductRow = ({ product, index, slot, onRemove, onMove, editMode = 
               <Icon name={expanded ? 'ChevronUp' : 'ChevronDown'} size={13} />
             </button>
           )}
+          {/* July 2026 Day 7 (mobile QA P1): edit-mode controls bumped from
+              28px to 36px — these are primary interactions in the quick-edit
+              flow, not incidental icons. Negative margin keeps row height. */}
           {editMode && typeof onMove === 'function' && (
-            <button type="button" onClick={(e) => { e.stopPropagation(); onMove(product, slot); }} className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)]" style={{color: rowActionColor, cursor:'pointer'}} title={`Move to ${slot === 'am' ? 'PM' : 'AM'} for today only`} aria-label={`Move ${name} to ${slot === 'am' ? 'PM' : 'AM'} for today`}>
-              <Icon name={slot === 'am' ? 'Moon' : 'Sun'} size={12} />
+            <button type="button" onClick={(e) => { e.stopPropagation(); onMove(product, slot); }} className="w-9 h-9 -my-1 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)]" style={{color: rowActionColor, cursor:'pointer'}} title={`Move to ${slot === 'am' ? 'PM' : 'AM'} for today only`} aria-label={`Move ${name} to ${slot === 'am' ? 'PM' : 'AM'} for today`}>
+              <Icon name={slot === 'am' ? 'Moon' : 'Sun'} size={14} />
             </button>
           )}
           {editMode && (
-            <button type="button" onClick={(e) => { e.stopPropagation(); onRemove && onRemove(product, slot); }} className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[rgba(201,138,138,0.10)] hover:text-[var(--rose)]" style={{color: rowActionColor, opacity: 0.65, cursor:'pointer'}} title={`Skip ${name || 'this step'} today, or remove it from the plan`} aria-label={`Skip or remove ${name}`}>
-              <Icon name="X" size={12} />
+            <button type="button" onClick={(e) => { e.stopPropagation(); onRemove && onRemove(product, slot); }} className="w-9 h-9 -my-1 rounded-full flex items-center justify-center transition hover:bg-[rgba(201,138,138,0.10)] hover:text-[var(--rose)]" style={{color: rowActionColor, opacity: 0.65, cursor:'pointer'}} title={`Skip ${name || 'this step'} today, or remove it from the plan`} aria-label={`Skip or remove ${name}`}>
+              <Icon name="X" size={14} />
             </button>
           )}
         </div>

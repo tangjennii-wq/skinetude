@@ -14651,6 +14651,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
             : [nextLog, ...regimenLogs];
           setRegimenLogs(next);
           saveData('regimenLogs', next).catch(() => {});
+          setCoverRoutineRebuildToken(t => t + 1); // Day 7: last write path missing the bump
           // Date-stamped toast on past days; conventional "today's" on today.
           toast(
             isToday

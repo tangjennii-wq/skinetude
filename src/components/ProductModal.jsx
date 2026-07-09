@@ -2472,7 +2472,9 @@ ALTERNATIVES:
                       >
                         <Icon name="ChevronUp" size={13} />
                       </button>
-                      <div className="flex items-start gap-2">
+                      {/* pr-7 clears the absolute collapse chevron (Day 7 QA:
+                          long names were sliding under it). */}
+                      <div className="flex items-start gap-2 pr-7">
                         <button
                           type="button"
                           onClick={() => updateDetected({ checked: !p.checked })}
