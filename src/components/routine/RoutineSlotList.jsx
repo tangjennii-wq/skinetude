@@ -28,7 +28,7 @@
 //   onRemove      — (product, slot) => void. Forwarded to each row's X.
 //   hiddenProducts — Array<Product>. Products hidden behind the safe six-item cap.
 //   onOverflow      — legacy no-op prop. Overflow now expands inline.
-const RoutineSlotList = ({ slot, products = [], overflow = 0, hiddenProducts = [], canRepeat, onRepeat, onRemove, onMove, editMode = false, onOverflow, doneIds = [], onToggleDone, shelfProducts, regimenLogs }) => {
+const RoutineSlotList = ({ slot, products = [], overflow = 0, hiddenProducts = [], canRepeat, onRepeat, onRemove, onMove, onInfo, editMode = false, onOverflow, doneIds = [], onToggleDone, shelfProducts, regimenLogs }) => {
   const [showAll, setShowAll] = React.useState(false);
   const safeHidden = Array.isArray(hiddenProducts) ? hiddenProducts : [];
   const visibleProducts = showAll ? [...products, ...safeHidden] : products;
@@ -58,6 +58,7 @@ const RoutineSlotList = ({ slot, products = [], overflow = 0, hiddenProducts = [
             slot={slot}
             onRemove={onRemove}
             onMove={onMove}
+            onInfo={onInfo}
             editMode={editMode}
             done={!!(p && doneIds && doneIds.includes(p.id))}
             onToggleDone={onToggleDone}

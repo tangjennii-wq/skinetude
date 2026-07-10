@@ -34,6 +34,7 @@ const RegimenTodayView = ({
   // July 2026 Phase 1 (Home parity): quick-edit layer needs these.
   setProducts,
   setRemoveScopePrompt,
+  setExpandedShelfProductId, // row tap → expanded Shelf card
   userProfile}) => {
   const [showAllRitualItems, setShowAllRitualItems] = useState(false);
   // (expandedRitualItemId + mech/evidence row toggles deleted July 2026
@@ -82,11 +83,21 @@ const RegimenTodayView = ({
   const viewDayLabel = isViewingToday ? 'Today'
     : viewDate === yKey ? `Yesterday · ${dateShort}`
     : new Date(viewDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  // July 2026 per Jenni: forward navigation goes up to +6 days so
+  // subsequent days can be viewed and edited (quick-edit + Add sheet
+  // write date-scoped logs already). Requires a built pattern.
+  const futureMaxKey = (() => {
+    const d = new Date(todayKey + 'T00:00:00');
+    d.setDate(d.getDate() + 6);
+    return localDateISO(d);
+  })();
+  const isFutureView = viewDate > todayKey;
   const shiftDay = (deltaDays) => {
     const d = new Date(viewDate + 'T00:00:00');
     d.setDate(d.getDate() + deltaDays);
     const next = localDateISO(d);
-    if (next > todayKey) return;
+    if (next > futureMaxKey) return;
+    if (next > todayKey && !userHasBuiltPattern(products)) return;
     setRitualViewDate(next);
   };
 
@@ -564,6 +575,9 @@ const RegimenTodayView = ({
           </button>
           <div className="flex items-baseline gap-2">
             <span className="font-sans text-[13px]" style={{color: isViewingToday ? 'var(--accent)' : 'var(--ink)'}}>{viewDayLabel}</span>
+            {isFutureView && (
+              <span className="text-[8.5px] tracking-[0.2em] uppercase px-1.5 py-0.5 rounded-full" style={{ background: 'var(--accent-primary-soft)', color: 'var(--accent)', fontWeight: 700 }}>planned</span>
+            )}
             {/* Logged-today cue (restored May 2026). */}
             {isViewingToday && submittedToday && (
               <span
@@ -588,9 +602,10 @@ const RegimenTodayView = ({
           <button
             type="button"
             onClick={() => shiftDay(1)}
-            disabled={isViewingToday}
+            disabled={viewDate >= futureMaxKey || (viewDate >= todayKey && !userHasBuiltPattern(products))}
+            title={viewDate >= todayKey && !userHasBuiltPattern(products) ? 'Build your weekly pattern to plan ahead' : 'Next day'}
             className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[var(--cream)] cursor-pointer disabled:opacity-30"
-            style={{color:'var(--ink-soft)', cursor: isViewingToday ? 'default' : 'pointer'}}
+            style={{color:'var(--ink-soft)', cursor: (viewDate >= futureMaxKey || (viewDate >= todayKey && !userHasBuiltPattern(products))) ? 'default' : 'pointer'}}
             aria-label="Next day"
           >
             <Icon name="ChevronRight" size={14} />
@@ -826,7 +841,7 @@ const RegimenTodayView = ({
                   aria-pressed={editToday}
                 >
                   <Icon name={editToday ? 'X' : 'Pencil'} size={10} />
-                  <span>{editToday ? 'Done editing' : 'Edit today'}</span>
+                  <span>{editToday ? 'Done editing' : (isFutureView ? 'Edit this day' : 'Edit today')}</span>
                 </button>
               </div>
               <RoutineSlotList
@@ -844,6 +859,12 @@ const RegimenTodayView = ({
                   }
                 }}
                 onMove={moveToday}
+                onInfo={(p) => {
+                  // Row tap → full Shelf card (July 2026 per Jenni).
+                  if (!p || !p.id || typeof setExpandedShelfProductId !== 'function') return;
+                  setExpandedShelfProductId(p.id);
+                  setRegimenView('shelf');
+                }}
                 editMode={editToday}
                 onOverflow={() => {}}
                 doneIds={doneIdsRender}
@@ -891,7 +912,24 @@ const RegimenTodayView = ({
         {/* Hero-matched action stack: confirm, add one-off, rebuild.
             The one-off sheet carries From Shelf / New Product /
             procedure / supplement / device / note, same as Atelier. */}
-        {!activeSlotIsEmpty && (
+        {!activeSlotIsEmpty && isFutureView && (
+          // Future days: no Done pill — Add spans the row, edits are date-scoped.
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => { if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen({ open: true, slot: ritualSlot, date: viewDate }); }}
+              className="w-full rounded-full py-3 px-2 flex items-center justify-center gap-1 transition hover:bg-[var(--cream)]"
+              style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'}}
+            >
+              <Icon name="Plus" size={12} />
+              <span className="truncate">Add to this day</span>
+            </button>
+            <div className="text-center mt-2 text-[10px]" style={{color:'var(--ink-soft)'}}>
+              Planned from your weekly rotation — edits here apply to this day only.
+            </div>
+          </div>
+        )}
+        {!activeSlotIsEmpty && !isFutureView && (
           // === LEFT/RIGHT PILL ROW (July 2026 per Jenni — Home parity) ===
           // Done pill with a select-all circle segment; Add to today beside it.
           <div className="mt-3 grid grid-cols-2 gap-2">
@@ -983,6 +1021,21 @@ const RegimenTodayView = ({
           </div>
         )}
 
+        {/* === EDIT WEEKLY PLAN LINK (July 2026 per Jenni) ===
+            The recurring-change door, one line, always visible — small
+            plan changes go to the grid, not the builder. */}
+        <div className="flex justify-end mt-3">
+          <button
+            type="button"
+            onClick={() => setRegimenView('build')}
+            className="inline-flex items-center gap-1 transition hover:opacity-70"
+            style={{background:'transparent', color:'var(--ink-soft)', fontWeight:600, fontSize:10, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', border:'none', padding:'4px 0'}}
+            title="Change your routine going forward"
+          >
+            <span>Edit weekly plan</span>
+            <Icon name="ArrowRight" size={10} />
+          </button>
+        </div>
         {/* Clear utility moved to upper-right header icons (slot-aware). */}
         {/* Note card removed (May 2026 per Jenni): "Frida AI learns
             from your log to personalize recommendations" was static

@@ -27,6 +27,14 @@ const RegimenShelfView = ({
   setProductCompareId,
   setShelfTagFilter,
   setShowInactiveProducts, showInactiveProducts}) => {
+  // July 2026 per Jenni: when a routine row deep-links here with a product
+  // pre-expanded, scroll its card into view so the user lands ON it.
+  const expandedRowRef = useRef(null);
+  useEffect(() => {
+    const el = expandedRowRef.current;
+    if (!el || typeof el.scrollIntoView !== 'function') return;
+    try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+  }, [expandedShelfProductId]);
   return (() => {
   // Categorize: a product flagged as a retinoid (active or tag) gets its own group regardless of stored category.
   // Otherwise we use the stored category.
@@ -143,7 +151,7 @@ const RegimenShelfView = ({
               setCoverRoutineRebuildToken(t => t + 1);
             };
             return (
-              <div key={product.id} style={{borderTop: idx === 0 ? 'none' : '1px solid var(--line)'}}>
+              <div key={product.id} ref={expanded ? expandedRowRef : null} style={{borderTop: idx === 0 ? 'none' : '1px solid var(--line)'}}>
                 <div
                   className="w-full flex items-center gap-2 px-3 py-2 transition"
                   style={{background: expanded ? 'var(--cream-deep)' : 'transparent'}}

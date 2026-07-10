@@ -20,6 +20,7 @@ const HomeDashboard = ({
   logs,
   products,
   setProducts, // July 2026 (quick-edit layer): Apply-going-forward promotes today's additions into the weekly plan
+  setExpandedShelfProductId, // July 2026: row tap → that product's expanded Shelf card
   procedures,
   events,
   regimenLogs, setRegimenLogs,
@@ -2769,13 +2770,22 @@ CRITICAL OUTPUT REQUIREMENTS:
         : viewDate === yKey ? `Yesterday · ${dateShort}`
         : new Date(viewDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
       // Scrub controls — go back/forward in days. Past is unlimited;
-      // future is capped at +1 day AND only allowed when the user has
-      // a built weekly pattern (so tomorrow has something to preview).
+      // July 2026 per Jenni: future now goes up to +6 days (was +1) so
+      // subsequent days can be VIEWED AND EDITED without the weekly-plan
+      // builder — the quick-edit layer, Add-to-today sheet, and move/skip
+      // all write date-scoped regimenLogs, so they already work for any
+      // date. Still requires a built pattern so there's something to show.
+      const futureMaxKey = (() => {
+        const d = new Date(todayStr + 'T00:00:00');
+        d.setDate(d.getDate() + 6);
+        return localDateISO(d);
+      })();
+      const isFutureView = viewDate > todayStr;
       const shiftDay = (deltaDays) => {
         const d = new Date(viewDate + 'T00:00:00');
         d.setDate(d.getDate() + deltaDays);
         const next = localDateISO(d);
-        if (next > tKey) return;                     // never beyond tomorrow
+        if (next > futureMaxKey) return;             // cap at +6 days
         if (next > todayStr && !hasBuiltPattern) return; // future requires a built pattern
         setRitualViewDate(next);
       };
@@ -2851,7 +2861,11 @@ CRITICAL OUTPUT REQUIREMENTS:
         setRemoveScopePrompt({
           product,
           slot,
-          today: localDateISO(),
+          // July 2026 fix (caught in review): was localDateISO() — skipping a
+          // product while viewing another day wrote to TODAY's log and could
+          // seed it with the other day's roster. The prompt targets the day
+          // being viewed, same as RegimenTodayView.
+          today: viewDate,
           seedAmIds: amList.map(p => p.id),
           seedPmIds: pmList.map(p => p.id),
         });
@@ -3399,8 +3413,8 @@ CRITICAL OUTPUT REQUIREMENTS:
             </button>
             <div className="flex items-baseline gap-2">
               <span className="font-sans text-[14px]" style={{color: isViewingToday ? 'var(--accent)' : 'var(--ink)'}}>{viewDayLabel}</span>
-              {isPreviewingTomorrow && (
-                <span className="text-[8.5px] tracking-[0.2em] uppercase px-1.5 py-0.5 rounded-full" style={{ background: 'var(--accent-primary-soft)', color: 'var(--accent)', fontWeight: 700 }}>preview</span>
+              {isFutureView && (
+                <span className="text-[8.5px] tracking-[0.2em] uppercase px-1.5 py-0.5 rounded-full" style={{ background: 'var(--accent-primary-soft)', color: 'var(--accent)', fontWeight: 700 }}>planned</span>
               )}
               {/* "Logged" badge retired May 2026 (Jenni): the
                   "Today logged" status pill near the primary CTA
@@ -3420,10 +3434,10 @@ CRITICAL OUTPUT REQUIREMENTS:
             <button
               type="button"
               onClick={() => shiftDay(1)}
-              disabled={isPreviewingTomorrow || (isViewingToday && !canPreviewTomorrow)}
-              title={isViewingToday && !hasBuiltPattern ? 'Build your weekly pattern to preview tomorrow' : ''}
+              disabled={viewDate >= futureMaxKey || (!hasBuiltPattern && viewDate >= todayStr)}
+              title={!hasBuiltPattern && viewDate >= todayStr ? 'Build your weekly pattern to plan ahead' : 'Next day'}
               className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[var(--cream)] cursor-pointer disabled:opacity-30"
-              style={{color:'var(--ink-soft)', cursor: (isPreviewingTomorrow || (isViewingToday && !canPreviewTomorrow)) ? 'default' : 'pointer'}}
+              style={{color:'var(--ink-soft)', cursor: (viewDate >= futureMaxKey || (!hasBuiltPattern && viewDate >= todayStr)) ? 'default' : 'pointer'}}
               aria-label="Next day"
             >
               <Icon name="ChevronRight" size={14} />
@@ -3497,7 +3511,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                   aria-pressed={editToday}
                 >
                   <Icon name={editToday ? 'X' : 'Pencil'} size={10} />
-                  <span>{editToday ? 'Done editing' : 'Edit today'}</span>
+                  <span>{editToday ? 'Done editing' : (isFutureView ? 'Edit this day' : 'Edit today')}</span>
                 </button>
               </div>
               {/* === SLIM NUMBERED LIST (May 2026) ===
@@ -3554,6 +3568,15 @@ CRITICAL OUTPUT REQUIREMENTS:
                       onRemove={removeFromSlot}
                       onMove={moveSlotToday}
                       editMode={editToday}
+                      onInfo={(p) => {
+                        // July 2026 per Jenni: tap the row → the product's
+                        // full Shelf card (ingredients, tags, assessment,
+                        // Analyze button). One info surface, not two.
+                        if (!p || !p.id || typeof setExpandedShelfProductId !== 'function') return;
+                        setExpandedShelfProductId(p.id);
+                        setActiveTab('regimen');
+                        setRegimenView('shelf');
+                      }}
                       onOverflow={() => {}}
                       doneIds={doneIdsForRender}
                       onToggleDone={(product, slotKey) => {
@@ -4070,6 +4093,25 @@ CRITICAL OUTPUT REQUIREMENTS:
                   // pill is its own tap target: one tap fills every row
                   // circle (select-all-done); the label commits. Undo state
                   // collapses back to a single-action pill.
+                  // Future days: no Done pill (you can't have done tomorrow's
+                  // regimen yet) — Add spans the row and edits write to that day.
+                  isFutureView ? (
+                    <div className="mt-3">
+                      <button
+                        onClick={() => { if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen({ open: true, slot: ctaSlot, date: viewDate }); }}
+                        className="w-full rounded-full py-3 px-2 flex items-center justify-center gap-1 transition hover:bg-[var(--cream)]"
+                        style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'}}
+                        title={`Add something to ${dateShort}`}
+                        type="button"
+                      >
+                        <Icon name="Plus" size={12} />
+                        <span className="truncate">Add to {dateShort}</span>
+                      </button>
+                      <div className="text-center mt-2 text-[10px]" style={{color:'var(--ink-soft)'}}>
+                        Planned from your weekly rotation — edits here apply to {dateShort} only.
+                      </div>
+                    </div>
+                  ) : (
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     {(() => {
                       const allDone = totalCount > 0 && doneCount === totalCount;
@@ -4175,6 +4217,7 @@ CRITICAL OUTPUT REQUIREMENTS:
                       <span className="truncate">Add to today</span>
                     </button>
                   </div>
+                  )
                 )}
                 {/* === REFINE ROUTINE LINK (June 2026 per Jenni — bottom right) ===
                     Quiet text link that routes to Regimen → Refine view.

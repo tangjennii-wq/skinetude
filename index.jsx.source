@@ -11322,6 +11322,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
             logs={logs}
             products={products}
             setProducts={setProducts}
+            setExpandedShelfProductId={setExpandedShelfProductId}
             procedures={procedures}
             events={events}
             regimenLogs={regimenLogs}
@@ -17914,7 +17915,10 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   today's context; Procedure opens its modal; Device /
                   Supplement / Note deep-link into the one-off sheet with
                   the right input already open. */}
-              <div className="px-4 pb-2 flex gap-1.5 overflow-x-auto no-scrollbar">
+              {/* flex-shrink-0 is load-bearing: the sheet is a flex column
+                  with overflow:hidden, and a scrollable child shrinks below
+                  its content height without it (chips rendered half-cut). */}
+              <div className="px-4 pb-2 flex gap-1.5 overflow-x-auto no-scrollbar flex-shrink-0">
                 {(() => {
                   const ctx = { slot: shelfQuickAddState.slot || 'am', date: shelfQuickAddState.date || localDateISO() };
                   const chip = (icon, label, onClick) => (

@@ -197,6 +197,7 @@ const RegimenView = ({
       setUsedSomethingElseSheet={setUsedSomethingElseSheet}
       setProducts={setProducts}
       setRemoveScopePrompt={setRemoveScopePrompt}
+      setExpandedShelfProductId={setExpandedShelfProductId}
       userProfile={userProfile}
     />
   )}

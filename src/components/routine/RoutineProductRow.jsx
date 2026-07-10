@@ -49,7 +49,7 @@ const truncateAtSentence = (text, maxChars = 240) => {
   return { concise: (lastSpace > 60 ? cut.slice(0, lastSpace) : cut).trim() + '…', isTruncated: true };
 };
 
-const RoutineProductRow = ({ product, index, slot, onRemove, onMove, editMode = false, done = false, onToggleDone }) => {
+const RoutineProductRow = ({ product, index, slot, onRemove, onMove, onInfo, editMode = false, done = false, onToggleDone }) => {
   const [expanded, setExpanded] = React.useState(false);
   const [mechFull, setMechFull] = React.useState(false);
   const [evFull, setEvFull] = React.useState(false);
@@ -131,7 +131,19 @@ const RoutineProductRow = ({ product, index, slot, onRemove, onMove, editMode = 
         })() : (
           <span className="text-[10.5px] tabular-nums w-4 text-center flex-shrink-0" style={{color:'var(--ink-soft)', fontWeight:600}}>{index + 1}</span>
         )}
-        <button type="button" onClick={() => setExpanded(v => !v)} className="flex-1 min-w-0 text-left transition hover:opacity-80" style={{cursor:'pointer'}}>
+        <button
+          type="button"
+          onClick={() => {
+            // July 2026 per Jenni: row tap goes to the product's full Shelf
+            // card when the caller provides onInfo (ingredients, tags,
+            // assessment, Analyze). The chevron keeps the quick inline peek.
+            if (typeof onInfo === 'function' && !editMode) onInfo(product);
+            else setExpanded(v => !v);
+          }}
+          className="flex-1 min-w-0 text-left transition hover:opacity-80"
+          style={{cursor:'pointer'}}
+          title={typeof onInfo === 'function' && !editMode ? `Open ${name || 'product'} details` : undefined}
+        >
           {/* Single combined eyebrow — BRAND · CATEGORY (May 31 2026 per Jenni)
               to halve grey-text density. If only one exists, show that one. */}
           {(brand || category) && (
