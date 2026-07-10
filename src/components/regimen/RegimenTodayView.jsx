@@ -35,6 +35,7 @@ const RegimenTodayView = ({
   setProducts,
   setRemoveScopePrompt,
   setExpandedShelfProductId, // row tap → expanded Shelf card
+  onEditWeeklyPlan, // July 2026: Today now lives inside the Plan surface — this flips the lens
   userProfile}) => {
   const [showAllRitualItems, setShowAllRitualItems] = useState(false);
   // (expandedRitualItemId + mech/evidence row toggles deleted July 2026
@@ -1027,7 +1028,7 @@ const RegimenTodayView = ({
         <div className="flex justify-end mt-3">
           <button
             type="button"
-            onClick={() => setRegimenView('build')}
+            onClick={() => { if (typeof onEditWeeklyPlan === 'function') onEditWeeklyPlan(); else setRegimenView('build'); }}
             className="inline-flex items-center gap-1 transition hover:opacity-70"
             style={{background:'transparent', color:'var(--ink-soft)', fontWeight:600, fontSize:10, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', border:'none', padding:'4px 0'}}
             title="Change your routine going forward"

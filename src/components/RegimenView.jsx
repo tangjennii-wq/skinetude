@@ -115,6 +115,9 @@ const RegimenView = ({
     } else if (regimenView === 'bench') {
       setShelfBenchOnly(true);
       setRegimenView('shelf');
+    } else if (regimenView === 'today') {
+      setPlanLens('today');
+      setRegimenView('build');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [regimenView]);
@@ -157,8 +160,7 @@ const RegimenView = ({
         Phase A.2 (deferred — full Picks scoring engine extraction). */}
     <EditorialSubTabs
       tabs={[
-        { id: 'build', label: userHasBuiltPattern(products) ? 'Refine' : 'Build' },
-        { id: 'today', label: 'Today' },
+        { id: 'build', label: 'Regimen' },
         { id: 'shelf', label: 'Shelf' },
         { id: 'buildweek', label: 'Build' },
       ]}
@@ -179,8 +181,42 @@ const RegimenView = ({
       themed 7-day strip computed from logs + product cadence. No new
       AI calls required for first paint; tap-to-detail can call AI for
       the per-day reasoning if a key is set. */}
-  {regimenView === 'today' && (
+  {/* Today branch folded into the Plan surface lenses (July 2026 per Jenni). */}
+
+  {/* === BUILD VIEW ===
+      Frida Formulary panel at the top (inline version of the same
+      drawer on the Journal page) + the existing RoutineBuilder
+      wizard below. Both surfaces share matchesDrawerFilter state so
+      pill selection persists across the two views. */}
+  {regimenView === 'build' && userHasBuiltPattern(products) && (
+    <>
+      {/* === LENS TOGGLE (July 2026 per Jenni) === one plan, two views:
+          edit-in-place by product, or the calendar week lens (the old
+          Rotation surface, folded in — its tab is gone). */}
+      <div className="rounded-full flex p-1 gap-1 mb-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+        {[
+          { id: 'today', label: 'Today', icon: 'Sun' },
+          { id: 'product', label: 'Products', icon: 'ListChecks' },
+          { id: 'week', label: 'Week', icon: 'Calendar' },
+        ].map(t => {
+          const active = planLens === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setPlanLens(t.id)}
+              className="flex-1 rounded-full py-2 px-3 flex items-center justify-center gap-1.5 transition"
+              style={{background: active ? 'var(--accent-soft)' : 'transparent', color: active ? 'var(--accent)' : 'var(--ink-soft)', cursor:'pointer'}}
+            >
+              <Icon name={t.icon} size={12} style={{color: active ? 'var(--accent)' : 'var(--ink-soft)'}} />
+              <span className="text-[10.5px] tracking-[0.22em] uppercase">{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      {planLens === 'today' ? (
     <RegimenTodayView
+      onEditWeeklyPlan={() => setPlanLens('product')}
       generatedProductArt={{}}
       buildPlan={buildPlan}
       buildPlanAccepted={buildPlanAccepted}
@@ -213,39 +249,7 @@ const RegimenView = ({
       setExpandedShelfProductId={setExpandedShelfProductId}
       userProfile={userProfile}
     />
-  )}
-
-  {/* === BUILD VIEW ===
-      Frida Formulary panel at the top (inline version of the same
-      drawer on the Journal page) + the existing RoutineBuilder
-      wizard below. Both surfaces share matchesDrawerFilter state so
-      pill selection persists across the two views. */}
-  {regimenView === 'build' && userHasBuiltPattern(products) && (
-    <>
-      {/* === LENS TOGGLE (July 2026 per Jenni) === one plan, two views:
-          edit-in-place by product, or the calendar week lens (the old
-          Rotation surface, folded in — its tab is gone). */}
-      <div className="rounded-full flex p-1 gap-1 mb-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
-        {[
-          { id: 'product', label: 'By product', icon: 'ListChecks' },
-          { id: 'week', label: 'Week view', icon: 'Calendar' },
-        ].map(t => {
-          const active = planLens === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setPlanLens(t.id)}
-              className="flex-1 rounded-full py-2 px-3 flex items-center justify-center gap-1.5 transition"
-              style={{background: active ? 'var(--accent-soft)' : 'transparent', color: active ? 'var(--accent)' : 'var(--ink-soft)', cursor:'pointer'}}
-            >
-              <Icon name={t.icon} size={12} style={{color: active ? 'var(--accent)' : 'var(--ink-soft)'}} />
-              <span className="text-[10.5px] tracking-[0.22em] uppercase">{t.label}</span>
-            </button>
-          );
-        })}
-      </div>
-      {planLens === 'week' ? (
+      ) : planLens === 'week' ? (
         <RegimenOccasionsView
           logs={logs}
           products={products}
