@@ -24,6 +24,130 @@
 //   toast         — feedback funnel.
 
 const WEEKLY_DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const WEEKLY_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// === WeeklyDayEditor (July 2026 per Jenni) ===
+// The transposed edit lens: pick a DAY, then toggle which in-plan
+// products run that day, per slot. Same cadence.days data the product
+// grid edits — just day-major instead of product-major. The read-only
+// rotation calendar lives on the Regimen tab; this one is for changing
+// things.
+const WeeklyDayEditor = ({ products, setProducts, saveData, setCoverRoutineRebuildToken, toast }) => {
+  const [dayIdx, setDayIdx] = useState(new Date().getDay());
+  const active = (Array.isArray(products) ? products : []).filter(p => p && !p.endDate);
+  const inPlan = active.filter(p => productIsInBuiltRoutine(p));
+  const persist = (next, label) => {
+    setProducts(next);
+    saveData('products', next).catch(e => {
+      console.error(`[weekly-day ${label}] save failed:`, e);
+      toast(`Save error: ${e?.message || 'unknown'}`, 'error');
+    });
+    setCoverRoutineRebuildToken(t => t + 1);
+  };
+  const toggleProductOnDay = (product) => {
+    const days = (product.cadence && Array.isArray(product.cadence.days)) ? [...product.cadence.days] : [0,1,2,3,4,5,6];
+    const has = days.includes(dayIdx);
+    const nextDays = has ? days.filter(d => d !== dayIdx) : [...days, dayIdx].sort((a, b) => a - b);
+    const updated = sanitizeProductForSave({
+      ...product,
+      routineManaged: true,
+      cadence: { ...(product.cadence || {}), days: nextDays, frequency: nextDays.length },
+    });
+    persist(products.map(p => p.id === product.id ? updated : p), 'toggle-product-day');
+  };
+  const slotProducts = (slot) => inPlan.filter(p => (Array.isArray(p.useTimes) ? p.useTimes : []).map(t => String(t).toLowerCase()).includes(slot));
+  const renderDayRow = (p) => {
+    const days = (p.cadence && Array.isArray(p.cadence.days)) ? p.cadence.days : [];
+    const on = days.includes(dayIdx);
+    return (
+      <button
+        key={p.id}
+        type="button"
+        onClick={() => toggleProductOnDay(p)}
+        className="w-full py-2 flex items-center gap-2.5 text-left transition hover:opacity-90"
+        style={{borderTop: '1px solid var(--line)', background:'transparent', border:'none', borderTopStyle:'solid', borderTopWidth:1, borderTopColor:'var(--line)', cursor:'pointer'}}
+        aria-pressed={on}
+        aria-label={`${p.name}: ${on ? 'skip' : 'include'} on ${WEEKLY_DAY_NAMES[dayIdx]}`}
+      >
+        <span
+          className="inline-flex items-center justify-center flex-shrink-0"
+          style={{
+            width: 20, height: 20, borderRadius: '50%',
+            background: on ? 'var(--accent)' : 'transparent',
+            border: '1.5px solid ' + (on ? 'var(--accent)' : 'var(--line)'),
+            color: on ? 'var(--cream)' : 'transparent',
+          }}
+        >
+          {on && <Icon name="Check" size={11} strokeWidth={3} />}
+        </span>
+        <span className="min-w-0 flex-1">
+          {(p.brand || p.category) && (
+            <span className="block text-[8.5px] tracking-[0.18em] uppercase truncate" style={{color:'var(--ink-soft)', fontWeight:600, opacity: on ? 1 : 0.6}}>
+              {p.brand}{p.brand && p.category ? ' · ' : ''}{(p.category || '').replace(/-/g, ' ')}
+            </span>
+          )}
+          <span className="block text-[12.5px] leading-tight truncate" style={{color:'var(--ink)', fontWeight:500, opacity: on ? 1 : 0.55}}>{p.name || p.brand || 'Product'}</span>
+        </span>
+        <span className="text-[9px] flex-shrink-0" style={{color:'var(--ink-soft)'}}>
+          {(p.cadence && Array.isArray(p.cadence.days)) ? (p.cadence.days.length === 7 ? 'daily' : `${p.cadence.days.length}×/wk`) : ''}
+        </span>
+      </button>
+    );
+  };
+  return (
+    <EditorialCard pad="tight" style={{background:'var(--cream-deep)'}}>
+      <div className="mb-2">
+        <h2 className="font-sans text-[22px] leading-[1.05] mb-0.5" style={{color:'var(--ink)'}}>Weekly plan · by day</h2>
+        <p className="text-[11px] leading-snug" style={{color:'var(--ink-soft)'}}>
+          Pick a day, tap a product to include or skip it that day. Applies going forward.
+        </p>
+      </div>
+      <div className="flex items-center gap-1 mb-3">
+        {WEEKLY_DAY_LABELS.map((label, di) => {
+          const selected = di === dayIdx;
+          const isToday = di === new Date().getDay();
+          return (
+            <button
+              key={di}
+              type="button"
+              onClick={() => setDayIdx(di)}
+              className="flex-1 h-9 rounded-full flex items-center justify-center text-[10px] transition cursor-pointer"
+              style={{
+                background: selected ? 'var(--accent)' : 'transparent',
+                color: selected ? 'var(--cream)' : (isToday ? 'var(--accent)' : 'var(--ink-soft)'),
+                border: '1px solid ' + (selected ? 'var(--accent)' : (isToday ? 'var(--accent)' : 'var(--line)')),
+                fontWeight: selected || isToday ? 700 : 500,
+              }}
+              aria-pressed={selected}
+              aria-label={`Edit ${WEEKLY_DAY_NAMES[di]}`}
+            >{label}</button>
+          );
+        })}
+      </div>
+      <div className="text-[10px] tracking-[0.2em] uppercase mb-2" style={{color:'var(--ink)', fontWeight:700}}>
+        {WEEKLY_DAY_NAMES[dayIdx]}{dayIdx === new Date().getDay() ? ' · today' : ''}
+      </div>
+      {['am', 'pm'].map(slot => {
+        const list = slotProducts(slot);
+        const onCount = list.filter(p => (p.cadence && Array.isArray(p.cadence.days)) && p.cadence.days.includes(dayIdx)).length;
+        return (
+          <div key={slot} className="mb-3">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <Icon name={slot === 'pm' ? 'Moon' : 'Sun'} size={11} style={{color: slot === 'pm' ? 'var(--accent-blue, #86CAE7)' : 'var(--gold)'}} />
+              <span className="text-[9px] tracking-[0.25em] uppercase" style={{color:'var(--ink-soft)', fontWeight:600}}>{slot.toUpperCase()} · {onCount} of {list.length}</span>
+            </div>
+            {list.length === 0 ? (
+              <p className="text-[11px] py-1.5" style={{color:'var(--ink-soft)'}}>Nothing scheduled for {slot.toUpperCase()} yet — add via Products.</p>
+            ) : list.map(renderDayRow)}
+          </div>
+        );
+      })}
+      <p className="text-[10px] text-center" style={{color:'var(--ink-soft)'}}>
+        New to the plan? Add it from Products or the bench.
+      </p>
+    </EditorialCard>
+  );
+};
 
 const WeeklyPlanEditor = ({ products, setProducts, saveData, setCoverRoutineRebuildToken, toast }) => {
   // July 2026 v2 (per Jenni): off-plan products moved out of the inline

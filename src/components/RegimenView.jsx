@@ -215,22 +215,12 @@ const RegimenView = ({
         })}
       </div>
       {planLens === 'week' ? (
-        <RegimenOccasionsView
-          logs={logs}
+        <WeeklyDayEditor
           products={products}
-          setBuildPlan={setBuildPlan}
-          setRegimenView={setRegimenView}
-          setShowProductModal={setShowProductModal}
-          rotationViewMode={rotationViewMode}
-          setRotationViewMode={setRotationViewMode}
-          rotationTargetSlot={rotationTargetSlot}
-          setRotationTargetSlot={setRotationTargetSlot}
-          setBuildPlanAccepted={setBuildPlanAccepted}
-          setBuildStep={setBuildStep}
-          setWeeklyExpandedDay={setWeeklyExpandedDay}
-          weeklyExpandedDay={weeklyExpandedDay}
-          setRefineIntent={setRefineIntent}
-          setRefineSheetOpen={setRefineSheetOpen}
+          setProducts={setProducts}
+          saveData={saveData}
+          setCoverRoutineRebuildToken={setCoverRoutineRebuildToken}
+          toast={toast}
         />
       ) : (
       <WeeklyPlanEditor
