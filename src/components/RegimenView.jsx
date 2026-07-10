@@ -108,16 +108,16 @@ const RegimenView = ({
   // folded into Shelf as a filter. Legacy deep links redirect below.
   const [planLens, setPlanLens] = useState('product');
   const [shelfBenchOnly, setShelfBenchOnly] = useState(false);
+  // Regimen tab lens: today's execution card vs the weekly calendar.
+  const [regimenLens, setRegimenLens] = useState('today');
   useEffect(() => {
     if (regimenView === 'occasions') {
-      setPlanLens('week');
-      setRegimenView('build');
+      // Legacy rotation links = "show me the week" → Regimen tab, week lens.
+      setRegimenLens('week');
+      setRegimenView('today');
     } else if (regimenView === 'bench') {
       setShelfBenchOnly(true);
       setRegimenView('shelf');
-    } else if (regimenView === 'today') {
-      setPlanLens('today');
-      setRegimenView('build');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [regimenView]);
@@ -160,7 +160,8 @@ const RegimenView = ({
         Phase A.2 (deferred — full Picks scoring engine extraction). */}
     <EditorialSubTabs
       tabs={[
-        { id: 'build', label: 'Regimen' },
+        { id: 'build', label: 'Refine' },
+        { id: 'today', label: 'Regimen' },
         { id: 'shelf', label: 'Shelf' },
         { id: 'buildweek', label: 'Build' },
       ]}
@@ -195,7 +196,6 @@ const RegimenView = ({
           Rotation surface, folded in — its tab is gone). */}
       <div className="rounded-full flex p-1 gap-1 mb-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
         {[
-          { id: 'today', label: 'Today', icon: 'Sun' },
           { id: 'product', label: 'Products', icon: 'ListChecks' },
           { id: 'week', label: 'Week', icon: 'Calendar' },
         ].map(t => {
@@ -214,42 +214,7 @@ const RegimenView = ({
           );
         })}
       </div>
-      {planLens === 'today' ? (
-    <RegimenTodayView
-      onEditWeeklyPlan={() => setPlanLens('product')}
-      generatedProductArt={{}}
-      buildPlan={buildPlan}
-      buildPlanAccepted={buildPlanAccepted}
-      products={products}
-      regimenLogs={regimenLogs}
-      ritualViewDate={ritualViewDate}
-      saveData={saveData}
-      setCoverRoutineRebuildToken={setCoverRoutineRebuildToken}
-      setEditingProductId={setEditingProductId}
-      setRegimenLogs={setRegimenLogs}
-      setRegimenView={setRegimenView}
-      setRitualSlot={setRitualSlot}
-      setRitualViewDate={setRitualViewDate}
-      setShowProductModal={setShowProductModal}
-      toast={toast}
-      persistRitualProgress={persistRitualProgress}
-      regimenWeekOffset={regimenWeekOffset}
-      ritualProgress={ritualProgress}
-      ritualSlot={ritualSlot}
-      setAddRitualSheet={setAddRitualSheet}
-      setRitualSuggestError={setRitualSuggestError}
-      setRitualSuggestSelected={setRitualSuggestSelected}
-      setRitualSuggestSheet={setRitualSuggestSheet}
-      setRitualSuggestToken={setRitualSuggestToken}
-      setRitualSuggestion={setRitualSuggestion}
-      setShelfQuickAddOpen={setShelfQuickAddOpen}
-      setUsedSomethingElseSheet={setUsedSomethingElseSheet}
-      setProducts={setProducts}
-      setRemoveScopePrompt={setRemoveScopePrompt}
-      setExpandedShelfProductId={setExpandedShelfProductId}
-      userProfile={userProfile}
-    />
-      ) : planLens === 'week' ? (
+      {planLens === 'week' ? (
         <RegimenOccasionsView
           logs={logs}
           products={products}
@@ -374,6 +339,87 @@ const RegimenView = ({
       toggleBuildEditExpand={toggleBuildEditExpand}
       toggleProposalDay={toggleProposalDay}
     />
+    </>
+  )}
+
+  {/* === REGIMEN TAB (July 2026 per Jenni) === Today's regimen + the
+      weekly calendar, as views. Editing lives on Refine. */}
+  {regimenView === 'today' && (
+    <>
+      <div className="rounded-full flex p-1 gap-1 mb-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+        {[
+          { id: 'today', label: 'Today', icon: 'Sun' },
+          { id: 'week', label: 'Week', icon: 'Calendar' },
+        ].map(t => {
+          const active = regimenLens === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setRegimenLens(t.id)}
+              className="flex-1 rounded-full py-2 px-3 flex items-center justify-center gap-1.5 transition"
+              style={{background: active ? 'var(--accent-soft)' : 'transparent', color: active ? 'var(--accent)' : 'var(--ink-soft)', cursor:'pointer'}}
+            >
+              <Icon name={t.icon} size={12} style={{color: active ? 'var(--accent)' : 'var(--ink-soft)'}} />
+              <span className="text-[10.5px] tracking-[0.22em] uppercase">{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      {regimenLens === 'today' ? (
+    <RegimenTodayView
+      onEditWeeklyPlan={() => { setPlanLens('product'); setRegimenView('build'); }}
+      generatedProductArt={{}}
+      buildPlan={buildPlan}
+      buildPlanAccepted={buildPlanAccepted}
+      products={products}
+      regimenLogs={regimenLogs}
+      ritualViewDate={ritualViewDate}
+      saveData={saveData}
+      setCoverRoutineRebuildToken={setCoverRoutineRebuildToken}
+      setEditingProductId={setEditingProductId}
+      setRegimenLogs={setRegimenLogs}
+      setRegimenView={setRegimenView}
+      setRitualSlot={setRitualSlot}
+      setRitualViewDate={setRitualViewDate}
+      setShowProductModal={setShowProductModal}
+      toast={toast}
+      persistRitualProgress={persistRitualProgress}
+      regimenWeekOffset={regimenWeekOffset}
+      ritualProgress={ritualProgress}
+      ritualSlot={ritualSlot}
+      setAddRitualSheet={setAddRitualSheet}
+      setRitualSuggestError={setRitualSuggestError}
+      setRitualSuggestSelected={setRitualSuggestSelected}
+      setRitualSuggestSheet={setRitualSuggestSheet}
+      setRitualSuggestToken={setRitualSuggestToken}
+      setRitualSuggestion={setRitualSuggestion}
+      setShelfQuickAddOpen={setShelfQuickAddOpen}
+      setUsedSomethingElseSheet={setUsedSomethingElseSheet}
+      setProducts={setProducts}
+      setRemoveScopePrompt={setRemoveScopePrompt}
+      setExpandedShelfProductId={setExpandedShelfProductId}
+      userProfile={userProfile}
+    />
+      ) : (
+        <RegimenOccasionsView
+          logs={logs}
+          products={products}
+          setBuildPlan={setBuildPlan}
+          setRegimenView={setRegimenView}
+          setShowProductModal={setShowProductModal}
+          rotationViewMode={rotationViewMode}
+          setRotationViewMode={setRotationViewMode}
+          rotationTargetSlot={rotationTargetSlot}
+          setRotationTargetSlot={setRotationTargetSlot}
+          setBuildPlanAccepted={setBuildPlanAccepted}
+          setBuildStep={setBuildStep}
+          setWeeklyExpandedDay={setWeeklyExpandedDay}
+          weeklyExpandedDay={weeklyExpandedDay}
+          setRefineIntent={setRefineIntent}
+          setRefineSheetOpen={setRefineSheetOpen}
+        />
+      )}
     </>
   )}
 

@@ -7412,7 +7412,7 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
   const sendChat = async (forcedInput) => {
     const text = (forcedInput || chatInput).trim();
     if (!text || !chatPanel) return;
-    if (!hasAnyAiKey()) { setShowApiKeyModal(true); return; }
+    if (!getApiKey()) { setShowApiKeyModal(true); return; } // direct Anthropic fetch below — needs sk-ant key specifically
     const userMsg = { role: 'user', content: text };
     const newMessages = [...chatPanel.messages, userMsg];
     setChatPanel({...chatPanel, messages: newMessages, suggestions: []});
@@ -9481,7 +9481,7 @@ Default UP, not to the middle. If the photo is closer to the upper bucket than t
   const handleInsight = async (forcedQuery) => {
     const query = (forcedQuery || insightQuery).trim();
     if (!query) return;
-    if (!hasAnyAiKey()) { setShowApiKeyModal(true); return; }
+    if (!getApiKey()) { setShowApiKeyModal(true); return; } // direct Anthropic fetch below — needs sk-ant key specifically
 
     const userMsg = { role: 'user', content: query };
     const newMessages = [...insightMessages, userMsg];
@@ -10777,7 +10777,7 @@ ${procList}${frame.cycleContext}`;
   const handleCompareAsk = async (forced) => {
     const text = (forced || compareAskInput).trim();
     if (!text) return;
-    if (!hasAnyAiKey()) { setShowApiKeyModal(true); return; }
+    if (!getApiKey()) { setShowApiKeyModal(true); return; } // direct Anthropic fetch below — needs sk-ant key specifically
     const userMsg = { role: 'user', content: text };
     const newMessages = [...compareAskMessages, userMsg];
     setCompareAskMessages(newMessages);
