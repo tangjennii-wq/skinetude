@@ -26,7 +26,10 @@ const RegimenShelfView = ({
   setOpenLesson,
   setProductCompareId,
   setShelfTagFilter,
-  setShowInactiveProducts, showInactiveProducts}) => {
+  setShowInactiveProducts, showInactiveProducts,
+  // July 2026 per Jenni: Bench folded into Shelf — this filter narrows the
+  // list to products NOT in the weekly plan (owned but unscheduled).
+  benchOnly = false, setBenchOnly}) => {
   // July 2026 per Jenni: when a routine row deep-links here with a product
   // pre-expanded, scroll its card into view so the user lands ON it.
   const expandedRowRef = useRef(null);
@@ -67,7 +70,11 @@ const RegimenShelfView = ({
   // Active = currently in routine (no endDate). Inactive = retired (endDate set).
   // We render active first, grouped by category. Inactive sits in a collapsed
   // section at the bottom so big shelves don't drown in retired clutter.
-  const activeProductsList = products.filter(p => !p.endDate);
+  const allActiveList = products.filter(p => !p.endDate);
+  const benchCount = allActiveList.filter(p => !productIsInBuiltRoutine(p)).length;
+  const activeProductsList = benchOnly
+    ? allActiveList.filter(p => !productIsInBuiltRoutine(p))
+    : allActiveList;
   const inactiveProductsList = products.filter(p => p.endDate);
   // === WASTED-SPEND LOOKUP ===
   // Build map of productId → most recent regimen-log date the product
@@ -124,6 +131,32 @@ const RegimenShelfView = ({
             pill in EditorialPageHeader is now the single canonical
             add affordance, uniform across Today/Shelf/Build/Occasions. */
         <div className="space-y-5">
+          {/* === BENCH FILTER (July 2026 per Jenni — Bench tab folded in) === */}
+          {typeof setBenchOnly === 'function' && benchCount > 0 && (
+            <div className="flex items-center justify-between -mb-2">
+              <button
+                type="button"
+                onClick={() => setBenchOnly(!benchOnly)}
+                className="h-8 px-3 rounded-full flex items-center gap-1.5 transition cursor-pointer"
+                style={{
+                  background: benchOnly ? 'var(--ink)' : 'transparent',
+                  color: benchOnly ? 'var(--cream)' : 'var(--ink-soft)',
+                  border: '1px solid ' + (benchOnly ? 'var(--ink)' : 'var(--line)'),
+                  fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600,
+                }}
+                aria-pressed={benchOnly}
+                title="Show only products that aren't in your weekly plan"
+              >
+                <Icon name="Layers" size={11} />
+                <span>Bench · {benchCount}</span>
+              </button>
+              {benchOnly && (
+                <span className="text-[10px]" style={{color:'var(--ink-soft)'}}>
+                  Owned, not in the weekly plan.
+                </span>
+              )}
+            </div>
+          )}
           {sortedGroups.map(groupKey => {
             const items = grouped[groupKey];
             return (

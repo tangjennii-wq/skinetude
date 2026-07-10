@@ -103,16 +103,18 @@ const RegimenView = ({
   // July 2026 Phase 2: the Build view leads with the edit-in-place
   // WeeklyPlanEditor grid once a plan exists; the full builder
   // (proposals / refine / start over) sits behind this toggle.
-  const [showFullBuilder, setShowFullBuilder] = useState(false);
-  // July 2026 per Jenni (Rotation fold-in): one plan surface, two lenses.
-  // 'product' = the WeeklyPlanEditor grid; 'week' = the calendar/rotation
-  // view. The old Rotation tab is gone; deep links to 'occasions' redirect
-  // here with the week lens pre-selected.
+  // July 2026 per Jenni (IA consolidation): sub-nav is Refine · Today ·
+  // Shelf · Build. Rotation folded into Refine as the week lens; Bench
+  // folded into Shelf as a filter. Legacy deep links redirect below.
   const [planLens, setPlanLens] = useState('product');
+  const [shelfBenchOnly, setShelfBenchOnly] = useState(false);
   useEffect(() => {
     if (regimenView === 'occasions') {
       setPlanLens('week');
       setRegimenView('build');
+    } else if (regimenView === 'bench') {
+      setShelfBenchOnly(true);
+      setRegimenView('shelf');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [regimenView]);
@@ -157,8 +159,8 @@ const RegimenView = ({
       tabs={[
         { id: 'build', label: userHasBuiltPattern(products) ? 'Refine' : 'Build' },
         { id: 'today', label: 'Today' },
-        { id: 'bench', label: 'Bench' },
         { id: 'shelf', label: 'Shelf' },
+        { id: 'buildweek', label: 'Build' },
       ]}
       value={regimenView}
       onChange={setRegimenView}
@@ -218,7 +220,7 @@ const RegimenView = ({
       drawer on the Journal page) + the existing RoutineBuilder
       wizard below. Both surfaces share matchesDrawerFilter state so
       pill selection persists across the two views. */}
-  {regimenView === 'build' && userHasBuiltPattern(products) && !showFullBuilder && (
+  {regimenView === 'build' && userHasBuiltPattern(products) && (
     <>
       {/* === LENS TOGGLE (July 2026 per Jenni) === one plan, two views:
           edit-in-place by product, or the calendar week lens (the old
@@ -273,7 +275,7 @@ const RegimenView = ({
       <div className="flex justify-center mt-3">
         <button
           type="button"
-          onClick={() => setShowFullBuilder(true)}
+          onClick={() => setRegimenView('buildweek')}
           className="inline-flex items-center gap-1 transition hover:opacity-70"
           style={{background:'transparent', border:'none', color:'var(--ink-soft)', fontWeight:600, fontSize:10, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', padding:'6px 0'}}
         >
@@ -283,21 +285,10 @@ const RegimenView = ({
       </div>
     </>
   )}
-  {regimenView === 'build' && (!userHasBuiltPattern(products) || showFullBuilder) && (
+  {((regimenView === 'build' && !userHasBuiltPattern(products)) || regimenView === 'buildweek') && (
     <>
-      {userHasBuiltPattern(products) && showFullBuilder && (
-        <div className="flex justify-start mb-2">
-          <button
-            type="button"
-            onClick={() => setShowFullBuilder(false)}
-            className="inline-flex items-center gap-1 transition hover:opacity-70"
-            style={{background:'transparent', border:'none', color:'var(--ink-soft)', fontWeight:600, fontSize:10, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', padding:'4px 0'}}
-          >
-            <Icon name="ArrowLeft" size={10} />
-            <span>Back to weekly plan</span>
-          </button>
-        </div>
-      )}
+      {/* Build is its own tab now (July 2026 per Jenni) — the deep
+          assessment lives here; quick edits live on Refine. */}
     <RegimenBuildView
       products={products}
       setProducts={setProducts}
@@ -384,6 +375,8 @@ const RegimenView = ({
 
   {regimenView === 'shelf' && (
     <RegimenShelfView
+      benchOnly={shelfBenchOnly}
+      setBenchOnly={setShelfBenchOnly}
       generatedProductArt={{}}
       logs={logs}
       openChat={openChat}

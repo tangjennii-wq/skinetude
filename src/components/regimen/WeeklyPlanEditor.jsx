@@ -32,6 +32,11 @@ const WeeklyPlanEditor = ({ products, setProducts, saveData, setCoverRoutineRebu
   // anything benched. Keeps the grid tight and honors the "shelf access
   // is contextual, never a global floating drawer" ruling.
   const [benchOpen, setBenchOpen] = useState(false);
+  // Products scheduled DURING this bench session stay visible in the sheet
+  // (now with their day chips) so the user can adjust the suggested cadence
+  // immediately — one tap schedules, the days appear in place. Cleared on
+  // sheet close.
+  const [recentlyScheduled, setRecentlyScheduled] = useState([]);
   const active = (Array.isArray(products) ? products : []).filter(p => p && !p.endDate);
   const inPlan = active.filter(p => productIsInBuiltRoutine(p));
   const offPlan = active.filter(p => !productIsInBuiltRoutine(p));
@@ -62,10 +67,13 @@ const WeeklyPlanEditor = ({ products, setProducts, saveData, setCoverRoutineRebu
     const next = products.map(p => p.id === product.id ? updated : p);
     persist(next, 'toggle-slot');
     const stillIn = (updated.useTimes || []).length > 0;
+    if (!has) setRecentlyScheduled(prev => prev.includes(product.id) ? prev : [...prev, product.id]);
+    const dayCount = (updated.cadence && Array.isArray(updated.cadence.days)) ? updated.cadence.days.length : 7;
+    const cadenceWord = dayCount === 7 ? 'daily' : `${dayCount}×/wk`;
     toast(
       has
         ? (stillIn ? `${product.name}: ${slot.toUpperCase()} off.` : `${product.name} is off the weekly plan.`)
-        : `${product.name}: ${slot.toUpperCase()} on.`,
+        : `${product.name}: ${slot.toUpperCase()} on · ${cadenceWord}. Adjust the days if that's wrong.`,
       'info'
     );
   };
@@ -212,11 +220,11 @@ const WeeklyPlanEditor = ({ products, setProducts, saveData, setCoverRoutineRebu
               <div className="min-w-0">
                 <div className="font-sans text-[18px]" style={{color:'var(--ink)'}}>The bench</div>
                 <div className="text-[11px] mt-0.5" style={{color:'var(--ink-soft)'}}>
-                  Owned but not in the weekly plan. Tap AM or PM to schedule.
+                  Tap AM or PM to schedule — the days appear right here to adjust.
                 </div>
               </div>
               <button
-                onClick={() => setBenchOpen(false)}
+                onClick={() => { setBenchOpen(false); setRecentlyScheduled([]); }}
                 className="w-8 h-8 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)] flex-shrink-0"
                 style={{color:'var(--ink-soft)', border:'none', background:'transparent', cursor:'pointer'}}
                 aria-label="Close"
@@ -226,13 +234,20 @@ const WeeklyPlanEditor = ({ products, setProducts, saveData, setCoverRoutineRebu
               </button>
             </div>
             <div className="shelf-scroll-area px-4 pb-4">
-              {offPlan.length === 0 ? (
-                <p className="text-[12px] pt-4" style={{color:'var(--ink-soft)'}}>
-                  Bench is empty — everything you own is scheduled.
-                </p>
-              ) : (
-                offPlan.map(p => renderRow(p, false))
-              )}
+              {(() => {
+                // Bench list keeps just-scheduled items visible (with day
+                // chips) so cadence is adjustable in place. Original shelf
+                // order preserved — rows don't jump when tapped.
+                const benchList = active.filter(p => !productIsInBuiltRoutine(p) || recentlyScheduled.includes(p.id));
+                if (benchList.length === 0) {
+                  return (
+                    <p className="text-[12px] pt-4" style={{color:'var(--ink-soft)'}}>
+                      Bench is empty — everything you own is scheduled.
+                    </p>
+                  );
+                }
+                return benchList.map(p => renderRow(p, productIsInBuiltRoutine(p)));
+              })()}
             </div>
           </div>
         </>
