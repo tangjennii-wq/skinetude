@@ -107,6 +107,7 @@ const REQUIRED_FILES = [
   // Wave 7.1 (May 2026) — RegimenView extracted.
   'src/components/RegimenView.jsx',
   // Wave 8.1 (May 2026) — RegimenView sub-extracted.
+  'src/components/regimen/WeeklyPlanEditor.jsx', // Phase 2 (July 2026) — edit-in-place weekly grid
   'src/components/regimen/RegimenBuildView.jsx',
   'src/components/regimen/RegimenTodayView.jsx',
   'src/components/regimen/RegimenShelfView.jsx',

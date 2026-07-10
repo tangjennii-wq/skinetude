@@ -892,23 +892,95 @@ const RegimenTodayView = ({
             The one-off sheet carries From Shelf / New Product /
             procedure / supplement / device / note, same as Atelier. */}
         {!activeSlotIsEmpty && (
-          <>
+          // === LEFT/RIGHT PILL ROW (July 2026 per Jenni — Home parity) ===
+          // Done pill with a select-all circle segment; Add to today beside it.
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {(() => {
+              const listIds = (ritualSlot === 'pm' ? pmProducts : amProducts).map(p => p && p.id).filter(Boolean);
+              const dk = ritualSlot === 'pm' ? 'pmDone' : 'amDone';
+              const viewLogNow = (regimenLogs || []).find(r => r.date === viewDate);
+              const doneNow = viewLogNow && Array.isArray(viewLogNow[dk]) ? viewLogNow[dk] : [];
+              const allDone = listIds.length > 0 && listIds.every(id => doneNow.includes(id));
+              const markAllSlotDone = () => {
+                if (listIds.length === 0) return;
+                const nextDone = allDone ? [] : Array.from(new Set([...doneNow, ...listIds]));
+                const updatedLog = viewLogNow
+                  ? { ...viewLogNow, [dk]: nextDone }
+                  : {
+                      id: Date.now(), date: viewDate,
+                      amProducts: amProducts.map(p => p && p.id).filter(Boolean),
+                      pmProducts: pmProducts.map(p => p && p.id).filter(Boolean),
+                      amDone: ritualSlot === 'am' ? nextDone : [],
+                      pmDone: ritualSlot === 'pm' ? nextDone : [],
+                      amSkipped: [], pmSkipped: [], notes: '', submitted: false,
+                    };
+                const next = viewLogNow
+                  ? regimenLogs.map(r => r.date === viewDate ? updatedLog : r)
+                  : [updatedLog, ...(regimenLogs || [])];
+                setRegimenLogs(next);
+                persistRegimenLogs(next, 'mark-all-done');
+                setCoverRoutineRebuildToken(t => t + 1);
+                toast(allDone ? 'Cleared the checks.' : `All ${ritualSlot.toUpperCase()} steps marked done.`, 'info');
+              };
+              return (
+                <div
+                  className="rounded-full flex items-stretch overflow-hidden transition"
+                  style={{
+                    background: activeSlotSubmitted ? 'var(--status-info-bg)' : 'var(--accent)',
+                    border: activeSlotSubmitted ? '1px solid var(--accent-blue)' : '1px solid var(--accent)',
+                  }}
+                >
+                  {!activeSlotSubmitted && (
+                    <button
+                      type="button"
+                      onClick={markAllSlotDone}
+                      className="flex items-center justify-center pl-3 pr-2 transition hover:opacity-80"
+                      style={{background:'transparent', border:'none', borderRight:'1px solid rgba(255,255,255,0.25)', cursor:'pointer'}}
+                      title={allDone ? 'Clear all checks' : `Mark every ${ritualSlot.toUpperCase()} step done`}
+                      aria-label={allDone ? 'Clear all done marks' : `Mark all ${ritualSlot.toUpperCase()} steps done`}
+                    >
+                      <span
+                        className="inline-flex items-center justify-center flex-shrink-0"
+                        style={{
+                          width: 18, height: 18, borderRadius: '50%',
+                          background: allDone ? 'var(--cream)' : 'transparent',
+                          border: '1.5px solid rgba(255,255,255,0.85)',
+                          color: allDone ? 'var(--accent)' : 'transparent',
+                        }}
+                      >
+                        {allDone && <Icon name="Check" size={10} strokeWidth={3} />}
+                      </span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={activeSlotSubmitted ? undoActiveSlotLog : logActiveSlotNow}
+                    className="flex-1 min-w-0 py-3 px-2 flex items-center justify-center gap-1.5 transition hover:opacity-90"
+                    style={{
+                      background: 'transparent', border: 'none',
+                      color: activeSlotSubmitted ? 'var(--status-info-fg)' : 'var(--cream)',
+                      fontWeight: 600, fontSize: 12.5, letterSpacing: '0.04em', cursor: 'pointer',
+                    }}
+                    title={activeSlotSubmitted ? `Tap to undo today's ${ritualSlot.toUpperCase()} commit` : `Save ${ritualSlot.toUpperCase()} as done for today`}
+                    aria-label={activeSlotSubmitted ? `${ritualSlot.toUpperCase()} regimen logged for today — tap to undo` : `Mark ${ritualSlot.toUpperCase()} regimen done`}
+                  >
+                    <Icon name={activeSlotSubmitted ? 'Check' : (ritualSlot === 'pm' ? 'Moon' : 'Sun')} size={13} style={activeSlotSubmitted ? {color:'var(--accent-blue)'} : undefined} />
+                    <span className="truncate">{activeSlotSubmitted ? 'Done · undo' : (ritualSlot === 'pm' ? 'Done PM' : 'Done AM')}</span>
+                  </button>
+                </div>
+              );
+            })()}
             <button
-              onClick={activeSlotSubmitted ? undoActiveSlotLog : logActiveSlotNow}
-              className="w-full rounded-full py-3 px-4 flex items-center justify-center gap-2 transition hover:opacity-90 mt-3"
-              style={{
-                background: activeSlotSubmitted ? 'var(--status-info-bg)' : 'var(--accent)',
-                color: activeSlotSubmitted ? 'var(--status-info-fg)' : 'var(--cream)',
-                border: activeSlotSubmitted ? '1px solid var(--accent-blue)' : '1px solid var(--accent)',
-                fontWeight: 600, fontSize: 12.5, letterSpacing: '0.04em', cursor: 'pointer'}}
-              title={activeSlotSubmitted ? `Tap to undo today's ${ritualSlot.toUpperCase()} commit` : `Mark all ${ritualSlot.toUpperCase()} products as done for today`}
-              aria-label={activeSlotSubmitted ? `${ritualSlot.toUpperCase()} regimen logged for today — tap to undo` : `Mark ${ritualSlot.toUpperCase()} regimen done`}
               type="button"
+              onClick={() => { if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen({ open: true, slot: ritualSlot, date: viewDate }); }}
+              className="rounded-full py-3 px-2 flex items-center justify-center gap-1 transition hover:bg-[var(--cream)]"
+              style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'}}
+              title="Add something to today — shelf, scan, device, procedure, note"
             >
-              <Icon name={activeSlotSubmitted ? 'Check' : (ritualSlot === 'pm' ? 'Moon' : 'Sun')} size={13} style={activeSlotSubmitted ? {color:'var(--accent-blue)'} : undefined} />
-              <span className="truncate">{activeSlotSubmitted ? 'Done today' : (ritualSlot === 'pm' ? 'Done PM' : 'Done AM')}</span>
+              <Icon name="Plus" size={12} />
+              <span className="truncate">Add to today</span>
             </button>
-          </>
+          </div>
         )}
 
         {/* Clear utility moved to upper-right header icons (slot-aware). */}

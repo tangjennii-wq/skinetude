@@ -99,7 +99,12 @@ const RegimenView = ({
   // Forwarded to RegimenOccasionsView.
   rotationViewMode, setRotationViewMode,
   rotationTargetSlot, setRotationTargetSlot,
-  setWeeklyExpandedDay, weeklyExpandedDay}) => (
+  setWeeklyExpandedDay, weeklyExpandedDay}) => {
+  // July 2026 Phase 2: the Build view leads with the edit-in-place
+  // WeeklyPlanEditor grid once a plan exists; the full builder
+  // (proposals / refine / start over) sits behind this toggle.
+  const [showFullBuilder, setShowFullBuilder] = useState(false);
+  return (
 <div className="md:max-w-md md:mx-auto pb-6">
   {/* === EDITORIAL HEADER ===
       Eyebrow + serif display. The Shelf "Add Product" CTA moves
@@ -201,7 +206,43 @@ const RegimenView = ({
       drawer on the Journal page) + the existing RoutineBuilder
       wizard below. Both surfaces share matchesDrawerFilter state so
       pill selection persists across the two views. */}
-  {regimenView === 'build' && (
+  {regimenView === 'build' && userHasBuiltPattern(products) && !showFullBuilder && (
+    <>
+      <WeeklyPlanEditor
+        products={products}
+        setProducts={setProducts}
+        saveData={saveData}
+        setCoverRoutineRebuildToken={setCoverRoutineRebuildToken}
+        toast={toast}
+      />
+      <div className="flex justify-center mt-3">
+        <button
+          type="button"
+          onClick={() => setShowFullBuilder(true)}
+          className="inline-flex items-center gap-1 transition hover:opacity-70"
+          style={{background:'transparent', border:'none', color:'var(--ink-soft)', fontWeight:600, fontSize:10, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', padding:'6px 0'}}
+        >
+          <span>Open the full builder — refine or rebuild</span>
+          <Icon name="ArrowRight" size={10} />
+        </button>
+      </div>
+    </>
+  )}
+  {regimenView === 'build' && (!userHasBuiltPattern(products) || showFullBuilder) && (
+    <>
+      {userHasBuiltPattern(products) && showFullBuilder && (
+        <div className="flex justify-start mb-2">
+          <button
+            type="button"
+            onClick={() => setShowFullBuilder(false)}
+            className="inline-flex items-center gap-1 transition hover:opacity-70"
+            style={{background:'transparent', border:'none', color:'var(--ink-soft)', fontWeight:600, fontSize:10, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', padding:'4px 0'}}
+          >
+            <Icon name="ArrowLeft" size={10} />
+            <span>Back to weekly plan</span>
+          </button>
+        </div>
+      )}
     <RegimenBuildView
       products={products}
       setProducts={setProducts}
@@ -283,6 +324,7 @@ const RegimenView = ({
       toggleBuildEditExpand={toggleBuildEditExpand}
       toggleProposalDay={toggleProposalDay}
     />
+    </>
   )}
 
   {regimenView === 'shelf' && (
@@ -620,4 +662,5 @@ const RegimenView = ({
     );
   })()}
 </div>
-);
+  );
+};

@@ -220,6 +220,7 @@ const COMPONENT_FILES = [
   // Wave 7.1 (May 2026) — RegimenView extracted (~4720 lines lifted).
   // Wave 8.1 (May 2026) — RegimenView sub-extracted into per-subview files.
   // Listed BEFORE RegimenView since RegimenView renders them.
+  'src/components/regimen/WeeklyPlanEditor.jsx',
   'src/components/regimen/RegimenBuildView.jsx',
   'src/components/regimen/RegimenTodayView.jsx',
   'src/components/regimen/RegimenShelfView.jsx',

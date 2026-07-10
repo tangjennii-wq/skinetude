@@ -4065,67 +4065,110 @@ CRITICAL OUTPUT REQUIREMENTS:
                   // Was a crowded 3-button layout where commit + add + add
                   // shared real estate. Splitting commit (decisive action)
                   // from add (modifying action) reads cleaner.
-                  <div className="mt-3 space-y-2">
+                  // === LEFT/RIGHT PILL ROW (July 2026 per Jenni) ===
+                  // Done + Add side-by-side. The leading circle in the Done
+                  // pill is its own tap target: one tap fills every row
+                  // circle (select-all-done); the label commits. Undo state
+                  // collapses back to a single-action pill.
+                  <div className="mt-3 grid grid-cols-2 gap-2">
                     {(() => {
                       const allDone = totalCount > 0 && doneCount === totalCount;
                       const partialDone = doneCount > 0 && doneCount < totalCount;
                       const circleFill = slotSubmitted ? 'var(--accent-blue)'
-                        : allDone ? 'var(--accent)'
+                        : allDone ? 'var(--cream)'
                         : 'transparent';
-                      const circleIconName = (slotSubmitted || allDone) ? 'Check' : null;
-                      const circleBorder = slotSubmitted ? 'var(--accent-blue)'
-                        : allDone ? 'var(--accent)'
-                        : 'rgba(255,255,255,0.85)';
+                      const circleBorder = slotSubmitted ? 'var(--accent-blue)' : 'rgba(255,255,255,0.85)';
+                      const markAllSlotDone = () => {
+                        const dk = ctaSlot === 'pm' ? 'pmDone' : 'amDone';
+                        const listIds = (ctaSlot === 'pm' ? pmList : amList).map(p => p && p.id).filter(Boolean);
+                        if (listIds.length === 0) return;
+                        const currentList = (regimenLogs || []).find(r => r.date === viewDate);
+                        const currentDone = currentList && Array.isArray(currentList[dk]) ? currentList[dk] : [];
+                        const allAlready = listIds.every(id => currentDone.includes(id));
+                        const nextDone = allAlready ? [] : Array.from(new Set([...currentDone, ...listIds]));
+                        const updatedLog = currentList
+                          ? { ...currentList, [dk]: nextDone }
+                          : {
+                              id: Date.now(), date: viewDate,
+                              amProducts: amList.map(p => p && p.id).filter(Boolean),
+                              pmProducts: pmList.map(p => p && p.id).filter(Boolean),
+                              amDone: ctaSlot === 'am' ? nextDone : [],
+                              pmDone: ctaSlot === 'pm' ? nextDone : [],
+                              amSkipped: [], pmSkipped: [], notes: '', submitted: false,
+                            };
+                        const next = currentList
+                          ? regimenLogs.map(r => r.date === viewDate ? updatedLog : r)
+                          : [updatedLog, ...(regimenLogs || [])];
+                        setRegimenLogs(next);
+                        persistRegimenLogs(next, 'mark-all-done');
+                        setCoverRoutineRebuildToken(t => t + 1);
+                        toast(allAlready ? 'Cleared the checks.' : `All ${ctaSlot.toUpperCase()} steps marked done.`, 'info');
+                      };
                       return (
-                        <button
-                          type="button"
-                          onClick={slotSubmitted ? undoSlotLog : logRitualNow}
-                          className="w-full rounded-full py-3 px-4 flex items-center justify-center gap-2 transition hover:opacity-90"
+                        <div
+                          className="rounded-full flex items-stretch overflow-hidden transition"
                           style={{
                             background: slotSubmitted ? 'var(--cream-deep)' : 'var(--accent)',
-                            color: slotSubmitted ? 'var(--ink)' : 'var(--cream)',
                             border: '1px solid ' + (slotSubmitted ? 'var(--line)' : 'var(--accent)'),
-                            fontWeight: 700, fontSize: 12.5, letterSpacing: '0.02em', cursor: 'pointer',
                           }}
-                          title={slotSubmitted
-                            ? `Tap to undo today's ${ctaSlot.toUpperCase()} commit`
-                            : (allDone ? `Save ${ctaSlot.toUpperCase()} — all done` : `Save ${ctaSlot.toUpperCase()} (${doneCount}/${totalCount} done)`)}
-                          aria-label={slotSubmitted ? `${ctaSlot.toUpperCase()} logged today, tap to undo` : `Save ${ctaSlot.toUpperCase()} regimen`}
                         >
-                          <span
-                            className="inline-flex items-center justify-center flex-shrink-0"
+                          {!slotSubmitted && (
+                            <button
+                              type="button"
+                              onClick={markAllSlotDone}
+                              className="flex items-center justify-center pl-3 pr-2 transition hover:opacity-80"
+                              style={{background:'transparent', border:'none', borderRight:'1px solid rgba(255,255,255,0.25)', cursor:'pointer'}}
+                              title={allDone ? 'Clear all checks' : `Mark every ${ctaSlot.toUpperCase()} step done`}
+                              aria-label={allDone ? 'Clear all done marks' : `Mark all ${ctaSlot.toUpperCase()} steps done`}
+                            >
+                              <span
+                                className="inline-flex items-center justify-center flex-shrink-0"
+                                style={{
+                                  width: 18, height: 18, borderRadius: '50%',
+                                  background: circleFill,
+                                  border: '1.5px solid ' + circleBorder,
+                                  color: allDone ? 'var(--accent)' : 'transparent',
+                                }}
+                              >
+                                {allDone && <Icon name="Check" size={10} strokeWidth={3} />}
+                              </span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={slotSubmitted ? undoSlotLog : logRitualNow}
+                            className="flex-1 min-w-0 py-3 px-2 flex items-center justify-center gap-1.5 transition hover:opacity-90"
                             style={{
-                              width: 16, height: 16, borderRadius: '50%',
-                              background: circleFill,
-                              border: '1.5px solid ' + circleBorder,
-                              color: (slotSubmitted || allDone) ? 'var(--cream)' : 'transparent',
+                              background: 'transparent', border: 'none',
+                              color: slotSubmitted ? 'var(--ink)' : 'var(--cream)',
+                              fontWeight: 700, fontSize: 12.5, letterSpacing: '0.02em', cursor: 'pointer',
                             }}
+                            title={slotSubmitted
+                              ? `Tap to undo today's ${ctaSlot.toUpperCase()} commit`
+                              : (allDone ? `Save ${ctaSlot.toUpperCase()} — all done` : `Save ${ctaSlot.toUpperCase()} (${doneCount}/${totalCount} done)`)}
+                            aria-label={slotSubmitted ? `${ctaSlot.toUpperCase()} logged today, tap to undo` : `Save ${ctaSlot.toUpperCase()} regimen`}
                           >
-                            {circleIconName && <Icon name={circleIconName} size={9} strokeWidth={3} />}
-                          </span>
-                          <span className="truncate">
-                            {slotSubmitted
-                              ? `Done today · undo`
-                              : allDone
-                                ? `Save ${ctaSlot.toUpperCase()} · all done`
+                            {slotSubmitted && (
+                              <span className="inline-flex items-center justify-center flex-shrink-0" style={{width: 16, height: 16, borderRadius: '50%', background: 'var(--accent-blue)', color: 'var(--cream)'}}>
+                                <Icon name="Check" size={9} strokeWidth={3} />
+                              </span>
+                            )}
+                            <span className="truncate">
+                              {slotSubmitted
+                                ? `Done · undo`
                                 : partialDone
                                   ? `Save ${doneCount}/${totalCount}`
                                   : `Done ${ctaSlot.toUpperCase()}`}
-                          </span>
-                        </button>
+                            </span>
+                          </button>
+                        </div>
                       );
                     })()}
-                    {/* === July 2026 Day 3 (command-center pass) ===
-                        "Shelf" + "Something else?" collapsed into ONE door:
-                        Add to today → the shelf quick-add sheet (the common
-                        case, still 1 tap). One-offs (new product, procedure,
-                        supplement, note) live behind a footer link inside
-                        that sheet, so nothing was lost — just one door in. */}
                     <button
                       onClick={() => { if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen({ open: true, slot: ctaSlot, date: viewDate }); }}
-                      className="w-full rounded-full py-3 px-4 flex items-center justify-center gap-1.5 transition hover:bg-[var(--cream)]"
+                      className="rounded-full py-3 px-2 flex items-center justify-center gap-1 transition hover:bg-[var(--cream)]"
                       style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:12, letterSpacing:'0.02em', cursor:'pointer'}}
-                      title="Add something to today — from your shelf, or a one-off"
+                      title="Add something to today — shelf, scan, device, procedure, note"
                       type="button"
                     >
                       <Icon name="Plus" size={12} />

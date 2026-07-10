@@ -17892,9 +17892,9 @@ If the user references something not in their data ("started retinol 6 weeks ago
               {/* Header */}
               <div className="px-4 pt-4 pb-2 flex items-start justify-between">
                 <div className="min-w-0">
-                  <div className="font-sans text-[18px]" style={{color:'var(--ink)'}}>Add from shelf</div>
+                  <div className="font-sans text-[18px]" style={{color:'var(--ink)'}}>Add to today</div>
                   <div className="text-[11px] mt-0.5" style={{color:'var(--ink-soft)'}}>
-                    Tap +AM or +PM to add to today’s routine.
+                    Tap +AM or +PM below — or add something that isn’t a shelf product.
                   </div>
                 </div>
                 <button
@@ -17906,6 +17906,63 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 >
                   <Icon name="X" size={14} />
                 </button>
+              </div>
+
+              {/* === ONE-SHEET ADD ROW (July 2026 per Jenni) ===
+                  Everything addable to today in one place — no footer-link
+                  hop. Scan and New product route into ProductModal with
+                  today's context; Procedure opens its modal; Device /
+                  Supplement / Note deep-link into the one-off sheet with
+                  the right input already open. */}
+              <div className="px-4 pb-2 flex gap-1.5 overflow-x-auto no-scrollbar">
+                {(() => {
+                  const ctx = { slot: shelfQuickAddState.slot || 'am', date: shelfQuickAddState.date || localDateISO() };
+                  const chip = (icon, label, onClick) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={onClick}
+                      className="h-8 flex-shrink-0 px-2.5 rounded-full flex items-center gap-1 transition hover:opacity-80 whitespace-nowrap"
+                      style={{background:'var(--cream-deep)', border:'1px solid var(--line)', color:'var(--ink)', fontSize:10, letterSpacing:'0.08em', textTransform:'uppercase', fontWeight:600, cursor:'pointer'}}
+                    >
+                      <Icon name={icon} size={11} style={{color:'var(--accent)'}} />
+                      <span>{label}</span>
+                    </button>
+                  );
+                  const closeFirst = () => { if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen(null); };
+                  const openOneOff = (kind) => {
+                    closeFirst();
+                    setUsedSomethingElseSheet({ open: true, slot: ctx.slot, date: ctx.date });
+                    setUsedSomethingElseKind(kind);
+                  };
+                  return [
+                    chip('Camera', 'Scan', () => {
+                      closeFirst();
+                      setProductModalRegimenContext({ slot: ctx.slot, date: ctx.date });
+                      setEditingProductId(null);
+                      setProductForm(null);
+                      setProductEntryMode('scan');
+                      setShowProductModal(true);
+                    }),
+                    chip('Plus', 'New product', () => {
+                      closeFirst();
+                      setAddMenuReturnContext({ slot: ctx.slot, date: ctx.date });
+                      setProductModalRegimenContext({ slot: ctx.slot, date: ctx.date });
+                      setEditingProductId(null);
+                      setProductForm(null);
+                      setProductEntryMode('choose');
+                      setShowProductModal(true);
+                    }),
+                    chip('Activity', 'Procedure', () => {
+                      closeFirst();
+                      if (typeof setEditingProcedureId === 'function') setEditingProcedureId(null);
+                      if (typeof setShowProcedureModal === 'function') setShowProcedureModal(true);
+                    }),
+                    chip('Zap', 'Device', () => openOneOff('device')),
+                    chip('Pill', 'Supplement', () => openOneOff('supplement')),
+                    chip('FileText', 'Note', () => openOneOff('note')),
+                  ];
+                })()}
               </div>
 
               {/* Search */}
@@ -18118,45 +18175,9 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   );
                 })()}
               </div>
-              {/* === July 2026 Day 3: one-off escape hatch ===
-                  "Add to today" on Home is now the single door into this
-                  sheet. One-offs (new product, procedure, supplement, note)
-                  moved here as a quiet footer link instead of holding their
-                  own button on the cover. */}
-              <div className="flex items-center justify-center gap-4 pb-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const ctx = { open: true, slot: shelfQuickAddState.slot || 'am', date: shelfQuickAddState.date || localDateISO() };
-                    if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen(null);
-                    setUsedSomethingElseSheet(ctx);
-                  }}
-                  className="transition hover:opacity-70"
-                  style={{background:'transparent', border:'none', color:'var(--ink-soft)', fontSize:10.5, letterSpacing:'0.14em', textTransform:'uppercase', cursor:'pointer'}}
-                >
-                  Add a one-off →
-                </button>
-                {/* July 2026 (quick-edit layer): scan shortcut — closes this
-                    sheet, opens the product scanner with today's slot context
-                    so scanned products land in today's regimen directly. */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const slot = shelfQuickAddState.slot || 'am';
-                    const date = shelfQuickAddState.date || localDateISO();
-                    if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen(null);
-                    setProductModalRegimenContext({ slot, date });
-                    setEditingProductId(null);
-                    setProductForm(null);
-                    setProductEntryMode('scan');
-                    setShowProductModal(true);
-                  }}
-                  className="transition hover:opacity-70"
-                  style={{background:'transparent', border:'none', color:'var(--ink-soft)', fontSize:10.5, letterSpacing:'0.14em', textTransform:'uppercase', cursor:'pointer'}}
-                >
-                  Scan a product →
-                </button>
-              </div>
+              {/* (Footer links replaced July 2026 — the add-anything chip row
+                  at the top of this sheet covers scan, new product,
+                  procedure, device, supplement, and note.) */}
             </div>
           </div>
         );
