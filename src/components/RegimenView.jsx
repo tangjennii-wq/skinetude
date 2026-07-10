@@ -104,6 +104,18 @@ const RegimenView = ({
   // WeeklyPlanEditor grid once a plan exists; the full builder
   // (proposals / refine / start over) sits behind this toggle.
   const [showFullBuilder, setShowFullBuilder] = useState(false);
+  // July 2026 per Jenni (Rotation fold-in): one plan surface, two lenses.
+  // 'product' = the WeeklyPlanEditor grid; 'week' = the calendar/rotation
+  // view. The old Rotation tab is gone; deep links to 'occasions' redirect
+  // here with the week lens pre-selected.
+  const [planLens, setPlanLens] = useState('product');
+  useEffect(() => {
+    if (regimenView === 'occasions') {
+      setPlanLens('week');
+      setRegimenView('build');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regimenView]);
   return (
 <div className="md:max-w-md md:mx-auto pb-6">
   {/* === EDITORIAL HEADER ===
@@ -146,7 +158,6 @@ const RegimenView = ({
         { id: 'build', label: userHasBuiltPattern(products) ? 'Refine' : 'Build' },
         { id: 'today', label: 'Today' },
         { id: 'bench', label: 'Bench' },
-        { id: 'occasions', label: 'Rotation' },
         { id: 'shelf', label: 'Shelf' },
       ]}
       value={regimenView}
@@ -209,6 +220,48 @@ const RegimenView = ({
       pill selection persists across the two views. */}
   {regimenView === 'build' && userHasBuiltPattern(products) && !showFullBuilder && (
     <>
+      {/* === LENS TOGGLE (July 2026 per Jenni) === one plan, two views:
+          edit-in-place by product, or the calendar week lens (the old
+          Rotation surface, folded in — its tab is gone). */}
+      <div className="rounded-full flex p-1 gap-1 mb-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
+        {[
+          { id: 'product', label: 'By product', icon: 'ListChecks' },
+          { id: 'week', label: 'Week view', icon: 'Calendar' },
+        ].map(t => {
+          const active = planLens === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setPlanLens(t.id)}
+              className="flex-1 rounded-full py-2 px-3 flex items-center justify-center gap-1.5 transition"
+              style={{background: active ? 'var(--accent-soft)' : 'transparent', color: active ? 'var(--accent)' : 'var(--ink-soft)', cursor:'pointer'}}
+            >
+              <Icon name={t.icon} size={12} style={{color: active ? 'var(--accent)' : 'var(--ink-soft)'}} />
+              <span className="text-[10.5px] tracking-[0.22em] uppercase">{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      {planLens === 'week' ? (
+        <RegimenOccasionsView
+          logs={logs}
+          products={products}
+          setBuildPlan={setBuildPlan}
+          setRegimenView={setRegimenView}
+          setShowProductModal={setShowProductModal}
+          rotationViewMode={rotationViewMode}
+          setRotationViewMode={setRotationViewMode}
+          rotationTargetSlot={rotationTargetSlot}
+          setRotationTargetSlot={setRotationTargetSlot}
+          setBuildPlanAccepted={setBuildPlanAccepted}
+          setBuildStep={setBuildStep}
+          setWeeklyExpandedDay={setWeeklyExpandedDay}
+          weeklyExpandedDay={weeklyExpandedDay}
+          setRefineIntent={setRefineIntent}
+          setRefineSheetOpen={setRefineSheetOpen}
+        />
+      ) : (
       <WeeklyPlanEditor
         products={products}
         setProducts={setProducts}
@@ -216,6 +269,7 @@ const RegimenView = ({
         setCoverRoutineRebuildToken={setCoverRoutineRebuildToken}
         toast={toast}
       />
+      )}
       <div className="flex justify-center mt-3">
         <button
           type="button"
@@ -223,7 +277,7 @@ const RegimenView = ({
           className="inline-flex items-center gap-1 transition hover:opacity-70"
           style={{background:'transparent', border:'none', color:'var(--ink-soft)', fontWeight:600, fontSize:10, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', padding:'6px 0'}}
         >
-          <span>Open the full builder — refine or rebuild</span>
+          <span>Rebuild routine</span>
           <Icon name="ArrowRight" size={10} />
         </button>
       </div>
@@ -367,25 +421,8 @@ const RegimenView = ({
     <ConcernGuide onOpenLesson={setOpenLesson} framing="regimen" />
   )}
 
-  {regimenView === 'occasions' && (
-    <RegimenOccasionsView
-      logs={logs}
-      products={products}
-      setBuildPlan={setBuildPlan}
-      setRegimenView={setRegimenView}
-      setShowProductModal={setShowProductModal}
-      rotationViewMode={rotationViewMode}
-      setRotationViewMode={setRotationViewMode}
-      rotationTargetSlot={rotationTargetSlot}
-      setRotationTargetSlot={setRotationTargetSlot}
-      setBuildPlanAccepted={setBuildPlanAccepted}
-      setBuildStep={setBuildStep}
-      setWeeklyExpandedDay={setWeeklyExpandedDay}
-      weeklyExpandedDay={weeklyExpandedDay}
-      setRefineIntent={setRefineIntent}
-      setRefineSheetOpen={setRefineSheetOpen}
-    />
-  )}
+  {/* Rotation branch removed July 2026 — folded into the plan grid's
+      week lens above; 'occasions' deep links redirect via the effect. */}
 
   {regimenView === 'sensitivities' && (() => {
     const COMMON_TRIGGERS = ['fragrance', 'essential oils', 'denatured alcohol', 'sulfates', 'lanolin', 'formaldehyde releasers', 'AHAs', 'BHAs', 'physical exfoliants', 'retinol', 'high-strength acids', 'methyl/propyl parabens'];

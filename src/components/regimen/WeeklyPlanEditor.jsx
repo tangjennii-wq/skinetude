@@ -26,6 +26,12 @@
 const WEEKLY_DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 const WeeklyPlanEditor = ({ products, setProducts, saveData, setCoverRoutineRebuildToken, toast }) => {
+  // July 2026 v2 (per Jenni): off-plan products moved out of the inline
+  // list into a CONTEXTUAL floating Bench pill — visible only while this
+  // editor is mounted (Refine view), opening a bottom sheet to schedule
+  // anything benched. Keeps the grid tight and honors the "shelf access
+  // is contextual, never a global floating drawer" ruling.
+  const [benchOpen, setBenchOpen] = useState(false);
   const active = (Array.isArray(products) ? products : []).filter(p => p && !p.endDate);
   const inPlan = active.filter(p => productIsInBuiltRoutine(p));
   const offPlan = active.filter(p => !productIsInBuiltRoutine(p));
@@ -78,6 +84,14 @@ const WeeklyPlanEditor = ({ products, setProducts, saveData, setCoverRoutineRebu
     if (nextDays.length === 0) toast(`${product.name}: no days selected — it won’t appear this week.`, 'info');
   };
 
+  // Remove from the plan entirely — product lands on the bench, cadence
+  // preserved so re-scheduling restores it.
+  const removeFromPlan = (product) => {
+    const updated = sanitizeProductForSave({ ...product, useTimes: [] });
+    persist(products.map(p => p.id === product.id ? updated : p), 'remove-from-plan');
+    toast(`${product.name} moved to the bench.`, 'info');
+  };
+
   const renderRow = (p, scheduled) => {
     const ut = (Array.isArray(p.useTimes) ? p.useTimes : []).map(t => String(t).toLowerCase());
     const days = (p.cadence && Array.isArray(p.cadence.days)) ? p.cadence.days : [];
@@ -112,6 +126,18 @@ const WeeklyPlanEditor = ({ products, setProducts, saveData, setCoverRoutineRebu
                 >{slot}</button>
               );
             })}
+            {scheduled && (
+              <button
+                type="button"
+                onClick={() => removeFromPlan(p)}
+                className="w-7 h-7 rounded-full flex items-center justify-center transition hover:bg-[rgba(201,138,138,0.10)] hover:text-[var(--rose)] cursor-pointer"
+                style={{color:'var(--ink-soft)', opacity:0.65, border:'none', background:'transparent', cursor:'pointer'}}
+                title={`Remove ${p.name} from the weekly plan (moves to the bench)`}
+                aria-label={`Remove ${p.name} from the weekly plan`}
+              >
+                <Icon name="X" size={12} />
+              </button>
+            )}
           </div>
         </div>
         {scheduled && (
@@ -153,20 +179,63 @@ const WeeklyPlanEditor = ({ products, setProducts, saveData, setCoverRoutineRebu
         </p>
       </div>
       {inPlan.length > 0 ? (
-        <div className="mb-3">
+        <div className="mb-1">
           <div className="text-[9px] tracking-[0.25em] uppercase mb-1" style={{color:'var(--ink-soft)', fontWeight:600}}>In your plan</div>
           {inPlan.map(p => renderRow(p, true))}
         </div>
       ) : (
-        <p className="text-[11.5px] leading-snug mb-3" style={{color:'var(--ink-soft)'}}>
-          Nothing scheduled yet. Tap AM or PM on a shelf product below to start.
+        <p className="text-[11.5px] leading-snug mb-1" style={{color:'var(--ink-soft)'}}>
+          Nothing scheduled yet. Open the bench below and tap AM or PM on anything you own.
         </p>
       )}
+
+      {/* === CONTEXTUAL BENCH PILL (July 2026 v2 per Jenni) ===
+          Floating, but scoped: exists only while this editor is on screen.
+          Opens the bench sheet to schedule anything unplanned. */}
       {offPlan.length > 0 && (
-        <div>
-          <div className="text-[9px] tracking-[0.25em] uppercase mb-1" style={{color:'var(--ink-soft)', fontWeight:600}}>On the shelf, not scheduled</div>
-          {offPlan.map(p => renderRow(p, false))}
-        </div>
+        <button
+          type="button"
+          onClick={() => setBenchOpen(true)}
+          className="fixed bottom-24 md:bottom-8 right-4 z-[900] rounded-full px-4 py-3 flex items-center gap-2 shadow-lg transition hover:opacity-90"
+          style={{background:'var(--ink)', color:'var(--cream)', border:'1px solid var(--ink)', fontWeight:700, fontSize:11, letterSpacing:'0.12em', textTransform:'uppercase', cursor:'pointer'}}
+          aria-label={`Open the bench — ${offPlan.length} unscheduled product${offPlan.length === 1 ? '' : 's'}`}
+        >
+          <Icon name="Layers" size={13} />
+          <span>Bench · {offPlan.length}</span>
+        </button>
+      )}
+      {benchOpen && (
+        <>
+          <div className="shelf-bottom-sheet-overlay" onClick={() => setBenchOpen(false)} />
+          <div className="shelf-bottom-sheet" role="dialog" aria-label="Add from the bench">
+            <div className="px-4 pt-4 pb-2 flex items-start justify-between flex-shrink-0">
+              <div className="min-w-0">
+                <div className="font-sans text-[18px]" style={{color:'var(--ink)'}}>The bench</div>
+                <div className="text-[11px] mt-0.5" style={{color:'var(--ink-soft)'}}>
+                  Owned but not in the weekly plan. Tap AM or PM to schedule.
+                </div>
+              </div>
+              <button
+                onClick={() => setBenchOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center transition hover:bg-[var(--cream-deep)] flex-shrink-0"
+                style={{color:'var(--ink-soft)', border:'none', background:'transparent', cursor:'pointer'}}
+                aria-label="Close"
+                type="button"
+              >
+                <Icon name="X" size={14} />
+              </button>
+            </div>
+            <div className="shelf-scroll-area px-4 pb-4">
+              {offPlan.length === 0 ? (
+                <p className="text-[12px] pt-4" style={{color:'var(--ink-soft)'}}>
+                  Bench is empty — everything you own is scheduled.
+                </p>
+              ) : (
+                offPlan.map(p => renderRow(p, false))
+              )}
+            </div>
+          </div>
+        </>
       )}
     </EditorialCard>
   );
