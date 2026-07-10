@@ -209,7 +209,7 @@ CONCERNS: [comma-separated concerns this product targets, ONLY from this list: h
     // mapping than Haiku, especially for Korean/Japanese brands.
     // Keyless (July 2026): Gemini via proxy. With key: Opus stays — its
     // ingredient/concentration knowledge is tighter, esp. K-beauty.
-    const result = getApiKey()
+    const result = hasProseKey()
       ? await callClaude(prompt, '', null, { model: 'claude-opus-4-6', maxTokens: 800 })
       : await callGeminiText(prompt, { maxTokens: 800 });
     const grab = (k) => { const m = result.match(new RegExp(k + ':\\s*(.+)')); return m ? m[1].trim() : ''; };
@@ -282,7 +282,7 @@ Return ONLY a JSON array (no prose, no code fences). Each item must have these e
 Example output:
 [{"name":"Niacinamide 10% + Zinc 1%","brand":"The Ordinary","category":"serum","actives":"Niacinamide 10%, Zinc PCA 1%","main":"Pentylene Glycol, Tamarindus Indica, Glycerin","tags":["niacinamide","oil-control","blemish-prone","texture"],"concerns":["enlarged-pores","oiliness","texture","blemishes"]}]`;
       // Haiku 4.5 — fast for structured product lookups
-      const result = getApiKey()
+      const result = hasProseKey()
         ? await callClaude(prompt, '', null, { model: 'claude-haiku-4-5-20251001', maxTokens: 1200 })
         : await callGeminiText(prompt, { maxTokens: 1200 });
       let parsed = [];
@@ -536,7 +536,7 @@ Up to 10 products. If you genuinely cannot identify any product, return [].`;
       result = await callGeminiVision(photoB64, prompt, { maxTokens: 2048 });
     } catch (gErr) {
       console.warn('[scan-batch] Gemini failed, trying Claude:', gErr?.message);
-      if (getApiKey()) {
+      if (hasProseKey()) {
         try {
           result = await callClaude(prompt, '', photoB64, { model: 'claude-haiku-4-5-20251001', maxTokens: 1500 });
         } catch (cErr) {
@@ -802,7 +802,7 @@ VERDICT: [One dry, decisive line: worth it, skip it, or depends-on-what.]`;
       try {
         if (anyPhoto) result = await callGeminiVision(anyPhoto, prompt, { maxTokens: 600, temperature: 0.3 });
       } catch (gErr) { console.warn('[analyze-fit] Gemini failed:', gErr?.message); }
-      if (!result && getApiKey()) {
+      if (!result && hasProseKey()) {
         try { result = await callClaude(prompt, '', null, { model: 'claude-haiku-4-5-20251001', maxTokens: 600 }); }
         catch (cErr) { console.warn('[analyze-fit] Claude failed:', cErr?.message); }
       }

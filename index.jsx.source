@@ -3326,6 +3326,25 @@ const setApiKey = (k) => {
   catch (e) { console.warn('[setApiKey] localStorage unavailable', e); return false; }
 };
 
+// === OPENAI KEY (July 2026 — multi-provider BYOK per Jenni) ===
+// Many users have an OpenAI key and no Anthropic one. Any single key
+// (Anthropic / OpenAI / Gemini) unlocks the full AI feature set; the
+// universal funnel in callClaude routes to whichever is present.
+const getOpenaiKey = () => {
+  try { return localStorage.getItem('lumiere:openaiKey') || ''; } catch { return ''; }
+};
+const setOpenaiKey = (k) => {
+  try { localStorage.setItem('lumiere:openaiKey', k); return true; }
+  catch (e) { console.warn('[setOpenaiKey] localStorage unavailable', e); return false; }
+};
+// Any BYO key at all — gates the deeper AI features (pattern insight,
+// counsel, color, compare narrative, event prep). Core loop (scan +
+// photo analysis) stays available keyless via the proxy caps.
+const hasAnyAiKey = () => !!(getApiKey() || getOpenaiKey() || getGeminiKey());
+// Prose-capable BYO key (Claude or GPT) — used where we prefer BYO prose
+// over the proxy for voice-heavy output.
+const hasProseKey = () => !!(getApiKey() || getOpenaiKey());
+
 // === ANALYSIS AVAILABILITY (July 2026 — Codex audit P0) ===
 // ONE source of truth for "can a save trigger AI analysis?". The Gemini
 // proxy runs KEYLESS (the Supabase edge function holds the key and
@@ -6662,7 +6681,7 @@ Return JSON in EXACTLY this shape (no markdown fences, no commentary):
     const product = (products || []).find(p => p.id === expandedShelfProductId);
     if (!product) return;
     if (assessingProduct === product.id) return;
-    if (!getApiKey()) return;
+    if (!hasAnyAiKey()) return;
     const existing = productAssessment[product.id] || product.aiAnalysis || '';
     // Detect "structured" format: must have MECHANISM + (EVIDENCE or ALTERNATIVES)
     // labels. Old free-form analyses fail this check and get auto-refreshed so
@@ -6799,7 +6818,7 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
     if (compareSubTab !== 'time') return;
     if (!compareTimeBeforeId) return;
     if (compareTimeAnalyzing) return;
-    if (!getApiKey()) return;
+    if (!hasAnyAiKey()) return;
     const beforeLog = logs.find(l => l.id === compareTimeBeforeId);
     if (!beforeLog) return;
     let afterLog = compareTimeAfterId ? logs.find(l => l.id === compareTimeAfterId) : null;
@@ -6825,7 +6844,7 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
   // Staggered (300ms apart) so we don't fire a wall of simultaneous API calls.
   useEffect(() => {
     if (activeTab !== 'compare' || compareSubTab !== 'procedure') return;
-    if (!getApiKey()) return;
+    if (!hasAnyAiKey()) return;
     const photoLogs = logs.filter(l => l.photoPath || (typeof l.photo === 'string' && l.photo.startsWith('data:')));
     const pendingPairs = [];
     (procedures || []).forEach(p => {
@@ -6867,7 +6886,7 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
   // Today vs ~30 days ago snapshot — auto-analyze on first view.
   useEffect(() => {
     if (activeTab !== 'compare' || compareSubTab !== 'ask') return;
-    if (!getApiKey()) return;
+    if (!hasAnyAiKey()) return;
     const askPhotoLogs = logs
       .filter(l => l.photoPath || (typeof l.photo === 'string' && l.photo.startsWith('data:')))
       .sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -7393,7 +7412,7 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
   const sendChat = async (forcedInput) => {
     const text = (forcedInput || chatInput).trim();
     if (!text || !chatPanel) return;
-    if (!getApiKey()) { setShowApiKeyModal(true); return; }
+    if (!hasAnyAiKey()) { setShowApiKeyModal(true); return; }
     const userMsg = { role: 'user', content: text };
     const newMessages = [...chatPanel.messages, userMsg];
     setChatPanel({...chatPanel, messages: newMessages, suggestions: []});
@@ -7521,7 +7540,7 @@ ${formatUsageForPrompt(_usage)}`;
       const cached = localStorage.getItem(cacheKey);
       if (cached) { setForTodayText(cached); return; }
     } catch (_) {}
-    if (!getApiKey()) return;
+    if (!hasAnyAiKey()) return;
     if (logs.length === 0 && events.filter(e => new Date(e.date) >= new Date()).length === 0 && procedures.length === 0) return;
 
     let cancelled = false;
@@ -8784,15 +8803,109 @@ structure exactly. Let the WORDS inside it be in voice.
 
 `;
 
-  // === CLAUDE API CALL (uses user-provided key, supports vision) ===
+  // Shared default system frame — applied by every provider path.
+  const DEFAULT_AI_SYSTEM = "You are an educational skincare advisor giving evidence-based guidance grounded in peer-reviewed research and recommendations from leading dermatologists (such as those at the AAD). This is informational and educational, not a medical diagnosis. When recommending products, only suggest those with proven active ingredients (retinoids, vitamin C, niacinamide, AHAs/BHAs, peptides, ceramides, hyaluronic acid, sunscreens, etc.) backed by clinical studies. Cite mechanisms of action where relevant. Be warm but precise. Use clean prose with light structure — short paragraphs, sparing use of bold for key terms. If the user describes severe symptoms (pain, infection, rapid change, lesion-like changes), recommend in-person dermatologist or urgent care evaluation directly.";
+
+  // === OPENAI CALL (July 2026 — multi-provider BYOK) ===
+  // Same shape as the Anthropic path: prompt, system, optional image(s),
+  // { model, maxTokens, timeoutMs }. Claude model names map onto the GPT
+  // family (haiku-tier → gpt-4o-mini, everything else → gpt-4o).
+  const callOpenAI = async (prompt, systemContext = '', imageBase64 = null, options = {}) => {
+    const key = getOpenaiKey();
+    if (!key) throw new Error('OpenAI key missing');
+    const requested = String(options.model || '');
+    const model = requested.includes('haiku') ? 'gpt-4o-mini' : 'gpt-4o';
+    const imgPart = (b64) => ({ type: 'image_url', image_url: { url: String(b64).startsWith('data:') ? b64 : `data:image/jpeg;base64,${b64}` } });
+    let userContent;
+    if (Array.isArray(options.images) && options.images.length > 0) {
+      const parts = [];
+      for (const img of options.images) {
+        if (typeof img === 'string') parts.push(imgPart(img));
+        else if (img && img.b64) {
+          if (img.label) parts.push({ type: 'text', text: img.label });
+          parts.push(imgPart(img.b64));
+        }
+      }
+      parts.push({ type: 'text', text: prompt });
+      userContent = parts;
+    } else if (imageBase64) {
+      userContent = [imgPart(imageBase64), { type: 'text', text: prompt }];
+    } else {
+      userContent = prompt;
+    }
+    const controller = new AbortController();
+    const timeoutMs = options.timeoutMs || 60000;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let resp;
+    try {
+      resp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({
+          model,
+          max_tokens: options.maxTokens || 4096,
+          messages: [
+            { role: 'system', content: systemContext || DEFAULT_AI_SYSTEM },
+            { role: 'user', content: userContent },
+          ],
+        }),
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      if (e.name === 'AbortError') throw new Error(`Analysis timed out after ${Math.round(timeoutMs/1000)}s`);
+      throw e;
+    }
+    clearTimeout(timer);
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`OpenAI API error: ${err.slice(0, 300)}`);
+    }
+    const data = await resp.json();
+    return data?.choices?.[0]?.message?.content || '';
+  };
+
+  // === UNIVERSAL LLM FUNNEL (July 2026 per Jenni) ===
+  // Name kept — ~60 call sites — but this routes by whichever key the
+  // user brought: Anthropic → Claude (original behavior below); else
+  // OpenAI → GPT-4o; else Gemini (their key, or Frida's proxy with
+  // per-device daily caps). Every AI feature inherits all three.
   // callClaude(prompt, systemContext, imageBase64, options?)
-  // options = { model?, maxTokens?, voice? } — voice:true prepends the
-  // Frida persona block to the prompt for user-facing surfaces.
+  // options = { model?, maxTokens?, voice?, images?, timeoutMs? } —
+  // voice:true prepends the Frida persona block for user-facing surfaces.
   const callClaude = async (prompt, systemContext = '', imageBase64 = null, options = {}) => {
     const key = getApiKey();
     if (!key) {
-      setShowApiKeyModal(true);
-      throw new Error('API key required');
+      const routedPrompt = options.voice ? (ETUDE_VOICE_PREFIX + prompt) : prompt;
+      if (getOpenaiKey()) return callOpenAI(routedPrompt, systemContext, imageBase64, options);
+      // Gemini path — user's own key or the proxy. Gemini has no separate
+      // system channel here; fold system + prompt together.
+      const merged = (systemContext || DEFAULT_AI_SYSTEM) + '\n\n' + routedPrompt;
+      if (Array.isArray(options.images) && options.images.length > 0) {
+        const parts = [];
+        for (const img of options.images) {
+          const b64 = typeof img === 'string' ? img : (img && img.b64);
+          if (!b64) continue;
+          if (img && typeof img === 'object' && img.label) parts.push({ text: img.label });
+          parts.push({ inlineData: { mimeType: 'image/jpeg', data: String(b64).replace(/^data:image\/\w+;base64,/, '') } });
+        }
+        parts.push({ text: merged });
+        const { resp, viaProxy } = await callGeminiProxied({
+          mode: 'text',
+          model: 'gemini-2.5-flash',
+          payload: { contents: [{ parts }], generationConfig: { maxOutputTokens: options.maxTokens || 4096 } },
+        });
+        if (!resp.ok) {
+          const err = await resp.text();
+          if (viaProxy && resp.status === 429) throw new Error('Gemini daily limit reached (200 calls). Add a key in Settings to keep going.');
+          throw new Error(`Gemini API error: ${err.slice(0, 300)}`);
+        }
+        const data = await resp.json();
+        return (data?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('\n').trim();
+      }
+      return imageBase64
+        ? callGeminiVision(imageBase64, merged, { maxTokens: options.maxTokens || 4096 })
+        : callGeminiText(merged, { maxTokens: options.maxTokens || 4096 });
     }
     // === VOICE INJECTION ===
     // When { voice: true }, prepend the Frida persona block so the response
@@ -8864,7 +8977,7 @@ structure exactly. Let the WORDS inside it be in voice.
         body: JSON.stringify({
           model: options.model || "claude-sonnet-4-6",
           max_tokens: options.maxTokens || 4096,
-          system: systemContext || "You are an educational skincare advisor giving evidence-based guidance grounded in peer-reviewed research and recommendations from leading dermatologists (such as those at the AAD). This is informational and educational, not a medical diagnosis. When recommending products, only suggest those with proven active ingredients (retinoids, vitamin C, niacinamide, AHAs/BHAs, peptides, ceramides, hyaluronic acid, sunscreens, etc.) backed by clinical studies. Cite mechanisms of action where relevant. Be warm but precise. Use clean prose with light structure — short paragraphs, sparing use of bold for key terms. If the user describes severe symptoms (pain, infection, rapid change, lesion-like changes), recommend in-person dermatologist or urgent care evaluation directly.",
+          system: systemContext || DEFAULT_AI_SYSTEM,
           messages: [{ role: "user", content }],
         })
       });
@@ -9368,7 +9481,7 @@ Default UP, not to the middle. If the photo is closer to the upper bucket than t
   const handleInsight = async (forcedQuery) => {
     const query = (forcedQuery || insightQuery).trim();
     if (!query) return;
-    if (!getApiKey()) { setShowApiKeyModal(true); return; }
+    if (!hasAnyAiKey()) { setShowApiKeyModal(true); return; }
 
     const userMsg = { role: 'user', content: query };
     const newMessages = [...insightMessages, userMsg];
@@ -9694,7 +9807,7 @@ ${colorContext}`;
   // active products), ALTERNATIVES (one cheaper + one similar-or-higher with rationale).
   // The structure is parsed by the shelf-card renderer for sectioned display.
   const assessProduct = async (product, opts = {}) => {
-    if (!getApiKey()) { setShowApiKeyModal(true); return; }
+    if (!hasAnyAiKey()) { setShowApiKeyModal(true); return; }
     setAssessingProduct(product.id);
     try {
       // Conflict check should reflect ACTUAL use — not shelf inventory.
@@ -9757,7 +9870,7 @@ ALTERNATIVES:
   // shelf row's parser without modification.
   const offShelfKey = (p) => `${(p?.brand || '').toLowerCase()}|${(p?.name || '').toLowerCase()}`;
   const assessOffShelfProduct = async (p) => {
-    if (!getApiKey()) { setShowApiKeyModal(true); return; }
+    if (!hasAnyAiKey()) { setShowApiKeyModal(true); return; }
     const key = offShelfKey(p);
     if (!key || key === '|') return;
     // Already cached or already running — bail
@@ -9802,7 +9915,7 @@ ALTERNATIVES:
   // Re-roll just the alternatives, keeping the existing analysis. Captures the names of
   // the two current alternatives and instructs the AI not to suggest them again.
   const regenerateProductAlternatives = async (product) => {
-    if (!getApiKey()) { setShowApiKeyModal(true); return; }
+    if (!hasAnyAiKey()) { setShowApiKeyModal(true); return; }
     const existing = productAssessment[product.id] || product.aiAnalysis || '';
     // Mine product names from the existing ALTERNATIVES section so the diversity
     // instruction is concrete: extract the field after `| ` between the price column
@@ -10192,7 +10305,7 @@ ALTERNATIVES:
           // if Gemini fails or returns invalid JSON. Both write the same metricSnapshot
           // shape so downstream consumers don't care which model ran.
           let snap = await extractMetricsWithGemini(photoB64);
-          if (!snap && getApiKey()) { // Haiku fallback needs the Anthropic key; skip keyless
+          if (!snap && hasProseKey()) { // needs a BYO prose key (Claude or GPT); skip keyless
             const snapPrompt = `Look at this skincare progress photo and rate the visible skin. Reply with ONLY this JSON, no prose, no code fences:
 {"redness":"<Clear|Low|Mild|Moderate|High>","hydration":"<Plump|Good|Balanced|Dry|Parched>","texture":"<Smooth|Even|Uneven|Rough|Bumpy>","breakouts":"<Clear|Few|Some|Many|Severe>","barrier":"<Strong|Steady|Holding|Compromised|Stripped>"}
 Pick the single most accurate level per metric. Use the exact capitalized word.`;
@@ -10322,7 +10435,7 @@ Pick the SINGLE most accurate word per METRIC based on what's actually visible. 
       // does that on its path) and metrics via the same extractor. If the
       // metrics call fails, parseSkinMetrics on the prose output (which
       // includes the METRICS: line) still fills the snapshot.
-      const hasClaudeKey = !!getApiKey();
+      const hasClaudeKey = hasProseKey(); // Claude or GPT — funnel routes internally
       console.log('[retryLogAnalysis] prose via', hasClaudeKey ? 'Claude' : 'Gemini proxy', '+ Gemini metrics in parallel');
       const prosePromise = hasClaudeKey
         ? callClaude(prompt, '', photoB64 || null, { voice: true })
@@ -10372,7 +10485,7 @@ Pick the SINGLE most accurate word per METRIC based on what's actually visible. 
 
   // === PATTERN DETECTION ===
   const generatePatternInsight = async () => {
-    if (!getApiKey()) { setShowApiKeyModal(true); return; }
+    if (!hasAnyAiKey()) { setShowApiKeyModal(true); return; }
     setLoadingPattern(true);
     try {
       const recent = logs.slice(0, 30).map(l => `${l.date} | ${l.area} | ${l.rating}/10 | ${l.concerns?.join(',') || '-'} | ${l.notes || ''}`).join('\n');
@@ -10441,7 +10554,7 @@ CRITICAL — only reason from ACTIVELY USED in the routine block below. Products
     };
   };
   const handleGenerateCounselInsight = async (cardId) => {
-    if (!getApiKey()) { setShowApiKeyModal(true); return; }
+    if (!hasAnyAiKey()) { setShowApiKeyModal(true); return; }
     setCounselGenerating(prev => ({ ...prev, [cardId]: true }));
     try {
       const frame = counselSystemFrame();
@@ -10664,7 +10777,7 @@ ${procList}${frame.cycleContext}`;
   const handleCompareAsk = async (forced) => {
     const text = (forced || compareAskInput).trim();
     if (!text) return;
-    if (!getApiKey()) { setShowApiKeyModal(true); return; }
+    if (!hasAnyAiKey()) { setShowApiKeyModal(true); return; }
     const userMsg = { role: 'user', content: text };
     const newMessages = [...compareAskMessages, userMsg];
     setCompareAskMessages(newMessages);
@@ -21952,7 +22065,7 @@ const ProcedureRecommendations = ({ logs, procedures, callClaude, setShowApiKeyM
   const [recs, setRecs] = useState('');
   const [loading, setLoading] = useState(false);
   const fetchRecs = async () => {
-    if (!getApiKey()) { setShowApiKeyModal(true); return; }
+    if (!hasAnyAiKey()) { setShowApiKeyModal(true); return; }
     setLoading(true);
     try {
       const ctx = `Recent skin: ${logs.slice(0, 15).map(l => `${l.date} ${l.area} ${l.rating}/10 [${l.concerns?.join(',') || ''}]`).join('; ')}\nPast procedures: ${procedures.map(p => p.name).join(', ') || 'none'}`;
