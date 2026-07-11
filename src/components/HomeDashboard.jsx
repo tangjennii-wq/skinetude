@@ -3487,33 +3487,10 @@ CRITICAL OUTPUT REQUIREMENTS:
                   );
                 })}
               </div>
-              {/* === EDIT TODAY (July 2026 — quick-edit layer) ===
-                  Quiet text toggle. On: rows expose move + skip controls
-                  and the exit bar (below the list) offers Apply going
-                  forward. Today-only edits; the weekly plan is untouched
-                  unless explicitly applied. */}
-              <div className="flex justify-end -mt-1 mb-2 pr-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!editToday) {
-                      editTodaySnapshotRef.current = {
-                        am: amList.map(p => p && p.id).filter(Boolean),
-                        pm: pmList.map(p => p && p.id).filter(Boolean),
-                      };
-                    } else {
-                      editTodaySnapshotRef.current = null;
-                    }
-                    setEditToday(v => !v);
-                  }}
-                  className="inline-flex items-center gap-1 transition hover:opacity-70"
-                  style={{background:'transparent', border:'none', color: editToday ? 'var(--accent)' : 'var(--ink-soft)', fontWeight:600, fontSize:10, letterSpacing:'0.18em', textTransform:'uppercase', cursor:'pointer', padding:'4px 0'}}
-                  aria-pressed={editToday}
-                >
-                  <Icon name={editToday ? 'X' : 'Pencil'} size={10} />
-                  <span>{editToday ? 'Done editing' : (isFutureView ? 'Edit this day' : 'Edit today')}</span>
-                </button>
-              </div>
+              {/* July 2026 per Jenni: "Edit today" removed from Home — the
+                  cover is the execution surface (circles, Done, Add to
+                  today). Editing lives on the Regimen tab (Refine + the
+                  Today lens's edit mode). */}
               {/* === SLIM NUMBERED LIST (May 2026) ===
                   Replaces the 168px horizontal scroll row of bottle
                   tiles with a compact vertical numbered list. Each
@@ -3629,57 +3606,6 @@ CRITICAL OUTPUT REQUIREMENTS:
                         setCoverRoutineRebuildToken(t => t + 1);
                       }}
                     />
-                  </div>
-                );
-              })()}
-              {/* === EDIT BAR (July 2026 — quick-edit layer) ===
-                  Only in edit mode. Add opens the same sheet as "Add to
-                  today"; Apply promotes this session's additions to the
-                  weekly plan; Done exits. */}
-              {editToday && (() => {
-                const snap = editTodaySnapshotRef.current;
-                const curAm = amList.map(p => p && p.id).filter(Boolean);
-                const curPm = pmList.map(p => p && p.id).filter(Boolean);
-                const addedCount = snap
-                  ? curAm.filter(id => !snap.am.includes(id)).length + curPm.filter(id => !snap.pm.includes(id)).length
-                  : 0;
-                return (
-                  // July 2026 Day 7 (mobile QA P1): was three buttons in one
-                  // row — "Make recurring" truncated at 380px. Now: Add + Done
-                  // on the row; Make recurring as a quiet full-width text link
-                  // beneath (it's the secondary action anyway).
-                  <div className="mb-2 rounded-[12px] px-2 py-2" style={{background:'var(--cream-deep)', border:'1px dashed var(--line)'}}>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => { if (typeof setShelfQuickAddOpen === 'function') setShelfQuickAddOpen({ open: true, slot: ritualSlot, date: viewDate }); }}
-                        className="flex-1 h-9 rounded-full flex items-center justify-center gap-1 transition hover:opacity-90"
-                        style={{background:'transparent', color:'var(--accent)', border:'1px solid var(--accent)', fontWeight:600, fontSize:10, letterSpacing:'0.08em', textTransform:'uppercase', cursor:'pointer'}}
-                      >
-                        <Icon name="Plus" size={11} />
-                        <span>Add to {ritualSlot.toUpperCase()}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { editTodaySnapshotRef.current = null; setEditToday(false); }}
-                        className="h-9 rounded-full px-4 flex items-center justify-center gap-1 transition hover:opacity-90"
-                        style={{background:'var(--ink)', color:'var(--cream)', border:'1px solid var(--ink)', fontWeight:700, fontSize:10, letterSpacing:'0.08em', textTransform:'uppercase', cursor:'pointer'}}
-                      >
-                        <Icon name="Check" size={11} />
-                        <span>Done</span>
-                      </button>
-                    </div>
-                    {addedCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={applyTodayGoingForward}
-                        className="w-full text-center pt-2 transition hover:opacity-70"
-                        style={{background:'transparent', border:'none', color:'var(--ink-soft)', fontSize:10.5, letterSpacing:'0.14em', textTransform:'uppercase', cursor:'pointer', fontWeight:600}}
-                        title="Add this session's new products to your weekly plan"
-                      >
-                        Make {addedCount === 1 ? 'it' : 'these'} recurring →
-                      </button>
-                    )}
                   </div>
                 );
               })()}
