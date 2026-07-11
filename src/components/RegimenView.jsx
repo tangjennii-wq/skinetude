@@ -106,7 +106,7 @@ const RegimenView = ({
   // July 2026 per Jenni (IA consolidation): sub-nav is Refine · Today ·
   // Shelf · Build. Rotation folded into Refine as the week lens; Bench
   // folded into Shelf as a filter. Legacy deep links redirect below.
-  const [planLens, setPlanLens] = useState('product');
+  const [planLens, setPlanLens] = useState('week'); // July 2026 per Jenni: by-day editor is the Refine default — it opens on today
   const [shelfBenchOnly, setShelfBenchOnly] = useState(false);
   // Regimen tab lens: today's execution card vs the weekly calendar.
   const [regimenLens, setRegimenLens] = useState('today');
@@ -196,8 +196,8 @@ const RegimenView = ({
           Rotation surface, folded in — its tab is gone). */}
       <div className="rounded-full flex p-1 gap-1 mb-3" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
         {[
-          { id: 'product', label: 'Products', icon: 'ListChecks' },
           { id: 'week', label: 'Week', icon: 'Calendar' },
+          { id: 'product', label: 'Products', icon: 'ListChecks' },
         ].map(t => {
           const active = planLens === t.id;
           return (
@@ -358,7 +358,7 @@ const RegimenView = ({
       </div>
       {regimenLens === 'today' ? (
     <RegimenTodayView
-      onEditWeeklyPlan={() => { setPlanLens('product'); setRegimenView('build'); }}
+      onEditWeeklyPlan={() => { setPlanLens('week'); setRegimenView('build'); }}
       generatedProductArt={{}}
       buildPlan={buildPlan}
       buildPlanAccepted={buildPlanAccepted}

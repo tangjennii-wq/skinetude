@@ -161,6 +161,10 @@ const WeeklyPlanEditor = ({ products, setProducts, saveData, setCoverRoutineRebu
   // immediately — one tap schedules, the days appear in place. Cleared on
   // sheet close.
   const [recentlyScheduled, setRecentlyScheduled] = useState([]);
+  // July 2026 mobile formatting fix: day chips collapse to a quiet summary
+  // ("daily ▾" / "M·W·F ▾") and only expand for the row being edited —
+  // seven filled circles per product made the grid a wall of red.
+  const [daysOpenId, setDaysOpenId] = useState(null);
   const active = (Array.isArray(products) ? products : []).filter(p => p && !p.endDate);
   const inPlan = active.filter(p => productIsInBuiltRoutine(p));
   const offPlan = active.filter(p => !productIsInBuiltRoutine(p));
@@ -192,6 +196,7 @@ const WeeklyPlanEditor = ({ products, setProducts, saveData, setCoverRoutineRebu
     persist(next, 'toggle-slot');
     const stillIn = (updated.useTimes || []).length > 0;
     if (!has) setRecentlyScheduled(prev => prev.includes(product.id) ? prev : [...prev, product.id]);
+    if (!has) setDaysOpenId(product.id); // fresh schedule → open its days for confirmation
     const dayCount = (updated.cadence && Array.isArray(updated.cadence.days)) ? updated.cadence.days.length : 7;
     const cadenceWord = dayCount === 7 ? 'daily' : `${dayCount}×/wk`;
     toast(
@@ -273,30 +278,54 @@ const WeeklyPlanEditor = ({ products, setProducts, saveData, setCoverRoutineRebu
           </div>
         </div>
         {scheduled && (
-          <div className="flex items-center gap-1">
-            {WEEKLY_DAY_LABELS.map((label, di) => {
-              const on = days.includes(di);
-              return (
-                <button
-                  key={di}
-                  type="button"
-                  onClick={() => toggleDay(p, di)}
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] transition cursor-pointer"
-                  style={{
-                    background: on ? 'var(--accent)' : 'transparent',
-                    color: on ? 'var(--cream)' : 'var(--ink-soft)',
-                    border: '1px solid ' + (on ? 'var(--accent)' : 'var(--line)'),
-                    fontWeight: on ? 700 : 500,
-                  }}
-                  aria-pressed={on}
-                  aria-label={`${p.name}: toggle ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][di]}`}
-                >{label}</button>
-              );
-            })}
-            <span className="ml-1 text-[9px]" style={{color:'var(--ink-soft)'}}>
-              {days.length === 7 ? 'daily' : days.length === 0 ? 'no days' : `${days.length}×/wk`}
-            </span>
-          </div>
+          daysOpenId === p.id ? (
+            <div className="flex items-center gap-1">
+              {WEEKLY_DAY_LABELS.map((label, di) => {
+                const on = days.includes(di);
+                return (
+                  <button
+                    key={di}
+                    type="button"
+                    onClick={() => toggleDay(p, di)}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] transition cursor-pointer"
+                    style={{
+                      background: on ? 'var(--accent)' : 'transparent',
+                      color: on ? 'var(--cream)' : 'var(--ink-soft)',
+                      border: '1px solid ' + (on ? 'var(--accent)' : 'var(--line)'),
+                      fontWeight: on ? 700 : 500,
+                    }}
+                    aria-pressed={on}
+                    aria-label={`${p.name}: toggle ${WEEKLY_DAY_NAMES[di]}`}
+                  >{label}</button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setDaysOpenId(null)}
+                className="w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer flex-shrink-0"
+                style={{color:'var(--accent)', border:'none', background:'transparent', cursor:'pointer'}}
+                aria-label="Done editing days"
+              >
+                <Icon name="Check" size={13} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setDaysOpenId(p.id)}
+              className="inline-flex items-center gap-1 transition hover:opacity-70"
+              style={{background:'transparent', border:'none', color: days.length === 0 ? 'var(--accent)' : 'var(--ink-soft)', fontSize:10.5, fontWeight:600, letterSpacing:'0.06em', cursor:'pointer', padding:'2px 0'}}
+              aria-label={`${p.name}: edit days`}
+            >
+              <span>
+                {days.length === 7 ? 'daily'
+                  : days.length === 0 ? 'no days — tap to pick'
+                  : days.length <= 4 ? days.map(d => ['Su','M','Tu','W','Th','F','Sa'][d]).join('·')
+                  : `${days.length}×/wk`}
+              </span>
+              <Icon name="ChevronDown" size={10} />
+            </button>
+          )
         )}
       </div>
     );
