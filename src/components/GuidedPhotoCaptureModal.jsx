@@ -221,8 +221,14 @@ const GuidedPhotoCaptureModal = ({
     // === AUTO-ADVANCE ===
     // Guided and detailed captures both move to the next requested area so
     // users can keep tapping through without manually choosing every step.
+    // July 2026 per Jenni: the flow no longer STOPS at chin — after the
+    // core five it rolls straight into the focus areas (R eye → L eye →
+    // neck → back → spot). Done is live from the first shot, so the user
+    // stops whenever they want.
     if (!showDetailed && stepIdx < GUIDED_STEPS.length - 1) {
       setTimeout(() => setStepIdx(i => Math.min(i + 1, GUIDED_STEPS.length - 1)), 250);
+    } else if (!showDetailed && stepIdx >= GUIDED_STEPS.length - 1 && allowDetailedAreas) {
+      setTimeout(() => { setShowDetailed(true); setDetailedIdx(0); }, 250);
     } else if (showDetailed && detailedIdx < DETAILED_STEPS.length - 1) {
       setTimeout(() => setDetailedIdx(i => Math.min(i + 1, DETAILED_STEPS.length - 1)), 250);
     }

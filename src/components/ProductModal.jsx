@@ -988,11 +988,11 @@ VERDICT: [One dry, decisive line: worth it, skip it, or depends-on-what.]`;
             });
           } else if (error) {
             console.error('[scan product photo upload]', error);
-            toast('Product saved locally. Cloud photo upload failed.', 'error');
+            { const m = cloudUploadFailureMessage(error); if (m) toast(m, 'error'); }
           }
         })().catch(e => {
           console.error('[scan product photo upload]', e);
-          toast('Product saved locally. Cloud photo upload failed.', 'error');
+          { const m = cloudUploadFailureMessage(e); if (m) toast(m, 'error'); }
         });
       });
     }

@@ -2087,11 +2087,14 @@ CRITICAL OUTPUT REQUIREMENTS:
                                 {scoreOutOf10}
                               </span>
                             </div>
-                            <div className="text-left">
-                              <div className="font-sans flex items-center gap-1.5" style={{fontSize: 24, lineHeight: 1.05, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--ink)'}}>
-                                {word}
+                            <div className="text-left min-w-0">
+                              {/* July 2026 per Jenni: 24px made long words
+                                  ("Holding", "Reactive") shout on mobile —
+                                  the number is the hero, the word annotates. */}
+                              <div className="font-sans flex items-center gap-1.5" style={{fontSize: 17, lineHeight: 1.1, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--ink)'}}>
+                                <span className="truncate">{word}</span>
                                 {analysisIsFresh && (
-                                  <span aria-hidden="true" style={{width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', flexShrink: 0}} />
+                                  <span aria-hidden="true" style={{width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', flexShrink: 0}} />
                                 )}
                               </div>
                               {todayLog?.analyzing && (

@@ -3355,6 +3355,22 @@ const hasProseKey = () => !!(getApiKey() || getOpenaiKey());
 // was the single biggest "why did nothing happen" class in the app).
 const canRunAnalysis = () => true;
 
+// === CLOUD-UPLOAD FAILURE TOASTS (July 2026) ===
+// uploadPhotoToStorage returns precise, actionable errors ("Session
+// expired — sign out and sign back in…") but callers were toasting a
+// generic line per photo — five photos, five identical nags, zero
+// information. One toast per minute, with the real reason.
+let __lastCloudUploadToastAt = 0;
+const cloudUploadFailureMessage = (error) => {
+  const now = Date.now();
+  if (now - __lastCloudUploadToastAt < 60000) return null; // already told them
+  __lastCloudUploadToastAt = now;
+  const detail = String(error || '').slice(0, 140);
+  return detail
+    ? `Photo kept on this device — cloud backup failed: ${detail}`
+    : 'Photo kept on this device — cloud backup failed.';
+};
+
 // === GEMINI API KEY / PROXY ===
 // The Gemini key is no longer shipped in the client bundle. By default all
 // Gemini calls go through a Supabase Edge Function (`gemini-proxy`) which
@@ -14400,11 +14416,11 @@ If the user references something not in their data ("started retinol 6 weeks ago
                     });
                   } else {
                     console.warn('[guided capture] photo upload returned no path');
-                    toast('Photo saved locally. Cloud photo upload did not finish.', 'error');
+                    { const m = cloudUploadFailureMessage(error); if (m) toast(m, 'error'); }
                   }
                 } catch (e) {
                   console.error('[guided capture] photo upload failed:', e);
-                  toast('Photo saved locally. Cloud photo upload failed.', 'error');
+                  { const m = cloudUploadFailureMessage(e); if (m) toast(m, 'error'); }
                 }
               }
             }
@@ -16734,7 +16750,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                   });
                 } else if (error) {
                   console.warn('[CheckIn] photo cloud upload failed:', error);
-                  toast('Photo saved locally. Cloud photo upload did not finish.', 'error');
+                  { const m = cloudUploadFailureMessage(error); if (m) toast(m, 'error'); }
                 }
               })().catch(e => {
                 // July 2026 THE dead-Save bug: this used to be
@@ -16744,7 +16760,7 @@ If the user references something not in their data ("started retinol 6 weeks ago
                 // save, before the modal could close. Guest mode never hit
                 // it, which is why local tests kept passing.
                 console.error('[CheckIn] photo cloud upload exception:', e);
-                toast('Photo saved locally. Cloud photo upload failed.', 'error');
+                { const m = cloudUploadFailureMessage(e); if (m) toast(m, 'error'); }
               });
             });
           }
