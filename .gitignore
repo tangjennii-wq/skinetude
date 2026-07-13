@@ -24,3 +24,6 @@ yarn-error.log*
 *.log
 .fuse_hidden*
 *.bak
+www/
+ios/Pods/
+ios/App/build/

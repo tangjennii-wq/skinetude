@@ -1,0 +1,20 @@
+{
+  "appId": "com.tangskin.frida",
+  "appName": "Frida",
+  "webDir": "www",
+  "backgroundColor": "#FFFFFF",
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#FFFFFF",
+    "allowsLinkPreview": false,
+    "scrollEnabled": true
+  },
+  "server": {
+    "allowNavigation": [
+      "vdtmflgetzilcgtcsogt.supabase.co",
+      "api.anthropic.com",
+      "api.openai.com",
+      "generativelanguage.googleapis.com"
+    ]
+  }
+}
