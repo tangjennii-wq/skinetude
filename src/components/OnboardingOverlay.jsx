@@ -763,13 +763,14 @@ const OnboardingOverlay = ({
             );
           })()}
 
-          {/* === STEP 3 — AI KEY + FIRST READ (magic moment) ===
-              Was step 2 in v1. The user already took a photo last step,
-              so the key ask is justified by an imminent payoff — the
-              read fires the moment they save. Chips populate inline
-              via the existing photoChips watcher in App. If no key,
-              Continue still advances; AI features stay quiet until
-              the user sets one later from the Home header. */}
+          {/* === STEP 3 — FIRST READ (magic moment) ===
+              July 2026 keyless unification: the read now runs FREE via
+              the Gemini proxy — no key required. The guided-capture
+              bridge auto-fires analysis, so the common path lands here
+              already analyzing. A "Read my photo" button covers photos
+              that arrived without the auto-fire (upload path). The
+              Anthropic key input remains as an optional upgrade —
+              BYO key routes the read through Claude instead. */}
           {o.stage === 'key' && (() => {
             const draft = o.apiKeyDraft || '';
             const trimmed = draft.trim();
@@ -794,7 +795,7 @@ const OnboardingOverlay = ({
             };
             return (
               <div>
-                <div className="text-[10px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--accent)', fontWeight:600}}>3 · Your AI Key</div>
+                <div className="text-[10px] tracking-[0.26em] uppercase mb-2" style={{color:'var(--accent)', fontWeight:600}}>3 · First Read</div>
                 <h2 className="font-sans text-[28px] leading-tight mb-2" style={{color:'var(--ink)', fontWeight:700, letterSpacing:'-0.018em'}}>
                   {chips && chips.length > 0 ? 'First read.' : (isAnalyzing ? 'Reading your skin…' : 'Want our read on it?')}
                 </h2>
@@ -803,10 +804,24 @@ const OnboardingOverlay = ({
                     ? 'What we see, in six words.'
                     : (isAnalyzing
                       ? 'Keep going — this finishes in the background.'
-                      : 'Paste an Anthropic key and we\'ll read the photo you just took. Skip and AI stays quiet until you add one.')}
+                      : 'We read it free — no key needed. Got an Anthropic key? Paste it and Claude does the reading instead.')}
                 </p>
 
-                {/* Key input — only shown until a key is saved + read is firing/done */}
+                {/* Keyless first read — fires through the Gemini proxy, no key needed.
+                    Covers photos that arrived without the guided-capture auto-fire. */}
+                {!isAnalyzing && (!chips || chips.length === 0) && hasPhotoToRead && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      set({ photoAnalyzing: true, photoChips: null });
+                      if (typeof retryLogAnalysis === 'function') retryLogAnalysis(o.photoLogId).catch(() => {});
+                    }}
+                    className="w-full rounded-full py-3 px-5 transition hover:opacity-90 mb-4"
+                    style={{background:'var(--accent)', color:'var(--cream)', border:'1px solid var(--accent)', fontWeight:600, fontSize:12, letterSpacing:'0.18em', cursor:'pointer', textTransform:'uppercase'}}
+                  >Read my photo</button>
+                )}
+
+                {/* Key input — optional upgrade; shown until a key is saved + read is firing/done */}
                 {!isAnalyzing && (!chips || chips.length === 0) && (
                   <>
                     <input

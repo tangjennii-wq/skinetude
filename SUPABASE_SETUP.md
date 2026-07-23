@@ -6,9 +6,9 @@ Gemini API key lives server-side instead of being shipped in the client bundle.
 **What you get**
 
 - Gemini key hidden behind Supabase, not visible in the deployed JS.
-- Per-device daily caps: **40 image generations + 200 text/vision calls**
-  (~$2/user/day worst-case ceiling). Capped per-`localStorage`-UUID, resets
-  at midnight UTC.
+- Per-device daily caps: **5 image generations + 50 text/vision calls**
+  (July 2026 free-tier sizing — see below). Capped per-`localStorage`-UUID,
+  resets at midnight UTC.
 - CORS locked to `https://tangjennii-wq.github.io`.
 - BYO-key escape hatch: if a user pastes their own Gemini key in Settings,
   the app talks to Google directly and bypasses the proxy + caps.
@@ -70,6 +70,23 @@ dashboard's SQL editor and click **Run**.
 ### 4. Set the Gemini API key as a secret
 
 Get a key at https://aistudio.google.com/apikey if you don't have one.
+
+**Free-tier mode (July 2026).** The app now runs entirely on Gemini, so the
+key here can be a plain free-tier AI Studio key and the whole stack costs $0.
+Two things to know about free tier:
+
+- Quota is **per-project, not per-device** — every user shares one daily
+  pool (roughly a few hundred `gemini-2.5-flash` requests/day; Google shows
+  the live numbers at https://aistudio.google.com/rate-limit). The per-device
+  caps (5 image / 50 text) exist so one heavy user can't drain it.
+- **Image generation (Nano Banana) may have little or no free quota** on
+  your project. The client already degrades to text/icon product art when
+  image calls fail — nothing breaks, bottles just stay abstract.
+
+To scale past friends-and-family later: enable billing on the Google
+project (same key keeps working), then raise `DAILY_CAPS` in
+`supabase/functions/gemini-proxy/index.ts` back toward the old paid sizing
+(40 image / 200 text ≈ $2/device/day worst case) and redeploy.
 **Important**: rotate the old `AIzaSyACBlFyOukgnhCf8...` key — it was previously
 hardcoded in the public bundle, so treat it as compromised.
 
@@ -169,8 +186,8 @@ supabase secrets set GEMINI_API_KEY=NEW_KEY
 - **`missing_or_invalid_device_id`**: `x-device-id` header missing or
   not UUID-shaped. The client sets this automatically; clearing
   localStorage and reloading will regenerate it.
-- **`rate_limit_exceeded`**: that device hit 30 images or 100 text calls
-  for today. Either wait until midnight UTC, paste a personal Gemini key
+- **`rate_limit_exceeded`**: that device hit its daily cap (see
+  `DAILY_CAPS` — currently 5 images / 50 text calls) for today. Either wait until midnight UTC, paste a personal Gemini key
   in Settings to bypass, or query the table to bump it manually.
 - **Function logs**: `supabase functions logs gemini-proxy` (or the
   Logs tab in the dashboard) — every call writes its outcome.

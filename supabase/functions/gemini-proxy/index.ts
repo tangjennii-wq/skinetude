@@ -3,7 +3,7 @@
 // Proxies Google Gemini API calls so the API key lives in Supabase secrets
 // instead of being shipped in the client bundle. Enforces:
 //   - CORS allowlist (only the deployed app origin)
-//   - Per-device daily caps (30 image gens, 100 text/vision calls)
+//   - Per-device daily caps (see DAILY_CAPS — free-tier sizing)
 //
 // Identity = client-generated UUID sent in `x-device-id`. No Supabase auth.
 // Deploy with --no-verify-jwt so the browser doesn't need an anon key.
@@ -26,16 +26,25 @@ const ALLOWED_ORIGINS = new Set([
   "null", // file:// origins (when opening index.html directly) report as "null"
 ]);
 
-// Per-device daily caps. Sized so a user who maxes BOTH caps in one day stays
-// under ~$2 in Gemini API charges (cost ceiling per device per day).
-//   - 40 image gens × ~$0.039 = ~$1.56  (Gemini 2.5 Flash Image / Nano Banana)
-//   - 200 text/vision calls × ~$0.002 = ~$0.40  (Gemini 2.5 Flash)
-//   = ~$1.96/day combined worst case.
-// Bumped from 30/100 (~$1.36 ceiling) to give realistic users more headroom
-// without blowing past $2/user/day.
+// Per-device daily caps.
+//
+// === FREE-TIER SIZING (July 2026) ===
+// The proxy now runs on a FREE-TIER Google AI Studio key ($0). Free-tier
+// quota is per-PROJECT, not per-device — every user draws from one shared
+// daily pool (roughly a few hundred Flash requests/day; Google no longer
+// publishes exact numbers — check aistudio.google.com/rate-limit). These
+// per-device caps exist so one heavy user can't drain the whole pool:
+//   - text 50/day/device ≈ a full day of check-ins + chat for one person
+//   - image 5/day/device ≈ product-art gen trickles in over a few days
+// Image gen (Nano Banana) has little/no free-tier quota on many projects —
+// the client already degrades to text/icon product art when it fails.
+//
+// To flip back to a paid key later: `supabase secrets set GEMINI_API_KEY=…`
+// with a billing-enabled key, and consider restoring the old paid-tier caps
+// (image: 40, text: 200 — ~$2/device/day worst case at 2026 Flash pricing).
 const DAILY_CAPS = {
-  image: 40,
-  text: 200,
+  image: 5,
+  text: 50,
 } as const;
 
 type Mode = keyof typeof DAILY_CAPS;

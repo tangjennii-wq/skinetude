@@ -110,7 +110,7 @@ const SkinLogModal = ({
     if (!file) return;
     const b64 = await fileToBase64(file);
     setForm(f => ({ ...f, photo: b64, ratingExplanation: null, suggestedRating: null }));
-    if (getApiKey()) {
+    if (canRunAnalysis()) {
       suggestRating(b64);
     }
   };
@@ -118,7 +118,7 @@ const SkinLogModal = ({
   const suggestRating = async (photoOverride) => {
     const photo = photoOverride || form.photo;
     if (!photo) return;
-    if (!getApiKey()) { setShowApiKeyModal(true); return; }
+    if (!canRunAnalysis()) { setShowApiKeyModal(true); return; }
     setSuggestingRating(true);
     try {
       const prompt = `You are an educational skin analyzer reviewing a photo of someone's ${form.area.replace(/-/g, ' ')} for a personal tracking app. This is a visual observation, not a medical diagnosis. Rate the visible skin condition objectively on a 1–10 scale where:
@@ -190,7 +190,7 @@ PRODUCT RECOMMENDATIONS:
         const enriched = {
           ...safeForm,
           usedTags: mergedTags,
-          ...(photoChanged && getApiKey() ? { aiAnalysis: null, analyzing: true, analyzingStartedAt: Date.now() } : {})};
+          ...(photoChanged && canRunAnalysis() ? { aiAnalysis: null, analyzing: true, analyzingStartedAt: Date.now() } : {})};
         const updated = logs.map(l => l.id === editingLogId ? { ...l, ...enriched } : l)
           .sort((a, b) => new Date(b.date) - new Date(a.date));
         setLogs(updated);
@@ -206,13 +206,13 @@ PRODUCT RECOMMENDATIONS:
         // also needs to know cross-surface reads (Skin Snapshot,
         // last7Avg, concern tally) will refresh — "Snapshot
         // refreshing" surfaces that without listing each surface.
-        toast(photoChanged && getApiKey() ? 'Entry updated — Snapshot refreshing' : 'Entry updated · Snapshot refreshing');
+        toast(photoChanged && canRunAnalysis() ? 'Entry updated — Snapshot refreshing' : 'Entry updated · Snapshot refreshing');
         saveData('logs', updated).catch(e => {
           console.error('[SkinLog] edit saveData failed:', e);
           toast(`Save error: ${e?.message || 'unknown'}`, 'error');
         });
 
-        if (photoChanged && getApiKey() && safeForm.photo) {
+        if (photoChanged && canRunAnalysis() && safeForm.photo) {
           (async () => {
             try {
               const recentContext = logs.slice(0, 5).map(l => `${l.date}: ${l.area} ${l.rating}/10 [${l.concerns?.join(',') || ''}]`).join('; ') || 'no prior entries';
@@ -320,8 +320,8 @@ ${formatUsageForPrompt(usage30)}`;
           id: id + i,
           daypart: sharedFields.daypart || (new Date().getHours() < 12 ? 'am' : 'pm'),
           aiAnalysis: null,
-          analyzing: getApiKey() ? true : false,
-          analyzingStartedAt: getApiKey() ? Date.now() : undefined}));
+          analyzing: canRunAnalysis() ? true : false,
+          analyzingStartedAt: canRunAnalysis() ? Date.now() : undefined}));
         updated = [...logs, ...newEntries].sort((a, b) => new Date(b.date) - new Date(a.date));
         toast(`${newEntries.length} entries saved`, 'info');
       } else {
@@ -331,8 +331,8 @@ ${formatUsageForPrompt(usage30)}`;
           id,
           daypart: safeForm.daypart || (new Date().getHours() < 12 ? 'am' : 'pm'),
           aiAnalysis: null,
-          analyzing: getApiKey() ? true : false,
-          analyzingStartedAt: getApiKey() ? Date.now() : undefined};
+          analyzing: canRunAnalysis() ? true : false,
+          analyzingStartedAt: canRunAnalysis() ? Date.now() : undefined};
         delete newLog.photos;
         delete newLog.inlineProc;
         delete newLog.inlineProductStart;
@@ -454,7 +454,7 @@ ${formatUsageForPrompt(usage30)}`;
     }
 
     // === BACKGROUND AI per-entry analysis ===
-    if (getApiKey() && newEntries.length > 0) {
+    if (canRunAnalysis() && newEntries.length > 0) {
       if (newEntries.length === 1) {
         // === T5 FIX (May 2026) === — append the cross-surface cue.
         toast('Entry saved — analyzing in the background… · Snapshot refreshing', 'info');
@@ -668,9 +668,9 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                 <div className="text-[10px]" style={{color:'var(--ink-soft)'}}>Analyzing photo…</div>
               </div>
             )}
-            {!suggestingRating && !form.ratingExplanation && !getApiKey() && (
+            {!suggestingRating && !form.ratingExplanation && form.photo && (
               <button type="button" onClick={() => suggestRating()} className="w-full border py-1.5 tracking-widest text-[10px] uppercase transition flex items-center justify-center gap-1.5" style={{borderColor:'var(--ink)', color:'var(--ink)'}}>
-                <Icon name="Sparkles" size={11} /> Add API key to auto-analyze
+                <Icon name="Sparkles" size={11} /> Analyze photo
               </button>
             )}
             {form.ratingExplanation && (
@@ -730,7 +730,7 @@ Pick the single most accurate level per metric. Use the exact capitalized word.`
                 const url = dataUrl || (finalShots && finalShots[0]?.dataUrl);
                 if (!url) return;
                 setForm(f => ({ ...f, photo: url, photos: null, ratingExplanation: null, suggestedRating: null }));
-                if (getApiKey()) {
+                if (canRunAnalysis()) {
                   setTimeout(() => suggestRating(url), 0);
                 }
               }

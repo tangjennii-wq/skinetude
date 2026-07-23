@@ -185,7 +185,7 @@ const CompareView = ({
   // Run AI on the chosen pair (Time tab only — Product/Procedure use their own modals).
   const runTimeAnalysis = async () => {
     if (!beforeLog || !afterLog) return;
-    if (!getApiKey()) { setShowApiKeyModal(true); return; }
+    if (!canRunAnalysis()) { setShowApiKeyModal(true); return; }
     setCompareTimeAnalyzing(true);
     try {
       const days = Math.abs(Math.ceil((new Date(afterLog.date) - new Date(beforeLog.date)) / 86400000));
@@ -751,7 +751,7 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                       <p className="font-sans text-sm flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
                         <Icon name="Loader2" size={13} className="spin" style={{color:'var(--accent)'}} /> Reading the difference between these two photos…
                       </p>
-                    ) : !getApiKey() ? (
+                    ) : !canRunAnalysis() ? (
                       <button onClick={() => setShowApiKeyModal(true)} className="text-[11px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
                         <Icon name="Key" size={11} /> Add API key to auto-analyze
                       </button>
@@ -1331,7 +1331,7 @@ CONTENT: cover (1) what visibly changed and the most likely contributor — cite
                                 <p className="font-sans text-sm flex items-center gap-2" style={{color:'var(--ink-soft)'}}>
                                   <Icon name="Loader2" size={13} className="spin" style={{color:'var(--accent)'}} /> Reading the difference…
                                 </p>
-                              ) : !getApiKey() ? (
+                              ) : !canRunAnalysis() ? (
                                 <button onClick={() => setShowApiKeyModal(true)} className="text-[11px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
                                   <Icon name="Key" size={11} /> Add API key to auto-analyze
                                 </button>

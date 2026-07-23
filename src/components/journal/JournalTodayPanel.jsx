@@ -847,14 +847,14 @@ const JournalTodayPanel = ({
               drawer required. Renders the AI analysis bullets
               with the new tagged renderer (Observe / Why / Try
               icons), plus a quiet re-analyze affordance. */}
-          {todayLog && (todayLog.aiAnalysis || todayLog.analyzing || (!todaySnap && getApiKey())) && (
+          {todayLog && (todayLog.aiAnalysis || todayLog.analyzing || (!todaySnap && canRunAnalysis())) && (
             <div className="rounded-[14px] px-4 py-4" style={{background:'var(--cream-deep)', border: '1px solid var(--line)'}}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-1.5" style={{color:'var(--accent)'}}>
                   <Icon name="Sparkles" size={11} />
                   <span className="text-[10px] tracking-[0.22em] uppercase">Frida analysis</span>
                 </div>
-                {todayLog.aiAnalysis && getApiKey() && retryingLogId !== todayLog.id && (
+                {todayLog.aiAnalysis && canRunAnalysis() && retryingLogId !== todayLog.id && (
                   <button
                     onClick={() => retryLogAnalysis(todayLog.id)}
                     className="text-[9.5px] tracking-[0.22em] uppercase flex items-center gap-1 transition hover:opacity-70"
@@ -875,7 +875,7 @@ const JournalTodayPanel = ({
                   IconComponent={Icon}
                   withPearlsFn={withPearls}
                 />
-              ) : !getApiKey() ? (
+              ) : !canRunAnalysis() ? (
                 <button onClick={() => setShowApiKeyModal(true)} className="text-[11px] tracking-[0.18em] uppercase flex items-center gap-1.5 transition hover:opacity-70" style={{color:'var(--accent)'}}>
                   <Icon name="Key" size={11} /> Add API key to read this photo
                 </button>

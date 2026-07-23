@@ -37,7 +37,7 @@ const ColorModal = ({
     if (!file) return;
     const b64 = await fileToBase64(file);
     setForm(f => ({...f, photo: b64, aiAnalysis: null})); // reset AI analysis on new photo
-    if (getApiKey()) {
+    if (canRunAnalysis()) {
       analyzePhoto(b64);
     }
   };
@@ -45,7 +45,7 @@ const ColorModal = ({
   const analyzePhoto = async (photoOverride) => {
     const photo = photoOverride || form.photo;
     if (!photo) return;
-    if (!getApiKey()) { setShowApiKeyModal(true); return; }
+    if (!canRunAnalysis()) { setShowApiKeyModal(true); return; }
     setAnalyzing(true);
     try {
       const userInputs = `User self-reported:
@@ -188,10 +188,10 @@ CONFIDENCE: [high/medium/low — and brief reason like "lighting is even and nat
                 </div>
               )}
 
-              {/* No API key — fallback */}
-              {!analyzing && !form.aiAnalysis && !getApiKey() && (
+              {/* Manual analyze fallback — runs keyless via the proxy */}
+              {!analyzing && !form.aiAnalysis && form.photo && (
                 <button type="button" onClick={() => analyzePhoto()} className="w-full border py-3 tracking-widest text-xs uppercase transition flex items-center justify-center gap-2" style={{borderColor:'var(--ink)', color:'var(--ink)'}}>
-                  <Icon name="Sparkles" size={14} /> Add API key to auto-analyze
+                  <Icon name="Sparkles" size={14} /> Analyze photo
                 </button>
               )}
 

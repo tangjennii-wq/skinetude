@@ -72,7 +72,7 @@ const JournalCompactPanel = ({
       }
 
       const generateWeekInsight = async (week) => {
-        if (!getApiKey()) { setShowApiKeyModal(true); return; }
+        if (!canRunAnalysis()) { setShowApiKeyModal(true); return; }
         setWeeklyInsightLoading(prev => ({ ...prev, [week.weekKey]: true }));
         try {
           const usage = getActualUsage(products, regimenLogs, logs, { windowDays: 30 });

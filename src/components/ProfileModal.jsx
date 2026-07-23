@@ -283,7 +283,9 @@ Respond ONLY with this JSON, no prose, no code fences:
       return;
     }
     // Kick off AI summary — non-blocking, shows inline on the wizard.
-    if (getApiKey()) {
+    // July 2026 keyless unification: runs through the callClaude funnel,
+    // which serves keyless users via the Gemini proxy.
+    if (canRunAnalysis()) {
       setProfileSummaryLoading(true);
       setProfileSummaryError(null);
       const profileLines = [];
